@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "dyetracker",
+  "version": "${version}",
+  "name": "Dye Tracker",
+  "description": "A client-side mod for tracking dye usage and inventory.",
+  "authors": ["DyeTracker Team"],
+  "contact": {
+    "homepage": "https://dyetracker.com",
+    "sources": "https://github.com/dyetracker/dye-tracker-mod"
+  },
+  "license": "MIT",
+  "icon": "assets/dyetracker/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "main": [
+      {
+        "adapter": "kotlin",
+        "value": "com.dyetracker.DyeTrackerMod"
+      }
+    ]
+  },
+  "mixins": [],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "fabric-language-kotlin": ">=1.12.3+kotlin.2.0.21",
+    "minecraft": "~1.21.4",
+    "java": ">=21"
+  }
+}
