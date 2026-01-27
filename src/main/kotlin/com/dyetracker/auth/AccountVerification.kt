@@ -135,9 +135,27 @@ object AccountVerification {
                     config.copy(
                         linkedUuid = verifyData.uuid,
                         linkedUsername = verifyData.username,
-                        authToken = verifyData.uuid // For now, use UUID as simple token
+                        authToken = verifyData.token
                     )
                 }
+
+                // Step 5: Verify token works by calling /auth/me
+                DyeTrackerMod.info("[5/5] Verifying token with /auth/me...")
+                val meResult = ApiClient.getMe()
+                if (meResult is ApiClient.ApiResult.Error) {
+                    DyeTrackerMod.warn("[5/5] Token verification failed: {}", meResult.message)
+                    // Clear the config since token doesn't work
+                    ConfigManager.update { config ->
+                        config.copy(linkedUuid = "", linkedUsername = "", authToken = "")
+                    }
+                    return@supplyAsync VerificationResult(
+                        success = false,
+                        message = "Token verification failed: ${meResult.message}"
+                    )
+                }
+
+                val meData = (meResult as ApiClient.ApiResult.Success).data
+                DyeTrackerMod.info("[5/5] Token verified! Authenticated as: {}", meData.username)
 
                 DyeTrackerMod.info("Account verification successful for {}", verifyData.username)
 

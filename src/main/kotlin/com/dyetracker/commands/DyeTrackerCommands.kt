@@ -163,6 +163,21 @@ object DyeTrackerCommands {
                             .formatted(Formatting.DARK_GRAY)
                     )
             )
+            // Show token status
+            val hasToken = ConfigManager.config.authToken.isNotEmpty()
+            source.sendFeedback(
+                Text.literal("Auth Token: ")
+                    .formatted(Formatting.GRAY)
+                    .append(
+                        if (hasToken) {
+                            Text.literal("Valid")
+                                .formatted(Formatting.GREEN)
+                        } else {
+                            Text.literal("Missing")
+                                .formatted(Formatting.RED)
+                        }
+                    )
+            )
         } else {
             source.sendFeedback(
                 Text.literal("Account Status: ")

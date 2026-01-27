@@ -24,6 +24,7 @@ object ApiClient {
     }
 
     private const val CONTENT_TYPE_JSON = "application/json"
+    private const val AUTH_HEADER = "Authorization"
 
     /**
      * Result of an API call.
@@ -31,6 +32,22 @@ object ApiClient {
     sealed class ApiResult<out T> {
         data class Success<T>(val data: T) : ApiResult<T>()
         data class Error(val message: String, val statusCode: Int = 0) : ApiResult<Nothing>()
+    }
+
+    /**
+     * Get the auth token from config if available.
+     */
+    private fun getAuthHeader(): String? {
+        val token = ConfigManager.config.authToken
+        return if (token.isNotEmpty()) "Bearer $token" else null
+    }
+
+    /**
+     * Add auth header to request builder if token is available.
+     */
+    private fun HttpRequest.Builder.withAuth(): HttpRequest.Builder {
+        getAuthHeader()?.let { header(AUTH_HEADER, it) }
+        return this
     }
 
     /**
@@ -100,6 +117,42 @@ object ApiClient {
             }
         } catch (e: Exception) {
             DyeTrackerMod.error("complete-verify exception", e)
+            ApiResult.Error("Network error: ${e.message}")
+        }
+    }
+
+    /**
+     * Verify the current auth token by calling /auth/me.
+     * Returns user info if token is valid.
+     */
+    fun getMe(): ApiResult<AuthMeResponse> {
+        val url = "${ConfigManager.config.apiUrl}/api/v1/auth/me"
+
+        DyeTrackerMod.info("API: GET {} (verifying token)", url)
+
+        return try {
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", CONTENT_TYPE_JSON)
+                .withAuth()
+                .GET()
+                .timeout(Duration.ofSeconds(15))
+                .build()
+
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            DyeTrackerMod.info("API: Response status={}", response.statusCode())
+
+            if (response.statusCode() == 200) {
+                val data = json.decodeFromString<AuthMeResponse>(response.body())
+                DyeTrackerMod.info("API: Token verified for user={}", data.username)
+                ApiResult.Success(data)
+            } else {
+                val error = parseError(response.body())
+                DyeTrackerMod.warn("Token verification failed: {} ({})", error, response.statusCode())
+                ApiResult.Error(error, response.statusCode())
+            }
+        } catch (e: Exception) {
+            DyeTrackerMod.error("getMe exception", e)
             ApiResult.Error("Network error: ${e.message}")
         }
     }

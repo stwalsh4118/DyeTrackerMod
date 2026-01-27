@@ -17,7 +17,8 @@ data class StartVerifyResponse(
 data class CompleteVerifyResponse(
     val success: Boolean,
     val uuid: String,
-    val username: String
+    val username: String,
+    val token: String
 )
 
 /**
@@ -28,4 +29,14 @@ data class ApiErrorResponse(
     val error: String,
     val message: String,
     val status: Int
+)
+
+/**
+ * Response from GET /api/v1/auth/me
+ */
+@Serializable
+data class AuthMeResponse(
+    val authenticated: Boolean,
+    val uuid: String,
+    val username: String
 )
