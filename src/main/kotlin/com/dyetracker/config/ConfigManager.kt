@@ -53,9 +53,11 @@ object ConfigManager {
      */
     fun load() {
         try {
+            DyeTrackerMod.info("Config path: {}", configPath.toAbsolutePath())
             ensureConfigDirExists()
 
             if (Files.exists(configPath)) {
+                DyeTrackerMod.info("Loading existing config from {}", configPath.toAbsolutePath())
                 val content = Files.readString(configPath)
                 config = try {
                     json.decodeFromString<ModConfig>(content)
@@ -63,8 +65,9 @@ object ConfigManager {
                     DyeTrackerMod.warn("Failed to parse config file, using defaults: {}", e.message)
                     ModConfig()
                 }
+                DyeTrackerMod.info("Config loaded: apiUrl={}", config.apiUrl)
             } else {
-                DyeTrackerMod.info("Config file not found, creating default configuration")
+                DyeTrackerMod.info("Config file not found, creating default at {}", configPath.toAbsolutePath())
                 config = ModConfig()
                 save()
             }
@@ -82,7 +85,7 @@ object ConfigManager {
             ensureConfigDirExists()
             val content = json.encodeToString(config)
             Files.writeString(configPath, content)
-            DyeTrackerMod.debug("Configuration saved to {}", configPath)
+            DyeTrackerMod.info("Configuration saved to {}", configPath.toAbsolutePath())
         } catch (e: Exception) {
             DyeTrackerMod.error("Failed to save configuration", e)
         }
