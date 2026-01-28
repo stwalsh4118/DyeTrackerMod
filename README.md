@@ -74,12 +74,34 @@ cd DyeTrackerMod
 
 The mod stores its configuration in `.minecraft/config/dyetracker.json`. This includes your linked account credentials (stored locally and securely).
 
-## Privacy
+## Privacy & Security
 
-- The mod only communicates with DyeTracker servers and Mojang's session servers
-- Your Minecraft session is verified through Mojang's official authentication system
-- No passwords or sensitive credentials are ever transmitted
-- You can unlink your account at any time
+### What this mod accesses
+
+| Data | Used For | Sent To |
+|------|----------|---------|
+| Username | Account linking | DyeTracker API |
+| UUID | Account identification | DyeTracker API |
+| Session Token | Prove account ownership | Mojang only (never DyeTracker) |
+
+Your Minecraft session token is **never** sent to DyeTracker servers - only to Mojang's official authentication servers.
+
+### How verification works
+
+The mod uses Minecraft's standard server authentication flow - the same method every Minecraft server uses when you join:
+
+1. You enter a link code from the website
+2. The mod calls Mojang's official `sessionserver.mojang.com` to prove you own your account
+3. DyeTracker's server verifies with Mojang that the authentication succeeded
+4. A session token is saved locally for future API calls
+
+**Your Minecraft session token is only ever sent to Mojang's official servers, never to DyeTracker.** This is the same secure flow used by every Minecraft server you've ever joined.
+
+### Data storage
+
+- Credentials are stored locally in `.minecraft/config/dyetracker.json`
+- You can unlink your account at any time with `/dyetracker unlink`
+- Unlinking deletes all stored credentials
 
 ## License
 
