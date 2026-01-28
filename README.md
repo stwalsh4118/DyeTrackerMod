@@ -10,14 +10,14 @@ A Fabric mod for Minecraft that integrates with the [DyeTracker](https://dye-tra
 
 ## Requirements
 
-- Minecraft 1.21.4
-- [Fabric Loader](https://fabricmc.net/) 0.16.10+
+- Minecraft 1.21+
+- [Fabric Loader](https://fabricmc.net/) 0.16.0+
 - [Fabric API](https://modrinth.com/mod/fabric-api) 0.115.0+
 - [Fabric Language Kotlin](https://modrinth.com/mod/fabric-language-kotlin) 1.12.3+
 
 ## Installation
 
-1. Install Fabric Loader for Minecraft 1.21.4
+1. Install Fabric Loader for Minecraft 1.21+
 2. Download the required dependencies (Fabric API, Fabric Language Kotlin)
 3. Download the latest DyeTracker mod from [Releases](https://github.com/stwalsh4118/DyeTrackerMod/releases)
 4. Place all `.jar` files in your `.minecraft/mods` folder
