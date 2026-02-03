@@ -2,6 +2,9 @@ package com.dyetracker
 
 import com.dyetracker.commands.DyeTrackerCommands
 import com.dyetracker.config.ConfigManager
+import com.dyetracker.events.ChatEventHandler
+import com.dyetracker.events.InventoryHandler
+import com.dyetracker.events.TablistHandler
 import net.fabricmc.api.ModInitializer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -86,6 +89,12 @@ class DyeTrackerMod : ModInitializer {
         // Register commands
         DyeTrackerCommands.register()
         info("Commands registered")
+
+        // Register RNG data capture handlers
+        ChatEventHandler.register()
+        InventoryHandler.register()
+        TablistHandler.register()
+        info("RNG data handlers registered")
 
         info("DyeTracker initialized successfully")
     }

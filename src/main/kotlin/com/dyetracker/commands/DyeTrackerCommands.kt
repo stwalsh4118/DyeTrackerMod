@@ -3,6 +3,9 @@ package com.dyetracker.commands
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.auth.AccountVerification
 import com.dyetracker.config.ConfigManager
+import com.dyetracker.data.DungeonFloor
+import com.dyetracker.data.RngDataStore
+import com.dyetracker.data.SlayerType
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.StringArgumentType
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager
@@ -59,6 +62,13 @@ object DyeTrackerCommands {
                     ClientCommandManager.literal("unlink")
                         .executes { context ->
                             handleUnlinkCommand(context.source)
+                            1
+                        }
+                )
+                .then(
+                    ClientCommandManager.literal("show")
+                        .executes { context ->
+                            handleShowCommand(context.source)
                             1
                         }
                 )
@@ -220,6 +230,134 @@ object DyeTrackerCommands {
         )
     }
 
+    private fun handleShowCommand(source: FabricClientCommandSource) {
+        val data = RngDataStore.getData()
+
+        if (!data.hasData()) {
+            source.sendFeedback(
+                Text.literal("No RNG data captured yet.")
+                    .formatted(Formatting.YELLOW)
+            )
+            source.sendFeedback(
+                Text.literal("Open RNG meter menus in-game to capture data.")
+                    .formatted(Formatting.GRAY)
+            )
+            return
+        }
+
+        source.sendFeedback(
+            Text.literal("=== RNG Data ===")
+                .formatted(Formatting.GOLD, Formatting.BOLD)
+        )
+
+        // Show slayer meters
+        if (data.slayerMeters.isNotEmpty()) {
+            source.sendFeedback(
+                Text.literal("Slayer RNG Meters:")
+                    .formatted(Formatting.AQUA)
+            )
+            for ((slayerType, meter) in data.slayerMeters) {
+                val itemInfo = if (meter.selectedItem != null) {
+                    " [${meter.selectedItem}: ${formatXp(meter.goalXp ?: 0)} goal]"
+                } else ""
+                source.sendFeedback(
+                    Text.literal("  ${slayerType.name}: ")
+                        .formatted(Formatting.GRAY)
+                        .append(
+                            Text.literal("${formatXp(meter.storedXp)} XP")
+                                .formatted(Formatting.WHITE)
+                        )
+                        .append(
+                            Text.literal(itemInfo)
+                                .formatted(Formatting.DARK_GRAY)
+                        )
+                )
+            }
+        }
+
+        // Show dungeon meters
+        if (data.dungeonMeters.isNotEmpty()) {
+            source.sendFeedback(
+                Text.literal("Dungeon RNG Meters:")
+                    .formatted(Formatting.LIGHT_PURPLE)
+            )
+            for ((floor, meter) in data.dungeonMeters) {
+                val itemInfo = if (meter.selectedItem != null) {
+                    " [${meter.selectedItem}: ${formatXp(meter.goalXp ?: 0)} goal]"
+                } else ""
+                source.sendFeedback(
+                    Text.literal("  ${floor.name}: ")
+                        .formatted(Formatting.GRAY)
+                        .append(
+                            Text.literal("${formatXp(meter.storedXp)} XP")
+                                .formatted(Formatting.WHITE)
+                        )
+                        .append(
+                            Text.literal(itemInfo)
+                                .formatted(Formatting.DARK_GRAY)
+                        )
+                )
+            }
+        }
+
+        // Show nucleus meter
+        data.nucleusMeter?.let { meter ->
+            val itemInfo = if (meter.selectedItem != null) {
+                " [${meter.selectedItem}: ${formatXp(meter.goalXp ?: 0)} goal]"
+            } else ""
+            source.sendFeedback(
+                Text.literal("Nucleus RNG: ")
+                    .formatted(Formatting.GREEN)
+                    .append(
+                        Text.literal("${formatXp(meter.storedXp)} XP")
+                            .formatted(Formatting.WHITE)
+                    )
+                    .append(
+                        Text.literal(itemInfo)
+                            .formatted(Formatting.DARK_GRAY)
+                    )
+            )
+        }
+
+        // Show experimentation meter
+        data.experimentationMeter?.let { meter ->
+            val itemInfo = if (meter.selectedItem != null) {
+                " [${meter.selectedItem}: ${formatXp(meter.goalXp ?: 0)} goal]"
+            } else ""
+            source.sendFeedback(
+                Text.literal("Experimentation RNG: ")
+                    .formatted(Formatting.BLUE)
+                    .append(
+                        Text.literal("${formatXp(meter.storedXp)} XP")
+                            .formatted(Formatting.WHITE)
+                    )
+                    .append(
+                        Text.literal(itemInfo)
+                            .formatted(Formatting.DARK_GRAY)
+                    )
+            )
+        }
+
+        // Show mineshaft pity
+        data.mineshaftPity?.let { pity ->
+            source.sendFeedback(
+                Text.literal("Mineshaft Pity: ")
+                    .formatted(Formatting.DARK_AQUA)
+                    .append(
+                        Text.literal("${pity.pityValue}/2,000")
+                            .formatted(Formatting.WHITE)
+                    )
+            )
+        }
+    }
+
+    /**
+     * Format an XP value with commas for readability.
+     */
+    private fun formatXp(xp: Long): String {
+        return "%,d".format(xp)
+    }
+
     private fun showHelp(source: FabricClientCommandSource) {
         source.sendFeedback(
             Text.literal("DyeTracker Commands:")
@@ -246,6 +384,14 @@ object DyeTrackerCommands {
                 .formatted(Formatting.YELLOW)
                 .append(
                     Text.literal(" - Unlink your account")
+                        .formatted(Formatting.GRAY)
+                )
+        )
+        source.sendFeedback(
+            Text.literal("  /dyetracker show")
+                .formatted(Formatting.YELLOW)
+                .append(
+                    Text.literal(" - Show captured RNG data")
                         .formatted(Formatting.GRAY)
                 )
         )
