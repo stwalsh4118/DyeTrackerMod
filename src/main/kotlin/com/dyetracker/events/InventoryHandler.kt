@@ -44,12 +44,14 @@ object InventoryHandler {
     }
 
     private fun scheduleScan(client: MinecraftClient, screen: HandledScreen<*>, inventoryType: InventoryType) {
-        // Use a simple tick counter approach
         var ticksRemaining = SCAN_DELAY_TICKS
+        var processed = false
 
         ScreenEvents.afterTick(screen).register { _ ->
+            if (processed) return@register
             ticksRemaining--
             if (ticksRemaining <= 0) {
+                processed = true
                 processInventory(screen, inventoryType)
             }
         }
