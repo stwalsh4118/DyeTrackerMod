@@ -1,7 +1,7 @@
 plugins {
-    id("fabric-loom") version "1.9-SNAPSHOT"
-    id("org.jetbrains.kotlin.jvm") version "2.0.21"
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21"
+    id("fabric-loom") version "1.11-SNAPSHOT"
+    id("org.jetbrains.kotlin.jvm") version "2.2.20"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.20"
 }
 
 version = project.property("mod_version") as String
