@@ -82,6 +82,13 @@ object DyeTrackerCommands {
                             1
                         }
                 )
+                .then(
+                    ClientCommandManager.literal("reload")
+                        .executes { context ->
+                            handleReloadCommand(context.source)
+                            1
+                        }
+                )
                 .executes { context ->
                     showHelp(context.source)
                     1
@@ -290,6 +297,44 @@ object DyeTrackerCommands {
             }
     }
 
+    private fun handleReloadCommand(source: FabricClientCommandSource) {
+        try {
+            ConfigManager.load()
+            source.sendFeedback(
+                Text.literal("\u2714 Configuration reloaded")
+                    .formatted(Formatting.GREEN)
+            )
+            source.sendFeedback(
+                Text.literal("API URL: ")
+                    .formatted(Formatting.GRAY)
+                    .append(
+                        Text.literal(ConfigManager.config.apiUrl)
+                            .formatted(Formatting.AQUA)
+                    )
+            )
+            val hasToken = ConfigManager.config.authToken.isNotEmpty()
+            source.sendFeedback(
+                Text.literal("Auth Token: ")
+                    .formatted(Formatting.GRAY)
+                    .append(
+                        if (hasToken) {
+                            Text.literal("Present")
+                                .formatted(Formatting.GREEN)
+                        } else {
+                            Text.literal("Not set")
+                                .formatted(Formatting.YELLOW)
+                        }
+                    )
+            )
+        } catch (e: Exception) {
+            source.sendFeedback(
+                Text.literal("\u2718 Failed to reload config: ${e.message}")
+                    .formatted(Formatting.RED)
+            )
+            DyeTrackerMod.LOGGER.error("Failed to reload config", e)
+        }
+    }
+
     private fun handleUnlinkCommand(source: FabricClientCommandSource) {
         if (!AccountVerification.isLinked()) {
             source.sendFeedback(
@@ -486,6 +531,14 @@ object DyeTrackerCommands {
                 .formatted(Formatting.YELLOW)
                 .append(
                     Text.literal(" - Force sync RNG data to backend")
+                        .formatted(Formatting.GRAY)
+                )
+        )
+        source.sendFeedback(
+            Text.literal("  /dyetracker reload")
+                .formatted(Formatting.YELLOW)
+                .append(
+                    Text.literal(" - Reload config (debug)")
                         .formatted(Formatting.GRAY)
                 )
         )
