@@ -2,9 +2,11 @@ package com.dyetracker
 
 import com.dyetracker.commands.DyeTrackerCommands
 import com.dyetracker.config.ConfigManager
+import com.dyetracker.data.RngDataStore
 import com.dyetracker.events.ChatEventHandler
 import com.dyetracker.events.InventoryHandler
 import com.dyetracker.events.TablistHandler
+import com.dyetracker.sync.SyncManager
 import net.fabricmc.api.ModInitializer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -85,6 +87,14 @@ class DyeTrackerMod : ModInitializer {
         // Load configuration
         ConfigManager.load()
         info("Configuration loaded from {}", ConfigManager.configPath)
+
+        // Initialize RNG data store (loads persisted data)
+        RngDataStore.init()
+        info("RNG data store initialized")
+
+        // Register sync manager as listener (after persistence listener is registered in init)
+        RngDataStore.addListener(SyncManager)
+        info("Sync manager registered")
 
         // Register commands
         DyeTrackerCommands.register()

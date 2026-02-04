@@ -2,6 +2,7 @@ package com.dyetracker.api
 
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.config.ConfigManager
+import com.dyetracker.data.PlayerRngData
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.net.URI
@@ -153,6 +154,59 @@ object ApiClient {
             }
         } catch (e: Exception) {
             DyeTrackerMod.error("getMe exception", e)
+            ApiResult.Error("Network error: ${e.message}")
+        }
+    }
+
+    /**
+     * Sync RNG data to the backend.
+     * Requires authentication.
+     */
+    fun syncRngData(data: PlayerRngData): ApiResult<SyncRngDataResponse> {
+        val url = "${ConfigManager.config.apiUrl}/api/v1/rng-data"
+
+        // Build the request body using proper JSON encoding
+        val requestBody = SyncRngDataRequest(
+            slayerMeters = data.slayerMeters,
+            dungeonMeters = data.dungeonMeters,
+            nucleusMeter = data.nucleusMeter,
+            experimentationMeter = data.experimentationMeter,
+            mineshaftPity = data.mineshaftPity,
+            modTimestamp = System.currentTimeMillis()
+        )
+        val body = json.encodeToString(requestBody)
+
+        DyeTrackerMod.info("API: POST {} (syncing RNG data)", url)
+
+        return try {
+            val authHeader = getAuthHeader()
+            if (authHeader == null) {
+                DyeTrackerMod.warn("syncRngData: No auth token available")
+                return ApiResult.Error("Not authenticated", 401)
+            }
+
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", CONTENT_TYPE_JSON)
+                .header(AUTH_HEADER, authHeader)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .timeout(Duration.ofSeconds(30))
+                .build()
+
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            DyeTrackerMod.info("API: Response status={}", response.statusCode())
+
+            if (response.statusCode() == 200) {
+                val responseData = json.decodeFromString<SyncRngDataResponse>(response.body())
+                DyeTrackerMod.info("API: syncRngData success, updatedAt={}", responseData.updatedAt)
+                ApiResult.Success(responseData)
+            } else {
+                val error = parseError(response.body())
+                DyeTrackerMod.warn("syncRngData failed: {} ({})", error, response.statusCode())
+                ApiResult.Error(error, response.statusCode())
+            }
+        } catch (e: Exception) {
+            DyeTrackerMod.error("syncRngData exception", e)
             ApiResult.Error("Network error: ${e.message}")
         }
     }
