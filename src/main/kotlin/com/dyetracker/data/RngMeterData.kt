@@ -1,8 +1,11 @@
 package com.dyetracker.data
 
+import kotlinx.serialization.Serializable
+
 /**
  * Types of slayer bosses in SkyBlock.
  */
+@Serializable
 enum class SlayerType {
     REVENANT,
     TARANTULA,
@@ -15,6 +18,7 @@ enum class SlayerType {
 /**
  * Dungeon floors that have RNG meters.
  */
+@Serializable
 enum class DungeonFloor {
     M5,
     M7
@@ -23,6 +27,7 @@ enum class DungeonFloor {
 /**
  * RNG meter data for a slayer boss.
  */
+@Serializable
 data class SlayerRngMeter(
     val slayerType: SlayerType,
     val storedXp: Long,
@@ -33,6 +38,7 @@ data class SlayerRngMeter(
 /**
  * RNG meter data for a dungeon floor.
  */
+@Serializable
 data class DungeonRngMeter(
     val floor: DungeonFloor,
     val storedXp: Long,
@@ -43,6 +49,7 @@ data class DungeonRngMeter(
 /**
  * RNG meter data for Crystal Hollows Nucleus.
  */
+@Serializable
 data class NucleusRngMeter(
     val storedXp: Long,
     val selectedItem: String? = null,
@@ -52,6 +59,7 @@ data class NucleusRngMeter(
 /**
  * RNG meter data for Experimentation Table.
  */
+@Serializable
 data class ExperimentationRngMeter(
     val storedXp: Long,
     val selectedItem: String? = null,
@@ -61,6 +69,7 @@ data class ExperimentationRngMeter(
 /**
  * Mineshaft pity counter (0-2000).
  */
+@Serializable
 data class MineshaftPity(
     val pityValue: Int
 )
@@ -68,6 +77,7 @@ data class MineshaftPity(
 /**
  * Composite data class holding all RNG data for a player.
  */
+@Serializable
 data class PlayerRngData(
     val slayerMeters: Map<SlayerType, SlayerRngMeter> = emptyMap(),
     val dungeonMeters: Map<DungeonFloor, DungeonRngMeter> = emptyMap(),

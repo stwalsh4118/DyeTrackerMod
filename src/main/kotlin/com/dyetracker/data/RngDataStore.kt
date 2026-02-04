@@ -1,6 +1,15 @@
 package com.dyetracker.data
 
+import com.dyetracker.DyeTrackerMod
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
+
+/**
+ * Listener interface for RNG data changes.
+ */
+fun interface RngDataChangeListener {
+    fun onDataChanged(data: PlayerRngData)
+}
 
 /**
  * Thread-safe singleton object for storing captured RNG data in memory.
@@ -20,6 +29,74 @@ object RngDataStore {
     @Volatile
     private var mineshaftPity: MineshaftPity? = null
 
+    private val listeners = CopyOnWriteArrayList<RngDataChangeListener>()
+
+    @Volatile
+    private var initialized = false
+
+    /**
+     * Initialize the data store by loading persisted data from disk.
+     * Should be called once during mod initialization.
+     */
+    fun init() {
+        if (initialized) {
+            DyeTrackerMod.warn("RngDataStore already initialized")
+            return
+        }
+
+        val loadedData = DataPersistence.load()
+        if (loadedData != null) {
+            // Populate internal state from loaded data
+            loadedData.slayerMeters.forEach { (type, meter) ->
+                slayerMeters[type] = meter
+            }
+            loadedData.dungeonMeters.forEach { (floor, meter) ->
+                dungeonMeters[floor] = meter
+            }
+            nucleusMeter = loadedData.nucleusMeter
+            experimentationMeter = loadedData.experimentationMeter
+            mineshaftPity = loadedData.mineshaftPity
+
+            DyeTrackerMod.info("RNG data loaded from disk")
+        }
+
+        // Register persistence listener
+        addListener { data ->
+            DataPersistence.saveDebounced(data)
+        }
+
+        initialized = true
+        DyeTrackerMod.info("RngDataStore initialized")
+    }
+
+    /**
+     * Add a listener to be notified when RNG data changes.
+     */
+    fun addListener(listener: RngDataChangeListener) {
+        listeners.add(listener)
+    }
+
+    /**
+     * Remove a listener.
+     */
+    fun removeListener(listener: RngDataChangeListener) {
+        listeners.remove(listener)
+    }
+
+    /**
+     * Notify all listeners of data change.
+     */
+    private fun notifyListeners() {
+        val data = getData()
+        listeners.forEach { listener ->
+            try {
+                listener.onDataChanged(data)
+            } catch (e: Exception) {
+                DyeTrackerMod.error("Error notifying RNG data listener", e)
+            }
+        }
+    }
+
     /**
      * Update the stored XP for a slayer type.
      * Preserves any existing selection data.
@@ -32,6 +109,7 @@ object RngDataStore {
                 SlayerRngMeter(slayerType = slayerType, storedXp = xp)
             }
         }
+        notifyListeners()
     }
 
     /**
@@ -46,6 +124,7 @@ object RngDataStore {
                 SlayerRngMeter(slayerType = slayerType, storedXp = 0, selectedItem = item, goalXp = goalXp)
             }
         }
+        notifyListeners()
     }
 
     /**
@@ -58,6 +137,7 @@ object RngDataStore {
             selectedItem = item,
             goalXp = goalXp
         )
+        notifyListeners()
     }
 
     /**
@@ -69,6 +149,7 @@ object RngDataStore {
             selectedItem = item,
             goalXp = goalXp
         )
+        notifyListeners()
     }
 
     /**
@@ -80,6 +161,7 @@ object RngDataStore {
             selectedItem = item,
             goalXp = goalXp
         )
+        notifyListeners()
     }
 
     /**
@@ -87,6 +169,7 @@ object RngDataStore {
      */
     fun updateMineshaftPity(pity: Int) {
         mineshaftPity = MineshaftPity(pityValue = pity)
+        notifyListeners()
     }
 
     /**
@@ -111,5 +194,14 @@ object RngDataStore {
         nucleusMeter = null
         experimentationMeter = null
         mineshaftPity = null
+        notifyListeners()
+    }
+
+    /**
+     * Flush any pending persistence operations.
+     * Call this during shutdown.
+     */
+    fun flush() {
+        DataPersistence.flush(getData())
     }
 }
