@@ -6,6 +6,7 @@ import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.DungeonFloor
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.data.SlayerType
+import com.dyetracker.sync.SyncManager
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.StringArgumentType
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager
@@ -15,6 +16,8 @@ import net.minecraft.client.MinecraftClient
 import net.minecraft.command.CommandRegistryAccess
 import net.minecraft.text.Text
 import net.minecraft.util.Formatting
+import java.text.SimpleDateFormat
+import java.util.Date
 
 /**
  * Registers client-side commands for the DyeTracker mod.
@@ -69,6 +72,13 @@ object DyeTrackerCommands {
                     ClientCommandManager.literal("show")
                         .executes { context ->
                             handleShowCommand(context.source)
+                            1
+                        }
+                )
+                .then(
+                    ClientCommandManager.literal("sync")
+                        .executes { context ->
+                            handleSyncCommand(context.source)
                             1
                         }
                 )
@@ -188,6 +198,33 @@ object DyeTrackerCommands {
                         }
                     )
             )
+
+            // Show sync status
+            val lastSync = SyncManager.getLastSyncTime()
+            val lastSyncText = if (lastSync > 0) {
+                SimpleDateFormat("HH:mm:ss").format(Date(lastSync))
+            } else {
+                "Never"
+            }
+            val syncPending = SyncManager.isSyncPending()
+            val lastSyncSuccess = SyncManager.wasLastSyncSuccessful()
+
+            source.sendFeedback(
+                Text.literal("Last Sync: ")
+                    .formatted(Formatting.GRAY)
+                    .append(
+                        Text.literal(lastSyncText)
+                            .formatted(if (lastSyncSuccess) Formatting.GREEN else Formatting.RED)
+                    )
+                    .append(
+                        if (syncPending) {
+                            Text.literal(" (sync pending)")
+                                .formatted(Formatting.YELLOW)
+                        } else {
+                            Text.literal("")
+                        }
+                    )
+            )
         } else {
             source.sendFeedback(
                 Text.literal("Account Status: ")
@@ -202,6 +239,55 @@ object DyeTrackerCommands {
                     .formatted(Formatting.YELLOW)
             )
         }
+    }
+
+    private fun handleSyncCommand(source: FabricClientCommandSource) {
+        if (!AccountVerification.isLinked()) {
+            source.sendFeedback(
+                Text.literal("Account not linked. Use /dyetracker link <code> first.")
+                    .formatted(Formatting.RED)
+            )
+            return
+        }
+
+        val data = RngDataStore.getData()
+        if (!data.hasData()) {
+            source.sendFeedback(
+                Text.literal("No RNG data to sync.")
+                    .formatted(Formatting.YELLOW)
+            )
+            return
+        }
+
+        source.sendFeedback(
+            Text.literal("Syncing RNG data...")
+                .formatted(Formatting.YELLOW)
+        )
+
+        SyncManager.syncNow(data)
+            .thenAccept { result ->
+                MinecraftClient.getInstance().execute {
+                    if (result.success) {
+                        source.sendFeedback(
+                            Text.literal("\u2714 ")
+                                .formatted(Formatting.GREEN)
+                                .append(
+                                    Text.literal("RNG data synced successfully!")
+                                        .formatted(Formatting.GREEN)
+                                )
+                        )
+                    } else {
+                        source.sendFeedback(
+                            Text.literal("\u2718 ")
+                                .formatted(Formatting.RED)
+                                .append(
+                                    Text.literal("Sync failed: ${result.message}")
+                                        .formatted(Formatting.RED)
+                                )
+                        )
+                    }
+                }
+            }
     }
 
     private fun handleUnlinkCommand(source: FabricClientCommandSource) {
@@ -392,6 +478,14 @@ object DyeTrackerCommands {
                 .formatted(Formatting.YELLOW)
                 .append(
                     Text.literal(" - Show captured RNG data")
+                        .formatted(Formatting.GRAY)
+                )
+        )
+        source.sendFeedback(
+            Text.literal("  /dyetracker sync")
+                .formatted(Formatting.YELLOW)
+                .append(
+                    Text.literal(" - Force sync RNG data to backend")
                         .formatted(Formatting.GRAY)
                 )
         )
