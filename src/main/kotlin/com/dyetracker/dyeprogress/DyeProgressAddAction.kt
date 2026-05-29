@@ -13,8 +13,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.DrawContext
-import net.minecraft.client.gui.widget.ButtonWidget
-import net.minecraft.client.gui.widget.TextFieldWidget
+import net.minecraft.client.gui.components.Button
+import net.minecraft.client.gui.components.EditBox
 import net.minecraft.network.chat.Component
 import org.lwjgl.glfw.GLFW
 
@@ -34,9 +34,9 @@ object DyeProgressAddAction : EditScreenAction {
 
     override val label: String = "+ Add dye"
 
-    private var searchField: TextFieldWidget? = null
-    private var profileField: TextFieldWidget? = null
-    private var rowButtons: List<ButtonWidget> = emptyList()
+    private var searchField: EditBox? = null
+    private var profileField: EditBox? = null
+    private var rowButtons: List<Button> = emptyList()
 
     private var visibleMatches: List<DyeOption> = emptyList()
     private var totalMatches: Int = 0
@@ -55,30 +55,30 @@ object DyeProgressAddAction : EditScreenAction {
         val contentLeft = panelX + PANEL_PADDING_PX
         val contentWidth = PANEL_WIDTH_PX - 2 * PANEL_PADDING_PX
 
-        val search = TextFieldWidget(
-            screen.textRenderer,
+        val search = EditBox(
+            Minecraft.getInstance().font,
             contentLeft,
             PANEL_TOP_PX + SEARCH_DY,
             contentWidth,
             FIELD_HEIGHT_PX,
             Component.literal("Search dyes"),
         )
-        search.setPlaceholder(Component.literal("Search dyes…"))
-        search.setChangedListener { query -> refreshMatches(query) }
+        search.setHint(Component.literal("Search dyes…"))
+        search.setResponder { query -> refreshMatches(query) }
         searchField = screen.addActionWidget(search)
         screen.focusInitial(search)
 
         rowButtons = (0 until MAX_VISIBLE_ROWS).map { i ->
             val rowY = PANEL_TOP_PX + LIST_TOP_DY + i * ROW_STRIDE_PX
             screen.addActionWidget(
-                ButtonWidget.builder(Component.literal(" ")) { selectRow(i) }
-                    .dimensions(contentLeft, rowY, contentWidth, ROW_HEIGHT_PX)
+                Button.builder(Component.literal(" ")) { selectRow(i) }
+                    .bounds(contentLeft, rowY, contentWidth, ROW_HEIGHT_PX)
                     .build(),
             )
         }
 
-        val profile = TextFieldWidget(
-            screen.textRenderer,
+        val profile = EditBox(
+            Minecraft.getInstance().font,
             contentLeft,
             PANEL_TOP_PX + PROFILE_DY,
             contentWidth,
@@ -86,19 +86,19 @@ object DyeProgressAddAction : EditScreenAction {
             Component.literal("Profile"),
         )
         profile.setMaxLength(PROFILE_MAX_LENGTH)
-        profile.setPlaceholder(Component.literal("Profile name (e.g. Mango)"))
-        profile.setText(lastUsedProfileName())
+        profile.setHint(Component.literal("Profile name (e.g. Mango)"))
+        profile.setValue(lastUsedProfileName())
         profileField = screen.addActionWidget(profile)
 
         val buttonsY = PANEL_TOP_PX + BUTTONS_DY
         screen.addActionWidget(
-            ButtonWidget.builder(Component.literal("Add")) { submit(screen) }
-                .dimensions(contentLeft, buttonsY, INNER_BUTTON_WIDTH, CONTROL_HEIGHT_PX)
+            Button.builder(Component.literal("Add")) { submit(screen) }
+                .bounds(contentLeft, buttonsY, INNER_BUTTON_WIDTH, CONTROL_HEIGHT_PX)
                 .build(),
         )
         screen.addActionWidget(
-            ButtonWidget.builder(Component.literal("Cancel")) { screen.finishActiveAction(null) }
-                .dimensions(
+            Button.builder(Component.literal("Cancel")) { screen.finishActiveAction(null) }
+                .bounds(
                     panelX + PANEL_WIDTH_PX - PANEL_PADDING_PX - INNER_BUTTON_WIDTH,
                     buttonsY,
                     INNER_BUTTON_WIDTH,
@@ -152,12 +152,12 @@ object DyeProgressAddAction : EditScreenAction {
         } else {
             "Add dye  ·  $totalMatches match(es)"
         }
-        UiDraw.drawText(context, screen.textRenderer, countText, left, PANEL_TOP_PX + HEADER_DY, UiTheme.Colors.TEXT_SECONDARY)
+        UiDraw.drawText(context, Minecraft.getInstance().font, countText, left, PANEL_TOP_PX + HEADER_DY, UiTheme.Colors.TEXT_SECONDARY)
 
         // Status / hint line.
         val message = status ?: DEFAULT_HINT
         val color = if (status != null && statusIsError) UiTheme.Colors.STATUS_ERROR else UiTheme.Colors.STATUS_OK
-        UiDraw.drawText(context, screen.textRenderer, message, left, PANEL_TOP_PX + STATUS_DY, color)
+        UiDraw.drawText(context, Minecraft.getInstance().font, message, left, PANEL_TOP_PX + STATUS_DY, color)
     }
 
     /** Recompute the filtered dye list and repaint the fixed row-button pool. */
@@ -198,7 +198,7 @@ object DyeProgressAddAction : EditScreenAction {
     private fun submit(screen: WidgetEditScreen) {
         if (job?.isActive == true) return
         val dye = selected
-        val profileName = profileField?.text?.trim().orEmpty()
+        val profileName = profileField?.value?.trim().orEmpty()
         val myEpoch = ++epoch
 
         if (!ConfigManager.config.isLinked()) {

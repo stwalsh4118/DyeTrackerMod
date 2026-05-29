@@ -5,9 +5,10 @@ import com.dyetracker.ui.core.UiDraw
 import com.dyetracker.ui.edit.WidgetConfigPanel
 import com.dyetracker.ui.edit.WidgetEditScreen
 import com.dyetracker.ui.theme.UiTheme
+import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.DrawContext
-import net.minecraft.client.gui.widget.ButtonWidget
-import net.minecraft.client.gui.widget.CheckboxWidget
+import net.minecraft.client.gui.components.Button
+import net.minecraft.client.gui.components.Checkbox
 import net.minecraft.network.chat.Component
 
 /** A toggleable piece of the single-dye progress widget, with its checkbox label. */
@@ -47,7 +48,7 @@ fun applyPieceToggle(cfg: DyeProgressWidgetConfig, piece: DyeProgressPiece, chec
 /**
  * Per-widget configuration panel for the single-dye progress widgets (PBI 36), contributed to the
  * generalized edit screen via the [WidgetConfigPanel] hook (task 36-4). Presents one vanilla
- * [CheckboxWidget] per [DyeProgressPiece] — the dye icon is intentionally NOT represented (it is
+ * [Checkbox] per [DyeProgressPiece] — the dye icon is intentionally NOT represented (it is
  * the always-on minimum). Each checkbox initializes from the focused widget's config and, on
  * toggle, persists that single field through [ConfigManager.dyeProgressPlacements] (immediate
  * flush — discrete clicks, not a drag burst). Because the HUD provider re-reads config every
@@ -71,13 +72,13 @@ object DyeProgressConfigPanel : WidgetConfigPanel {
         val contentWidth = PANEL_WIDTH_PX - 2 * PANEL_PADDING_PX
 
         if (cfg != null) {
-            var first: CheckboxWidget? = null
+            var first: Checkbox? = null
             DyeProgressPiece.entries.forEachIndexed { i, piece ->
                 val y = PANEL_TOP_PX + LIST_TOP_DY + i * CHECKBOX_ROW_STRIDE_PX
-                val checkbox = CheckboxWidget.builder(Component.literal(piece.label), screen.textRenderer)
+                val checkbox = Checkbox.builder(Component.literal(piece.label), Minecraft.getInstance().font)
                     .pos(contentLeft, y)
-                    .checked(pieceValue(cfg, piece))
-                    .callback { _, checked -> persist(piece, checked) }
+                    .selected(pieceValue(cfg, piece))
+                    .onValueChange { _, checked -> persist(piece, checked) }
                     .maxWidth(contentWidth)
                     .build()
                 screen.addActionWidget(checkbox)
@@ -88,8 +89,8 @@ object DyeProgressConfigPanel : WidgetConfigPanel {
 
         val closeX = panelX + (PANEL_WIDTH_PX - CLOSE_BUTTON_WIDTH_PX) / 2
         screen.addActionWidget(
-            ButtonWidget.builder(Component.literal("Close")) { screen.finishActiveAction(null) }
-                .dimensions(closeX, PANEL_TOP_PX + buttonsDy(), CLOSE_BUTTON_WIDTH_PX, CONTROL_HEIGHT_PX)
+            Button.builder(Component.literal("Close")) { screen.finishActiveAction(null) }
+                .bounds(closeX, PANEL_TOP_PX + buttonsDy(), CLOSE_BUTTON_WIDTH_PX, CONTROL_HEIGHT_PX)
                 .build(),
         )
     }
@@ -116,7 +117,7 @@ object DyeProgressConfigPanel : WidgetConfigPanel {
         val panelX = (screen.width - PANEL_WIDTH_PX) / 2
         UiDraw.drawText(
             context,
-            screen.textRenderer,
+            Minecraft.getInstance().font,
             headerText ?: HEADER_FALLBACK,
             panelX + PANEL_PADDING_PX,
             PANEL_TOP_PX + HEADER_DY,

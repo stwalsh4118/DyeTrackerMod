@@ -9,14 +9,14 @@ import com.dyetracker.ui.hud.HudWidgetHost
 import com.dyetracker.ui.hud.HudWidgetRegistry
 import com.dyetracker.ui.theme.UiTheme
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.Click
+import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.client.gui.DrawContext
-import net.minecraft.client.gui.Drawable
-import net.minecraft.client.gui.Element
-import net.minecraft.client.gui.Selectable
+import net.minecraft.client.gui.components.Renderable
+import net.minecraft.client.gui.components.events.GuiEventListener
+import net.minecraft.client.gui.narration.NarratableEntry
 import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.gui.widget.ButtonWidget
-import net.minecraft.client.input.KeyInput
+import net.minecraft.client.gui.components.Button
+import net.minecraft.client.input.KeyEvent
 import net.minecraft.network.chat.Component
 import net.minecraft.util.Util
 import org.lwjgl.glfw.GLFW
@@ -63,24 +63,24 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
     private fun buildToolbar() {
         var buttonY = TOOLBAR_TOP_PX
         for (action in EditScreenActionRegistry.all()) {
-            val button = ButtonWidget.builder(Component.literal(action.label)) { activateAction(action) }
-                .dimensions(width - TOOLBAR_BUTTON_WIDTH - TOOLBAR_MARGIN_PX, buttonY, TOOLBAR_BUTTON_WIDTH, CONTROL_HEIGHT_PX)
+            val button = Button.builder(Component.literal(action.label)) { activateAction(action) }
+                .bounds(width - TOOLBAR_BUTTON_WIDTH - TOOLBAR_MARGIN_PX, buttonY, TOOLBAR_BUTTON_WIDTH, CONTROL_HEIGHT_PX)
                 .build()
-            addDrawableChild(button)
+            addRenderableWidget(button)
             buttonY += CONTROL_HEIGHT_PX + TOOLBAR_GAP_PX
         }
     }
 
     private fun activateAction(action: EditScreenAction) {
         activeAction = action
-        clearAndInit()
+        rebuildWidgets()
     }
 
     /** Dismiss the active action (cancel its work) and return to normal editing. */
     private fun dismissActiveAction() {
         activeAction?.onDismiss()
         activeAction = null
-        clearAndInit()
+        rebuildWidgets()
     }
 
     /**
@@ -93,11 +93,11 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
     }
 
     /** Add a panel widget (button/text field) — public bridge to the protected Screen API. */
-    fun <T> addActionWidget(widget: T): T where T : Element, T : Drawable, T : Selectable =
-        addDrawableChild(widget)
+    fun <T> addActionWidget(widget: T): T where T : GuiEventListener, T : Renderable, T : NarratableEntry =
+        addRenderableWidget(widget)
 
     /** Set initial keyboard focus to [element] — public bridge to the protected Screen API. */
-    fun focusInitial(element: Element) = setInitialFocus(element)
+    fun focusInitial(element: GuiEventListener) = setInitialFocus(element)
 
     private fun editableEntries(): List<HudWidgetEntry> =
         HudWidgetRegistry.entries().filter { it.editor != null }
@@ -126,7 +126,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
             UiDraw.strokeRect(context, rect.x - 1, rect.y - 1, rect.width + 2, rect.height + 2, UiTheme.Colors.FOCUS_BORDER)
             UiDraw.drawText(
                 context,
-                textRenderer,
+                font,
                 "[$focusedId]",
                 rect.x + LABEL_MARGIN_PX,
                 rect.y + LABEL_MARGIN_PX,
@@ -141,7 +141,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
         super.render(context, mouseX, mouseY, delta)
         UiDraw.drawText(
             context,
-            textRenderer,
+            font,
             INSTRUCTION_BANNER,
             0,
             BANNER_TOP_PX,
@@ -153,7 +153,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
         activeAction?.renderForeground(this, context)
     }
 
-    override fun mouseClicked(click: Click, doubled: Boolean): Boolean {
+    override fun mouseClicked(click: MouseButtonEvent, doubled: Boolean): Boolean {
         if (super.mouseClicked(click, doubled)) return true
         if (activeAction != null) return false
         if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false
@@ -174,7 +174,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
         return true
     }
 
-    override fun mouseDragged(click: Click, deltaX: Double, deltaY: Double): Boolean {
+    override fun mouseDragged(click: MouseButtonEvent, deltaX: Double, deltaY: Double): Boolean {
         if (activeAction != null) return super.mouseDragged(click, deltaX, deltaY)
         if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return super.mouseDragged(click, deltaX, deltaY)
         val entry = focusedEntry() ?: return super.mouseDragged(click, deltaX, deltaY)
@@ -188,7 +188,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
         return true
     }
 
-    override fun mouseReleased(click: Click): Boolean {
+    override fun mouseReleased(click: MouseButtonEvent): Boolean {
         if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) flushDirty()
         return super.mouseReleased(click)
     }
@@ -209,7 +209,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
         return true
     }
 
-    override fun keyPressed(input: KeyInput): Boolean {
+    override fun keyPressed(input: KeyEvent): Boolean {
         val key = input.key()
 
         // ESC is scoped: in an action it dismisses the panel; otherwise it closes the screen.
@@ -218,7 +218,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
                 dismissActiveAction()
                 return true
             }
-            close()
+            onClose()
             return true
         }
 
@@ -250,9 +250,9 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
         return super.keyPressed(input)
     }
 
-    override fun shouldPause(): Boolean = false
+    override fun isPauseScreen(): Boolean = false
 
-    override fun close() {
+    override fun onClose() {
         // Dismiss any active action so its worker thread does not outlive the screen, then
         // flush buffered drag/scale changes.
         activeAction?.onDismiss()
@@ -270,7 +270,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
 
     /** Poll GLFW directly because `Screen.hasShiftDown()` is no longer present in 1.21.10. */
     private fun isShiftHeld(): Boolean {
-        val handle = Minecraft.getInstance().window.handle
+        val handle = Minecraft.getInstance().window.handle()
         return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS ||
             GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS
     }
