@@ -1,25 +1,30 @@
 package com.dyetracker.ui.texture
 
 import com.dyetracker.DyeTrackerMod
+import com.mojang.blaze3d.platform.NativeImage
 import net.minecraft.client.Minecraft
+import net.minecraft.client.renderer.texture.DynamicTexture
 import net.minecraft.resources.Identifier
+import java.awt.image.BufferedImage
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Feature-agnostic GPU texture lifecycle + frame-animation backend for the UI toolkit.
- * Converts an [ImageFrames] (one or more frames + intrinsic size) into per-frame textures
- * registered under stable `Identifier`s keyed by an arbitrary string id, then exposes a
- * wall-clock-based [currentFrameIdentifier] selector.
+ * Converts an [ImageFrames] (one or more frames + intrinsic size) into per-frame
+ * [DynamicTexture]s registered under stable `Identifier`s keyed by an arbitrary string id, then
+ * exposes a wall-clock-based [currentFrameIdentifier] selector.
  *
- * TODO(PBI-52): the real GPU texture pipeline is stubbed for the 26.1 compile-green milestone
- * (PBI-51 task 51-8). 26.1 retires Yarn's `NativeImage`/`NativeImageBackedTexture` for the
- * Mojmap `com.mojang.blaze3d.platform.NativeImage` + `net.minecraft.client.renderer.texture.DynamicTexture`
- * pipeline (and `TextureManager.register`/`release`, `NativeImage.setPixelABGR`). Porting + in-client
- * verification is PBI-52's scope. Here, [upload] allocates the per-frame `Identifier`s and keeps all
- * the pure frame-timing logic, but performs **no** native-image construction or texture registration,
- * so nothing is drawn until PBI-52 (the `UiDraw` blit is likewise stubbed).
+ * All texture construction and release MUST run on the render thread because
+ * [NativeImage]/[DynamicTexture] allocate native (off-heap) buffers and upload GPU textures;
+ * calling from any other thread crashes the game. [upload] and [release] accept any-thread calls
+ * and marshal onto the render thread via `Minecraft.execute`.
+ *
+ * 26.1 retired Yarn's `NativeImage`/`NativeImageBackedTexture` for the Mojmap
+ * `com.mojang.blaze3d.platform.NativeImage` + `net.minecraft.client.renderer.texture.DynamicTexture`
+ * pipeline, with `TextureManager.register`/`release` and `NativeImage.setPixel` (ARGB) — see
+ * `docs/delivery/52/research/52-1-26.1-render-api-guide.md`.
  */
 object ImageTextureManager {
 
@@ -31,8 +36,8 @@ object ImageTextureManager {
 
     private data class ImageState(
         val frameIds: List<Identifier>,
-        // TODO(PBI-52): re-add the GPU texture handles (was `List<NativeImageBackedTexture>`),
-        // held to release on teardown, once the DynamicTexture pipeline lands.
+        // Per-frame GPU texture handles, held so they are released on teardown.
+        val textures: List<DynamicTexture>,
         val cumulativeDelaysMs: LongArray,
         val totalDurationMs: Long,
         val width: Int,
@@ -71,14 +76,17 @@ object ImageTextureManager {
 
                 val sanitized = sanitize(id)
                 val frameIds = ArrayList<Identifier>(image.frames.size)
-                for (index in image.frames.indices) {
+                val textures = ArrayList<DynamicTexture>(image.frames.size)
+                for ((index, frame) in image.frames.withIndex()) {
                     val frameId = Identifier.fromNamespaceAndPath(
                         DyeTrackerMod.MOD_ID,
                         "${FRAME_ID_PREFIX}${sanitized}${FRAME_ID_INFIX}$index",
                     )
-                    // TODO(PBI-52): build a NativeImage from image.frames[index].image and register a
-                    // DynamicTexture under frameId via client.textureManager — deferred (real render).
+                    val nativeImage = bufferedImageToNativeImage(frame.image)
+                    val texture = DynamicTexture({ frameId.toString() }, nativeImage)
+                    client.textureManager.register(frameId, texture)
                     frameIds.add(frameId)
+                    textures.add(texture)
                 }
 
                 val cumulative = LongArray(image.frames.size)
@@ -93,6 +101,7 @@ object ImageTextureManager {
 
                 val state = ImageState(
                     frameIds = frameIds,
+                    textures = textures,
                     cumulativeDelaysMs = cumulative,
                     totalDurationMs = running.coerceAtLeast(1L),
                     width = image.width,
@@ -103,7 +112,7 @@ object ImageTextureManager {
 
                 val vramBytes = image.width.toLong() * image.height * BYTES_PER_PIXEL * image.frames.size
                 DyeTrackerMod.info(
-                    "Image '{}' registered ({} frames, {}x{}, ~{} KB VRAM when PBI-52 uploads it)",
+                    "Image '{}' uploaded ({} frames, {}x{}, ~{} KB VRAM)",
                     id, image.frames.size, image.width, image.height, vramBytes / 1024
                 )
                 future.complete(Unit)
@@ -137,8 +146,16 @@ object ImageTextureManager {
 
     private fun releaseInternal(id: String) {
         val state = images.remove(id) ?: return
-        // TODO(PBI-52): destroy each frameId's registered DynamicTexture (was
-        // client.textureManager.destroyTexture(frameId)) once the upload pipeline lands.
+        val client = Minecraft.getInstance()
+        for (frameId in state.frameIds) {
+            try {
+                // release() closes the texture (and its backing NativeImage) internally; do NOT also
+                // call DynamicTexture.close() — that would be a double-close on the NativeImage.
+                client.textureManager.release(frameId)
+            } catch (e: Throwable) {
+                DyeTrackerMod.warn("textureManager.release failed for {}: {}", frameId, e.message ?: e.javaClass.simpleName)
+            }
+        }
         warnedMissing.remove(id)
         releaseListeners.forEach { it(id) }
         DyeTrackerMod.info("Image '{}' released ({} frames)", id, state.frameIds.size)
@@ -209,5 +226,26 @@ object ImageTextureManager {
         val cleaned = ID_SANITIZER_REGEX.replace(lower, "_").ifEmpty { "anon" }
         val suffix = id.hashCode().toUInt().toString(HEX_RADIX)
         return "${cleaned}_$suffix"
+    }
+
+    /**
+     * Copy a decoded [BufferedImage] into a fresh RGBA [NativeImage]. `getRGB` yields ARGB ints;
+     * [NativeImage.setPixel] takes **ARGB** and converts to the native ABGR layout internally
+     * (verified 52-1 — the successor to the old `setColorArgb`), so no manual channel swap is
+     * needed. Using `setPixelABGR` here would swap the red and blue channels.
+     */
+    private fun bufferedImageToNativeImage(image: BufferedImage): NativeImage {
+        val w = image.width
+        val h = image.height
+        val argbArray = IntArray(w * h)
+        image.getRGB(0, 0, w, h, argbArray, 0, w)
+        val ni = NativeImage(w, h, false)
+        var i = 0
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                ni.setPixel(x, y, argbArray[i++])
+            }
+        }
+        return ni
     }
 }
