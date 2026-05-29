@@ -51,6 +51,8 @@ When releasing a new version of the mod:
 git subtree push --prefix=path/to/mod origin-public main
 ```
 
+> During the 26.x transition, run this **from the branch whose line you are publishing** (`main` for 1.21.x, `mc-26x` for 26.x). See "Two-line maintenance" above.
+
 Or if using tags for releases:
 
 ```bash
@@ -87,9 +89,34 @@ These patterns should be in .gitignore or excluded from the public repo:
 - Local development configs with private URLs
 - Any test fixtures containing real data
 
+## Two-line maintenance (1.21.x `main` + 26.x `mc-26x`)
+
+During the Minecraft 26.x transition the mod is developed on **two parallel git lines**, both actively maintained for a transition window. Know which branch you are on before building or publishing.
+
+| Line (branch) | Minecraft | Mappings | Loom plugin | Java | Status |
+|---|---|---|---|---|---|
+| `main` | 1.21.10 + 1.21.11 | Yarn (obfuscated) | `fabric-loom` (remap) | 21 | ships today |
+| `mc-26x` | 26.1 (26.2 later) | none — 26.1 is **unobfuscated** | `net.fabricmc.fabric-loom` (no-remap) | 25 | incubating |
+
+**Where feature work lands.** A feature that should exist on both lines must be applied on **`main` (Yarn)** *and* separately **re-applied / translated on `mc-26x`** (unobfuscated Mojang names). A straight `git cherry-pick` will **not** apply cleanly across the lines, because the Minecraft symbol names differ (e.g. `MinecraftClient` → `Minecraft`, `Identifier` package move, `Text` → `Component`, `KeyBinding` → `KeyMapping`). Treat cross-line changes as a *port*, not a merge.
+
+**Per-branch public-repo subtree sync.** The public mod repo is fed via `git subtree push` from the monorepo root, and must be run **from the branch whose line you are publishing** — the `versions/`, `stonecutter.gradle.kts`, and build files all sync naturally per branch (same mechanism as PBI-29):
+
+```bash
+# from the monorepo root, on the branch you are publishing:
+git subtree push --prefix=path/to/mod origin-public main      # 1.21.x line
+git subtree push --prefix=path/to/mod origin-public mc-26x    # 26.x line
+```
+
+Publish `main` for the shipping 1.21.x line and `mc-26x` for the 26.x line — don't cross them.
+
+**Build-command divergence.** On `mc-26x` the build/run/test tasks target `:26.1` and require **JDK 25**; the 1.21.x `:1.21.10`/`:1.21.11` tasks do not exist on this branch (and vice-versa). See the `mc-26x` subsection under "Building the Mod".
+
 ## Building the Mod
 
-The build is multi-version-managed via [Stonecutter](https://stonecutter.kikugie.dev/). A single shared `src/` tree is compiled against each Minecraft version registered in `settings.gradle.kts` (currently 1.21.10 and 1.21.11). Per-version dependency coordinates live under `versions/<mc-version>/gradle.properties`.
+> **Branch-specific.** The commands below describe the **`main`** (1.21.x) line. On the **`mc-26x`** branch the version targets and JDK differ — see "On the `mc-26x` branch (Minecraft 26.x)" at the end of this section.
+
+The build is multi-version-managed via [Stonecutter](https://stonecutter.kikugie.dev/). A single shared `src/` tree is compiled against each Minecraft version registered in `settings.gradle.kts` (on `main`: 1.21.10 and 1.21.11; on `mc-26x`: 26.1). Per-version dependency coordinates live under `versions/<mc-version>/gradle.properties`.
 
 ```bash
 # Build all registered versions (produces one jar per version)
@@ -105,6 +132,22 @@ The build is multi-version-managed via [Stonecutter](https://stonecutter.kikugie
 ```
 
 Per-version jars land at `versions/<mc-version>/build/libs/dyetracker-<modver>+<mc-version>.jar` (e.g. `versions/1.21.11/build/libs/dyetracker-1.1.0+1.21.11.jar`).
+
+### On the `mc-26x` branch (Minecraft 26.x)
+
+The `mc-26x` branch targets Minecraft **26.1** (post-obfuscation) and **requires JDK 25** as the Gradle JVM (1.21.x targets Java 21). The build uses the no-remap `net.fabricmc.fabric-loom` plugin with **no mappings** (26.1 is unobfuscated). Provision JDK 25 with [SDKMAN](https://sdkman.io/) (`sdk install java 25.0.3-ms`) — the committed Gradle Java toolchain (`languageVersion 25`) then auto-detects it, so the build JVM is pinned to 25 regardless of your shell's default `java`.
+
+```bash
+# all of these run with JDK 25 (toolchain auto-selects it)
+./gradlew chiseledBuild          # builds the 26.1 jar
+./gradlew :26.1:build
+./gradlew :26.1:runClient
+./gradlew :26.1:test
+```
+
+The 26.1 jar lands at `versions/26.1/build/libs/dyetracker-<modver>+26.1.jar`. Per-version coordinates (Loader / Fabric API / FLK) live in `versions/26.1/gradle.properties` — note there is **no** `yarn_mappings` key. The exact pinned toolchain is documented in `docs/delivery/50/research/mc-26x-toolchain-guide.md`.
+
+> The 26.x source migration (Yarn → Mojang names) is in progress (PBIs 51/52); until it lands, `:26.1:compileKotlin` reports source errors — the build *configures* and resolves dependencies, but does not yet produce a loadable jar.
 
 ### Running unit tests
 
