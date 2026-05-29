@@ -1,11 +1,11 @@
 package com.dyetracker.ui.edit
 
 import com.dyetracker.DyeTrackerMod
+import com.mojang.blaze3d.platform.InputConstants
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper
+import net.minecraft.client.KeyMapping
 import net.minecraft.client.Minecraft
-import net.minecraft.client.option.KeyBinding
-import net.minecraft.client.util.InputUtil
 import net.minecraft.resources.Identifier
 import org.lwjgl.glfw.GLFW
 
@@ -25,23 +25,23 @@ object EditModeKeybind {
     private const val CATEGORY_PATH = "main"
     private const val DEFAULT_KEY = GLFW.GLFW_KEY_G
 
-    private lateinit var editKey: KeyBinding
+    private lateinit var editKey: KeyMapping
 
     /** Register the keybind + the tick listener that opens edit mode on a press. */
     fun register() {
-        val category = KeyBinding.Category.create(Identifier.of(DyeTrackerMod.MOD_ID, CATEGORY_PATH))
-        editKey = KeyBinding(
+        val category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(DyeTrackerMod.MOD_ID, CATEGORY_PATH))
+        editKey = KeyMapping(
             TRANSLATION_KEY,
-            InputUtil.Type.KEYSYM,
+            InputConstants.Type.KEYSYM,
             DEFAULT_KEY,
             category,
         )
-        KeyBindingHelper.registerKeyBinding(editKey)
+        KeyMappingHelper.registerKeyMapping(editKey)
 
         // Drain the press-counter every tick so a single press only opens the screen once
         // even if multiple presses landed within one tick.
         ClientTickEvents.END_CLIENT_TICK.register { client ->
-            while (editKey.wasPressed()) {
+            while (editKey.consumeClick()) {
                 openEditScreen(client)
             }
         }
@@ -50,7 +50,7 @@ object EditModeKeybind {
 
     /** Open edit mode if no other screen is active. Safe to call from any thread. */
     fun openEditScreen(client: Minecraft) {
-        if (client.currentScreen != null) return
+        if (client.screen != null) return
         client.setScreen(WidgetEditScreen())
     }
 }
