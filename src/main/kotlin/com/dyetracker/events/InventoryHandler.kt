@@ -9,8 +9,8 @@ import com.dyetracker.data.VisitorEntry
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.gui.screen.ingame.HandledScreen
-import net.minecraft.screen.slot.Slot
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen
+import net.minecraft.world.inventory.Slot
 import net.minecraft.network.chat.Component
 import net.minecraft.ChatFormatting
 
@@ -43,7 +43,7 @@ object InventoryHandler {
     }
 
     private fun onScreenInit(client: Minecraft, screen: Screen) {
-        if (screen !is HandledScreen<*>) {
+        if (screen !is AbstractContainerScreen<*>) {
             return
         }
 
@@ -65,7 +65,7 @@ object InventoryHandler {
         }
     }
 
-    private fun scheduleScan(client: Minecraft, screen: HandledScreen<*>, inventoryType: InventoryType) {
+    private fun scheduleScan(client: Minecraft, screen: AbstractContainerScreen<*>, inventoryType: InventoryType) {
         var ticksRemaining = SCAN_DELAY_TICKS
         var processed = false
 
@@ -79,7 +79,7 @@ object InventoryHandler {
         }
     }
 
-    private fun processInventory(screen: HandledScreen<*>, inventoryType: InventoryType) {
+    private fun processInventory(screen: AbstractContainerScreen<*>, inventoryType: InventoryType) {
         when (inventoryType) {
             is InventoryType.DungeonRngMeter -> processDungeonMeter(screen, inventoryType.floor)
             is InventoryType.NucleusRngMeter -> processNucleusMeter(screen)
@@ -97,9 +97,9 @@ object InventoryHandler {
      * persistence when no dyes were parsed so a half-loaded or mis-identified screen never clobbers
      * the last-known rotation.
      */
-    private fun processDyeRotation(screen: HandledScreen<*>) {
+    private fun processDyeRotation(screen: AbstractContainerScreen<*>) {
         val player = Minecraft.getInstance().player ?: return
-        val rotation = InventoryUtils.extractDyeRotation(screen.screenHandler.slots, player.inventory)
+        val rotation = InventoryUtils.extractDyeRotation(screen.menu.slots, player.inventory)
 
         if (rotation.dyeIds.isEmpty()) {
             DyeTrackerMod.debug("Dyes screen detected but no rotation dyes parsed; not persisting")
@@ -109,24 +109,23 @@ object InventoryHandler {
         ConfigManager.updateDyeRotation(rotation)
         DyeTrackerMod.info("Captured dye rotation ({} dyes): {}", rotation.dyeIds.size, rotation.dyeIds)
 
-        player.sendMessage(
+        player.sendSystemMessage(
             Component.literal("Captured current dye rotation (${rotation.dyeIds.size} dyes)")
-                .formatted(ChatFormatting.GREEN),
-            false
+                .withStyle(ChatFormatting.GREEN)
         )
     }
 
     /**
      * Process a dungeon RNG meter inventory.
      */
-    private fun processDungeonMeter(screen: HandledScreen<*>, floor: DungeonFloor) {
-        val handler = screen.screenHandler
+    private fun processDungeonMeter(screen: AbstractContainerScreen<*>, floor: DungeonFloor) {
+        val handler = screen.menu
         var storedXp = 0L
         var selectedItem: String? = null
         var goalXp: Long? = null
 
         for (slot in handler.slots) {
-            val stack = slot.stack
+            val stack = slot.item
             if (stack.isEmpty) continue
 
             val lore = InventoryUtils.getLore(stack)
@@ -158,14 +157,14 @@ object InventoryHandler {
     /**
      * Process a Nucleus RNG meter inventory.
      */
-    private fun processNucleusMeter(screen: HandledScreen<*>) {
-        val handler = screen.screenHandler
+    private fun processNucleusMeter(screen: AbstractContainerScreen<*>) {
+        val handler = screen.menu
         var storedXp = 0L
         var selectedItem: String? = null
         var goalXp: Long? = null
 
         for (slot in handler.slots) {
-            val stack = slot.stack
+            val stack = slot.item
             if (stack.isEmpty) continue
 
             val lore = InventoryUtils.getLore(stack)
@@ -196,11 +195,11 @@ object InventoryHandler {
      * count is shown stably even for maxed players — unlike the dynamic "Commission Milestones"
      * item in the parent Commissions GUI, which drops the count once every tier is complete.
      */
-    private fun processCommissionMilestones(screen: HandledScreen<*>) {
-        val handler = screen.screenHandler
+    private fun processCommissionMilestones(screen: AbstractContainerScreen<*>) {
+        val handler = screen.menu
 
         for (slot in handler.slots) {
-            val stack = slot.stack
+            val stack = slot.item
             if (stack.isEmpty) continue
 
             val count = InventoryUtils.parseCommissionMilestoneCount(stack)
@@ -219,7 +218,7 @@ object InventoryHandler {
      * Scans every COMPENDIUM_SCAN_INTERVAL_TICKS ticks to pick up page changes,
      * accumulates dyes across pages, and finalizes when the screen closes.
      */
-    private fun scheduleCompendiumScan(client: Minecraft, screen: HandledScreen<*>) {
+    private fun scheduleCompendiumScan(client: Minecraft, screen: AbstractContainerScreen<*>) {
         accumulatedDyes.clear()
         var ticksSinceLastScan = SCAN_DELAY_TICKS // Start with initial delay worth of ticks
 
@@ -241,8 +240,8 @@ object InventoryHandler {
     /**
      * Scan the current page of the Dye Compendium and accumulate obtained dyes.
      */
-    private fun scanCompendiumPage(screen: HandledScreen<*>) {
-        val handler = screen.screenHandler
+    private fun scanCompendiumPage(screen: AbstractContainerScreen<*>) {
+        val handler = screen.menu
         val pageDyes = InventoryUtils.extractDyeCollection(handler.slots)
 
         for (dye in pageDyes) {
@@ -283,7 +282,7 @@ object InventoryHandler {
      * up page changes, accumulates visitors de-duped by name while this screen is open, and on close
      * merges them into the persisted visitor union (see [finalizeLogbook]).
      */
-    private fun scheduleLogbookScan(client: Minecraft, screen: HandledScreen<*>) {
+    private fun scheduleLogbookScan(client: Minecraft, screen: AbstractContainerScreen<*>) {
         accumulatedVisitors.clear()
         var ticksSinceLastScan = SCAN_DELAY_TICKS // Start with initial delay worth of ticks
 
@@ -306,8 +305,8 @@ object InventoryHandler {
      * Scan the current page of the Visitor's Logbook and accumulate visitors de-duped by name
      * (latest "Times Visited" value wins) via the pure [InventoryUtils.accumulateVisitors].
      */
-    private fun scanLogbookPage(screen: HandledScreen<*>) {
-        val pageEntries = InventoryUtils.extractVisitorEntriesFromSlots(screen.screenHandler.slots)
+    private fun scanLogbookPage(screen: AbstractContainerScreen<*>) {
+        val pageEntries = InventoryUtils.extractVisitorEntriesFromSlots(screen.menu.slots)
         if (pageEntries.isEmpty()) return
 
         // accumulateVisitors returns a fresh merged map (not an alias of the field), so rebuilding
@@ -350,14 +349,14 @@ object InventoryHandler {
     /**
      * Process an Experimentation Table RNG meter inventory.
      */
-    private fun processExperimentationMeter(screen: HandledScreen<*>) {
-        val handler = screen.screenHandler
+    private fun processExperimentationMeter(screen: AbstractContainerScreen<*>) {
+        val handler = screen.menu
         var storedXp = 0L
         var selectedItem: String? = null
         var goalXp: Long? = null
 
         for (slot in handler.slots) {
-            val stack = slot.stack
+            val stack = slot.item
             if (stack.isEmpty) continue
 
             val lore = InventoryUtils.getLore(stack)

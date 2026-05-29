@@ -6,9 +6,9 @@ import com.dyetracker.data.DungeonFloor
 import com.dyetracker.data.DyeRotation
 import com.dyetracker.data.VisitorEntry
 import com.dyetracker.data.VisitorRarity
-import net.minecraft.inventory.Inventory
-import net.minecraft.item.ItemStack
-import net.minecraft.screen.slot.Slot
+import net.minecraft.world.Container
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.inventory.Slot
 import net.minecraft.network.chat.Component
 
 /**
@@ -216,7 +216,7 @@ object InventoryUtils {
      * Returns null if the item is not selected.
      */
     fun parseSelectedItem(itemStack: ItemStack): SelectedItemInfo? {
-        val name = itemStack.name?.string ?: return null
+        val name = itemStack.hoverName?.string ?: return null
         val lore = getLore(itemStack)
 
         if (!isSelected(lore)) {
@@ -237,7 +237,7 @@ object InventoryUtils {
      * stably for all players, including those who have maxed every milestone tier.
      */
     fun parseCommissionMilestoneCount(itemStack: ItemStack): Int? {
-        val name = stripFormatting(itemStack.name?.string ?: return null)
+        val name = stripFormatting(itemStack.hoverName?.string ?: return null)
         if (!name.contains(MILESTONE_I_REWARDS_ITEM)) return null
 
         val lore = getLore(itemStack)
@@ -254,8 +254,8 @@ object InventoryUtils {
      * Get the lore lines from an ItemStack.
      */
     fun getLore(itemStack: ItemStack): List<Component> {
-        val loreComponent = itemStack.get(net.minecraft.component.DataComponentTypes.LORE)
-        return loreComponent?.lines ?: emptyList()
+        val loreComponent = itemStack.get(net.minecraft.core.component.DataComponents.LORE)
+        return loreComponent?.lines() ?: emptyList()
     }
 
     /**
@@ -379,7 +379,7 @@ object InventoryUtils {
      * dye. Strips formatting + the " Dye" suffix and looks up [DYE_DISPLAY_NAME_TO_ID].
      */
     private fun resolveDyeId(itemStack: ItemStack): String? {
-        val rawName = itemStack.name?.string ?: return null
+        val rawName = itemStack.hoverName?.string ?: return null
         val cleanName = stripFormatting(rawName)
         val dyeName = if (cleanName.endsWith(DYE_ITEM_SUFFIX)) {
             cleanName.dropLast(DYE_ITEM_SUFFIX.length)
@@ -450,10 +450,10 @@ object InventoryUtils {
      * Extract all dye items from a Vincent inventory screen.
      * Returns a list of DroppedDye for each recognized dye in the inventory.
      */
-    fun extractDyeCollection(slots: Iterable<net.minecraft.screen.slot.Slot>): List<DroppedDye> {
+    fun extractDyeCollection(slots: Iterable<net.minecraft.world.inventory.Slot>): List<DroppedDye> {
         val dyes = mutableListOf<DroppedDye>()
         for (slot in slots) {
-            val stack = slot.stack
+            val stack = slot.item
             if (stack.isEmpty) continue
 
             val dye = parseDyeItem(stack)
@@ -476,23 +476,23 @@ object InventoryUtils {
      * a known dye. Container slot order is preserved into [DyeRotation.dyeIds] so the widget renders
      * in screen order. Per-dye boost multiplier + SkyBlock year are captured from lore when present.
      */
-    fun extractDyeRotation(slots: Iterable<Slot>, playerInventory: Inventory): DyeRotation {
+    fun extractDyeRotation(slots: Iterable<Slot>, playerInventory: Container): DyeRotation {
         val dyeIds = mutableListOf<String>()
         val boosts = mutableMapOf<String, Int>()
         var skyblockYear: Int? = null
 
         for (slot in slots) {
             // Skip the player inventory; only the container's slots hold the rotation.
-            if (slot.inventory === playerInventory) continue
+            if (slot.container === playerInventory) continue
 
-            val stack = slot.stack
+            val stack = slot.item
             if (stack.isEmpty) continue
 
             val dyeId = resolveDyeId(stack)
             if (dyeId == null) {
                 // Log only items that look like a dye ("<Name> Dye") but aren't in the map, so a
                 // future Hypixel rename is diagnosable — without spamming for the $/sign/nav items.
-                val name = stripFormatting(stack.name?.string ?: "")
+                val name = stripFormatting(stack.hoverName?.string ?: "")
                 if (name.endsWith(DYE_ITEM_SUFFIX)) {
                     DyeTrackerMod.debug("Skipping unmapped rotation dye: {}", name)
                 }
@@ -602,10 +602,10 @@ object InventoryUtils {
     fun extractVisitorEntriesFromSlots(slots: Iterable<Slot>): List<VisitorEntry> {
         val entries = mutableListOf<VisitorEntry>()
         for (slot in slots) {
-            val stack = slot.stack
+            val stack = slot.item
             if (stack.isEmpty) continue
 
-            val name = stripFormatting(stack.name?.string ?: continue)
+            val name = stripFormatting(stack.hoverName?.string ?: continue)
             val loreLines = getLore(stack).map { stripFormatting(it.string) }
             val entry = parseVisitorEntry(name, loreLines)
             if (entry != null) entries.add(entry)
