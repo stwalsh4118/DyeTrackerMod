@@ -38,11 +38,11 @@ object TablistHandler {
     }
 
     private fun pollTablist(client: Minecraft) {
-        val networkHandler = client.networkHandler ?: return
-        val playerList = networkHandler.playerList ?: return
+        val networkHandler = client.connection ?: return
+        val playerList = networkHandler.onlinePlayers ?: return
 
         for (entry in playerList) {
-            val displayName = entry.displayName ?: continue
+            val displayName = entry.tabListDisplayName ?: continue
             val text = displayName.string
 
             // Strip color codes for matching

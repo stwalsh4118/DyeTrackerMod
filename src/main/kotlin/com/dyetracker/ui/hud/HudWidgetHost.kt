@@ -43,7 +43,7 @@ object HudWidgetHost {
         ImageTextureManager.addReleaseListener(::clearFirstRenderMark)
         HudElementRegistry.attachElementBefore(
             VanillaHudElements.CHAT,
-            Identifier.of(DyeTrackerMod.MOD_ID, HUD_ELEMENT_ID),
+            Identifier.fromNamespaceAndPath(DyeTrackerMod.MOD_ID, HUD_ELEMENT_ID),
         ) { context, tickCounter -> render(context, tickCounter) }
         DyeTrackerMod.info("HUD widget host attached before vanilla chat")
     }

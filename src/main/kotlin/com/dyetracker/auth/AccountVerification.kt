@@ -41,10 +41,10 @@ object AccountVerification {
      */
     fun verifyAccount(linkCode: String): CompletableFuture<VerificationResult> {
         // Capture session info on main thread (must be done before async to avoid classloader issues)
-        val session = Minecraft.getInstance().session
-        val username = session.username
-        val uuid = session.uuidOrNull
-        val accessToken = session.accessToken
+        val user = Minecraft.getInstance().user
+        val username = user.name
+        val uuid = user.profileId
+        val accessToken = user.accessToken
 
         return CompletableFuture.supplyAsync({
             try {
