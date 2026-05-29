@@ -2,6 +2,7 @@ package com.dyetracker.ui.core
 
 import net.minecraft.client.gui.Font
 import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.client.renderer.RenderPipelines
 import net.minecraft.resources.Identifier
 import kotlin.math.roundToInt
 
@@ -9,31 +10,29 @@ import kotlin.math.roundToInt
  * Thin wrappers over the repetitive [GuiGraphicsExtractor] primitives used across the toolkit:
  * solid fills, 1px bordered rectangles, alignment-aware text, and the non-tiling
  * stretched-texture blit. Centralizing these keeps widgets free of raw render-context
- * boilerplate and documents the single correct way to do each.
+ * boilerplate and documents the single correct way to do each — notably the 12-arg `blit`
+ * overload that *stretches* the source (shorter overloads sample dest == region and would tile).
  *
- * TODO(PBI-52): the actual draw calls are stubbed to no-ops for the 26.1 compile-green
- * milestone (PBI-51 task 51-8). 26.1 replaced the immediate-mode `DrawContext`/`GuiGraphics`
- * draw API with the `GuiGraphicsExtractor` render-state extraction model; porting the real
- * `fill`/`text`/`blit` calls (and the matrix/`pose()` scale path) is PBI-52's scope, verified
- * in-client there. Signatures + text measurement are kept real so callers type-check and
- * layout math stays correct; only the GPU-facing primitives are deferred.
+ * 26.1 replaced the immediate-mode `DrawContext`/`GuiGraphics` draw API with the
+ * `GuiGraphicsExtractor` render-state extraction model; the convenience primitives survive
+ * renamed (`fill` unchanged, `drawText`→`text`, `drawTexture`→`blit`, `context.matrices`→`pose()`).
+ * See `docs/delivery/52/research/52-1-26.1-render-api-guide.md` for the verified signatures.
  */
 object UiDraw {
 
     const val DEFAULT_BORDER_PX = 1
 
     /** Fill a solid rectangle of [width]×[height] at ([x], [y]) with [argb]. No-op if empty. */
-    @Suppress("UNUSED_PARAMETER")
     fun fillRect(context: GuiGraphicsExtractor, x: Int, y: Int, width: Int, height: Int, argb: Int) {
         if (width <= 0 || height <= 0) return
-        // TODO(PBI-52): real render — context.fill(x, y, x + width, y + height, argb)
+        context.fill(x, y, x + width, y + height, argb)
     }
 
     /**
      * Stroke a [thickness]px border along the inner edges of the [width]×[height] rect at
-     * ([x], [y]). For an *outset* focus border, pass an expanded rect.
+     * ([x], [y]). Corners are drawn once (the left/right strokes are inset between the
+     * top/bottom strokes). For an *outset* focus border, pass an expanded rect.
      */
-    @Suppress("UNUSED_PARAMETER")
     fun strokeRect(
         context: GuiGraphicsExtractor,
         x: Int,
@@ -44,7 +43,12 @@ object UiDraw {
         thickness: Int = DEFAULT_BORDER_PX,
     ) {
         if (width <= 0 || height <= 0 || thickness <= 0) return
-        // TODO(PBI-52): real render — four context.fill(...) edge strokes (top/bottom/left/right)
+        val right = x + width
+        val bottom = y + height
+        context.fill(x, y, right, y + thickness, argb) // top
+        context.fill(x, bottom - thickness, right, bottom, argb) // bottom
+        context.fill(x, y + thickness, x + thickness, bottom - thickness, argb) // left
+        context.fill(right - thickness, y + thickness, right, bottom - thickness, argb) // right
     }
 
     /** Fill [fillArgb] then stroke a [borderThickness]px [borderArgb] border on the same rect. */
@@ -64,9 +68,13 @@ object UiDraw {
 
     /**
      * Draw [text] at ([x], [y]) honoring [alignment] within [availableWidth] (defaults to the
-     * text's own width × [scale]). Optionally drawn with a drop [shadow].
+     * text's own width × [scale], i.e. no extra alignment box). [x] is the left edge of the
+     * alignment box; the text is offset within it. Optionally drawn with a drop [shadow].
+     *
+     * [scale] != 1 is applied via a `pose()` matrix transform (the vanilla text API has no scale
+     * parameter); the alignment box and child width are both measured in scaled pixels so the
+     * glyphs land at the correct position and size.
      */
-    @Suppress("UNUSED_PARAMETER")
     fun drawText(
         context: GuiGraphicsExtractor,
         font: Font,
@@ -79,15 +87,26 @@ object UiDraw {
         availableWidth: Int = (font.width(text) * scale).roundToInt(),
         alignment: HorizontalAlignment = HorizontalAlignment.START,
     ) {
-        // TODO(PBI-52): real render — alignment offset + context.drawText(font, text, drawX, y, argb, shadow),
-        // with the scale != 1f matrix/pose() path. Text measurement (font.width) is kept for layout sizing.
+        val textWidth = (font.width(text) * scale).roundToInt()
+        val drawX = x + alignment.offset(availableWidth, textWidth)
+        if (scale == 1f) {
+            context.text(font, text, drawX, y, argb, shadow)
+        } else {
+            val pose = context.pose()
+            pose.pushMatrix()
+            pose.translate(drawX.toFloat(), y.toFloat())
+            pose.scale(scale, scale)
+            context.text(font, text, 0, 0, argb, shadow)
+            pose.popMatrix()
+        }
     }
 
     /**
-     * Blit [textureId] into a [destWidth]×[destHeight] quad at ([x], [y]), bilinearly stretching
-     * the [srcWidth]×[srcHeight] source when the destination size differs.
+     * Blit [textureId] into a [destWidth]×[destHeight] quad at ([x], [y]), sampling the full
+     * [srcWidth]×[srcHeight] source so the GPU bilinearly *stretches* it when the destination
+     * differs from the source. This is the 12-arg `blit` overload (dest size, region size, and
+     * texture size given separately); shorter overloads treat dest as the sampled region.
      */
-    @Suppress("UNUSED_PARAMETER")
     fun blitStretched(
         context: GuiGraphicsExtractor,
         textureId: Identifier,
@@ -99,6 +118,14 @@ object UiDraw {
         srcHeight: Int,
     ) {
         if (destWidth <= 0 || destHeight <= 0 || srcWidth <= 0 || srcHeight <= 0) return
-        // TODO(PBI-52): real render — the 12-arg stretched context.drawTexture(RenderPipelines.GUI_TEXTURED, ...)
+        context.blit(
+            RenderPipelines.GUI_TEXTURED,
+            textureId,
+            x, y,
+            0f, 0f,
+            destWidth, destHeight,
+            srcWidth, srcHeight,
+            srcWidth, srcHeight,
+        )
     }
 }
