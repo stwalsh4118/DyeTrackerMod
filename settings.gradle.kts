@@ -14,8 +14,9 @@ plugins {
 
 stonecutter {
     create(rootProject) {
-        versions("1.21.10", "1.21.11")
-        vcsVersion = "1.21.10"
+        // 26.x line (mc-26x branch). 1.21.x stays on `main`. 26.2 is added in PBI-53.
+        versions("26.1")
+        vcsVersion = "26.1"
     }
 }
 

@@ -1,8 +1,10 @@
 plugins {
     id("dev.kikugie.stonecutter")
-    id("fabric-loom") version "1.16.2"
-    id("org.jetbrains.kotlin.jvm") version "2.2.20"
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.20"
+    // 26.1 is unobfuscated: use the no-remap Loom plugin id (NOT the old `fabric-loom`/`-remap`).
+    // See docs/delivery/50/research/mc-26x-toolchain-guide.md §1.
+    id("net.fabricmc.fabric-loom") version "1.16.2"
+    id("org.jetbrains.kotlin.jvm") version "2.3.21"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.21"
 }
 
 version = "${property("mod_version")}+${stonecutter.current.version}"
@@ -20,16 +22,17 @@ repositories {
 dependencies {
     // Minecraft version comes from the active Stonecutter subproject name.
     minecraft("com.mojang:minecraft:${stonecutter.current.version}")
-    mappings("net.fabricmc:yarn:${property("yarn_mappings")}:v2")
+    // No `mappings(...)` line: 26.1 is unobfuscated, and the no-remap Loom plugin needs no
+    // obfuscation mappings (officialMojangMappings() does NOT apply here). See guide §2.
 
-    // Fabric Loader
-    modImplementation("net.fabricmc:fabric-loader:${property("loader_version")}")
+    // Fabric Loader — no-remap plugin uses plain `implementation`, not `modImplementation`.
+    implementation("net.fabricmc:fabric-loader:${property("loader_version")}")
 
     // Fabric API
-    modImplementation("net.fabricmc.fabric-api:fabric-api:${property("fabric_version")}")
+    implementation("net.fabricmc.fabric-api:fabric-api:${property("fabric_version")}")
 
     // Fabric Language Kotlin (includes kotlinx.serialization)
-    modImplementation("net.fabricmc:fabric-language-kotlin:${property("fabric_kotlin_version")}")
+    implementation("net.fabricmc:fabric-language-kotlin:${property("fabric_kotlin_version")}")
 
     // Unit testing (pure JVM; no Minecraft/Fabric runtime).
     // See docs/delivery/33/33-2-junit-guide.md for rationale and coordinates.
@@ -58,18 +61,23 @@ tasks.processResources {
 }
 
 tasks.withType<JavaCompile> {
-    options.release.set(21)
+    options.release.set(25)
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
     }
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    // Minecraft 26.1 requires Java 25. The toolchain pins the build JVM to JDK 25
+    // (auto-detected from SDKMAN); `main` has no toolchain decl and stays on Java 21.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
     withSourcesJar()
 }
 
