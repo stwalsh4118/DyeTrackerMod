@@ -1,6 +1,6 @@
 package com.dyetracker.ui.edit
 
-import net.minecraft.client.gui.DrawContext
+import net.minecraft.client.gui.GuiGraphicsExtractor
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -26,10 +26,10 @@ interface EditScreenAction {
     fun onDismiss()
 
     /** Paint behind the screen's widgets (panel background). */
-    fun renderBackground(screen: WidgetEditScreen, context: DrawContext) {}
+    fun renderBackground(screen: WidgetEditScreen, context: GuiGraphicsExtractor) {}
 
     /** Paint above the screen's widgets (status line). */
-    fun renderForeground(screen: WidgetEditScreen, context: DrawContext) {}
+    fun renderForeground(screen: WidgetEditScreen, context: GuiGraphicsExtractor) {}
 
     /** Handle [keyCode] while active; return true if consumed (e.g. Enter to submit). */
     fun keyPressed(screen: WidgetEditScreen, keyCode: Int): Boolean = false

@@ -12,8 +12,8 @@ import com.dyetracker.ui.texture.ImageTextureManager
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.DrawContext
-import net.minecraft.client.render.RenderTickCounter
+import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.client.DeltaTracker
 import net.minecraft.resources.Identifier
 import net.minecraft.util.Util
 import kotlin.math.roundToInt
@@ -48,9 +48,9 @@ object HudWidgetHost {
         DyeTrackerMod.info("HUD widget host attached before vanilla chat")
     }
 
-    private fun render(context: DrawContext, @Suppress("UNUSED_PARAMETER") tickCounter: RenderTickCounter) {
+    private fun render(context: GuiGraphicsExtractor, @Suppress("UNUSED_PARAMETER") tickCounter: DeltaTracker) {
         val client = Minecraft.getInstance() ?: return
-        val now = Util.getMeasuringTimeMs()
+        val now = Util.getMillis()
         val paused = client.isPaused
         // Advance the shared animation clock BEFORE the F1 check so animations stay in phase
         // even while the HUD is hidden; freeze it while paused.
@@ -62,14 +62,14 @@ object HudWidgetHost {
             if (!paused && delta > 0) runningTimeMs += delta
         }
 
-        if (client.options.hudHidden) return
+        if (client.options.hideGui) return
 
         val entries = HudWidgetRegistry.entries()
         if (entries.isEmpty()) return
 
         val window = client.window ?: return
-        val screenW = window.scaledWidth
-        val screenH = window.scaledHeight
+        val screenW = window.guiScaledWidth
+        val screenH = window.guiScaledHeight
         val renderCtx = RenderContext(context, runningTimeMs, paused)
 
         // Bounce mode (PBI 38) replaces each visible widget's static position with a drifting one from
@@ -183,17 +183,12 @@ object HudWidgetHost {
      * Draw [widget] at ([x], [y]) scaled by [scale]. The whole widget tree is scaled
      * uniformly via the GUI matrix stack, so text, fills, and sprites all scale together.
      */
+    @Suppress("UNUSED_PARAMETER")
     private fun drawScaled(ctx: RenderContext, widget: Widget, x: Int, y: Int, scale: Float) {
-        if (scale == 1f) {
-            widget.draw(ctx, x, y)
-            return
-        }
-        val matrices = ctx.drawContext.matrices
-        matrices.pushMatrix()
-        matrices.translate(x.toFloat(), y.toFloat())
-        matrices.scale(scale, scale)
-        widget.draw(ctx, 0, 0)
-        matrices.popMatrix()
+        // TODO(PBI-52): apply [scale] via the 26.1 GuiGraphicsExtractor.pose() matrix stack
+        // (push / translate(x,y) / scale / draw at 0,0 / pop). Stubbed to an unscaled draw for the
+        // compile-green milestone; widget.draw is itself stubbed (UiDraw no-ops) until PBI-52.
+        widget.draw(ctx, x, y)
     }
 
     /** Drop the "first render logged" mark for [id]. Invoked via the texture release listener. */

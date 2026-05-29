@@ -12,7 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.DrawContext
+import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.components.EditBox
 import net.minecraft.network.chat.Component
@@ -97,7 +97,7 @@ object GifAddAction : EditScreenAction {
         return false
     }
 
-    override fun renderBackground(screen: WidgetEditScreen, context: DrawContext) {
+    override fun renderBackground(screen: WidgetEditScreen, context: GuiGraphicsExtractor) {
         val panelX = (screen.width - PANEL_WIDTH_PX) / 2
         UiDraw.filledBox(
             context,
@@ -110,7 +110,7 @@ object GifAddAction : EditScreenAction {
         )
     }
 
-    override fun renderForeground(screen: WidgetEditScreen, context: DrawContext) {
+    override fun renderForeground(screen: WidgetEditScreen, context: GuiGraphicsExtractor) {
         val message = status ?: return
         val panelX = (screen.width - PANEL_WIDTH_PX) / 2
         val color = if (statusIsError) UiTheme.Colors.STATUS_ERROR else UiTheme.Colors.STATUS_OK

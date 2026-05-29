@@ -10,7 +10,7 @@ import com.dyetracker.ui.hud.HudWidgetRegistry
 import com.dyetracker.ui.theme.UiTheme
 import net.minecraft.client.Minecraft
 import net.minecraft.client.input.MouseButtonEvent
-import net.minecraft.client.gui.DrawContext
+import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.Renderable
 import net.minecraft.client.gui.components.events.GuiEventListener
 import net.minecraft.client.gui.narration.NarratableEntry
@@ -105,12 +105,14 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
     private fun focusedEntry(): HudWidgetEntry? =
         focusedId?.let { id -> editableEntries().find { it.id == id } }
 
-    override fun renderBackground(context: DrawContext, mouseX: Int, mouseY: Int, delta: Float) {
-        super.renderBackground(context, mouseX, mouseY, delta)
+    override fun extractBackground(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
+        super.extractBackground(context, mouseX, mouseY, delta)
+        // TODO(PBI-52): the UiDraw/HudWidgetHost draw calls below are no-ops on 26.1 until the real
+        // GuiGraphicsExtractor render lands (PBI-51 task 51-8 stub) — the structure is preserved.
         UiDraw.fillRect(context, 0, 0, width, height, UiTheme.Colors.BACKDROP)
 
         // Live widgets animate in edit mode (paused = false), like the rest of the HUD.
-        val renderCtx = RenderContext(context, Util.getMeasuringTimeMs(), paused = false)
+        val renderCtx = RenderContext(context, Util.getMillis(), paused = false)
         var focusedRect: com.dyetracker.ui.core.Rect? = null
         for (entry in editableEntries()) {
             val rect = HudWidgetHost.boundsOf(entry, width, height) ?: continue
@@ -137,8 +139,10 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
         activeAction?.renderBackground(this, context)
     }
 
-    override fun render(context: DrawContext, mouseX: Int, mouseY: Int, delta: Float) {
-        super.render(context, mouseX, mouseY, delta)
+    override fun extractRenderState(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
+        super.extractRenderState(context, mouseX, mouseY, delta)
+        // TODO(PBI-52): the UiDraw banner/foreground draw below is a no-op on 26.1 until the real
+        // GuiGraphicsExtractor render lands (PBI-51 task 51-8 stub) — the structure is preserved.
         UiDraw.drawText(
             context,
             font,
@@ -292,10 +296,10 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
 
         override fun onDismiss() = panel.onDismiss()
 
-        override fun renderBackground(screen: WidgetEditScreen, context: DrawContext) =
+        override fun renderBackground(screen: WidgetEditScreen, context: GuiGraphicsExtractor) =
             panel.renderBackground(screen, context)
 
-        override fun renderForeground(screen: WidgetEditScreen, context: DrawContext) =
+        override fun renderForeground(screen: WidgetEditScreen, context: GuiGraphicsExtractor) =
             panel.renderForeground(screen, context)
 
         override fun keyPressed(screen: WidgetEditScreen, keyCode: Int): Boolean =

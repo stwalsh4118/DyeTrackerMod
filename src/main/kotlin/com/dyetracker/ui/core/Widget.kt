@@ -1,9 +1,9 @@
 package com.dyetracker.ui.core
 
-import net.minecraft.client.gui.DrawContext
+import net.minecraft.client.gui.GuiGraphicsExtractor
 
 /**
- * Per-frame render context handed to every [Widget.draw]. Bundles the [DrawContext] with
+ * Per-frame render context handed to every [Widget.draw]. Bundles the [GuiGraphicsExtractor] with
  * the shared animation clock so animated widgets (e.g. sprites) select frames consistently
  * and freeze together while the game is paused.
  *
@@ -12,7 +12,7 @@ import net.minecraft.client.gui.DrawContext
  * screen.
  */
 data class RenderContext(
-    val drawContext: DrawContext,
+    val drawContext: GuiGraphicsExtractor,
     val wallClockMs: Long,
     val paused: Boolean,
 )

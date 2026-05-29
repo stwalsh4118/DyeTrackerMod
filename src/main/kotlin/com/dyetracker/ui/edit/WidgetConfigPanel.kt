@@ -1,7 +1,7 @@
 package com.dyetracker.ui.edit
 
 import com.dyetracker.ui.hud.HudWidgetEntry
-import net.minecraft.client.gui.DrawContext
+import net.minecraft.client.gui.GuiGraphicsExtractor
 
 /**
  * A per-widget configuration panel a feature contributes for its HUD entries. It mirrors
@@ -24,10 +24,10 @@ interface WidgetConfigPanel {
     fun onDismiss()
 
     /** Paint behind the screen's widgets (panel background). */
-    fun renderBackground(screen: WidgetEditScreen, context: DrawContext) {}
+    fun renderBackground(screen: WidgetEditScreen, context: GuiGraphicsExtractor) {}
 
     /** Paint above the screen's widgets (header/status). */
-    fun renderForeground(screen: WidgetEditScreen, context: DrawContext) {}
+    fun renderForeground(screen: WidgetEditScreen, context: GuiGraphicsExtractor) {}
 
     /** Handle [keyCode] while active; return true if consumed. */
     fun keyPressed(screen: WidgetEditScreen, keyCode: Int): Boolean = false

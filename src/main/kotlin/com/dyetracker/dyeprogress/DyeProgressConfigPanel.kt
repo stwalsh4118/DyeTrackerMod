@@ -6,7 +6,7 @@ import com.dyetracker.ui.edit.WidgetConfigPanel
 import com.dyetracker.ui.edit.WidgetEditScreen
 import com.dyetracker.ui.theme.UiTheme
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.DrawContext
+import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.components.Checkbox
 import net.minecraft.network.chat.Component
@@ -100,7 +100,7 @@ object DyeProgressConfigPanel : WidgetConfigPanel {
         headerText = null
     }
 
-    override fun renderBackground(screen: WidgetEditScreen, context: DrawContext) {
+    override fun renderBackground(screen: WidgetEditScreen, context: GuiGraphicsExtractor) {
         val panelX = (screen.width - PANEL_WIDTH_PX) / 2
         UiDraw.filledBox(
             context,
@@ -113,7 +113,7 @@ object DyeProgressConfigPanel : WidgetConfigPanel {
         )
     }
 
-    override fun renderForeground(screen: WidgetEditScreen, context: DrawContext) {
+    override fun renderForeground(screen: WidgetEditScreen, context: GuiGraphicsExtractor) {
         val panelX = (screen.width - PANEL_WIDTH_PX) / 2
         UiDraw.drawText(
             context,

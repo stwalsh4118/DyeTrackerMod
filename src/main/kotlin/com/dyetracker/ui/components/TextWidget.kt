@@ -28,18 +28,18 @@ class TextWidget(
     private val minWidth: Int = 0,
 ) : Widget {
 
-    private val textRenderer get() = Minecraft.getInstance().textRenderer
+    private val font get() = Minecraft.getInstance().font
 
-    private fun scaledTextWidth(): Int = (textRenderer.getWidth(text) * scale).roundToInt()
+    private fun scaledTextWidth(): Int = (font.width(text) * scale).roundToInt()
 
-    private fun scaledTextHeight(): Int = (textRenderer.fontHeight * scale).roundToInt()
+    private fun scaledTextHeight(): Int = (font.lineHeight * scale).roundToInt()
 
     override fun measure(): Size = Size(max(scaledTextWidth(), minWidth), scaledTextHeight())
 
     override fun draw(ctx: RenderContext, x: Int, y: Int) {
         UiDraw.drawText(
             context = ctx.drawContext,
-            textRenderer = textRenderer,
+            font = font,
             text = text,
             x = x,
             y = y,

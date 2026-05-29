@@ -12,7 +12,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.DrawContext
+import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.components.EditBox
 import net.minecraft.network.chat.Component
@@ -129,7 +129,7 @@ object DyeProgressAddAction : EditScreenAction {
         return false
     }
 
-    override fun renderBackground(screen: WidgetEditScreen, context: DrawContext) {
+    override fun renderBackground(screen: WidgetEditScreen, context: GuiGraphicsExtractor) {
         val panelX = (screen.width - PANEL_WIDTH_PX) / 2
         UiDraw.filledBox(
             context,
@@ -142,7 +142,7 @@ object DyeProgressAddAction : EditScreenAction {
         )
     }
 
-    override fun renderForeground(screen: WidgetEditScreen, context: DrawContext) {
+    override fun renderForeground(screen: WidgetEditScreen, context: GuiGraphicsExtractor) {
         val panelX = (screen.width - PANEL_WIDTH_PX) / 2
         val left = panelX + PANEL_PADDING_PX
 
