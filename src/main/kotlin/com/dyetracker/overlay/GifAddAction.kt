@@ -11,11 +11,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import net.minecraft.client.MinecraftClient
+import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.gui.widget.ButtonWidget
 import net.minecraft.client.gui.widget.TextFieldWidget
-import net.minecraft.text.Text
+import net.minecraft.network.chat.Component
 import org.lwjgl.glfw.GLFW
 
 /**
@@ -52,22 +52,22 @@ object GifAddAction : EditScreenAction {
             panelY + PANEL_PADDING_PX,
             PANEL_WIDTH_PX - 2 * PANEL_PADDING_PX,
             FIELD_HEIGHT_PX,
-            Text.literal("URL"),
+            Component.literal("URL"),
         )
         field.setMaxLength(URL_MAX_LENGTH)
         field.setText("")
-        field.setPlaceholder(Text.literal("Paste image URL (https://…)"))
+        field.setPlaceholder(Component.literal("Paste image URL (https://…)"))
         urlField = screen.addActionWidget(field)
         screen.focusInitial(field)
 
         val buttonsY = panelY + PANEL_PADDING_PX + FIELD_HEIGHT_PX + INNER_GAP_PX
         screen.addActionWidget(
-            ButtonWidget.builder(Text.literal("Add")) { submit(screen) }
+            ButtonWidget.builder(Component.literal("Add")) { submit(screen) }
                 .dimensions(panelX + PANEL_PADDING_PX, buttonsY, INNER_BUTTON_WIDTH, CONTROL_HEIGHT_PX)
                 .build(),
         )
         screen.addActionWidget(
-            ButtonWidget.builder(Text.literal("Cancel")) { screen.finishActiveAction(null) }
+            ButtonWidget.builder(Component.literal("Cancel")) { screen.finishActiveAction(null) }
                 .dimensions(
                     panelX + PANEL_WIDTH_PX - PANEL_PADDING_PX - INNER_BUTTON_WIDTH,
                     buttonsY,
@@ -135,7 +135,7 @@ object GifAddAction : EditScreenAction {
                 val outcome = OverlayAddPipeline.addFromUrl(raw) { stage ->
                     postStatus(myEpoch, stageLabel(stage), isError = false)
                 }
-                MinecraftClient.getInstance()?.execute {
+                Minecraft.getInstance()?.execute {
                     if (myEpoch != epoch) return@execute // stale — user moved on
                     when (outcome) {
                         is OverlayAddPipeline.Outcome.Success -> screen.finishActiveAction(outcome.id)
@@ -156,7 +156,7 @@ object GifAddAction : EditScreenAction {
 
     /** Set the status line iff the calling job is still current; marshals to the client thread. */
     private fun postStatus(myEpoch: Int, message: String, isError: Boolean) {
-        MinecraftClient.getInstance()?.execute {
+        Minecraft.getInstance()?.execute {
             if (myEpoch != epoch) return@execute
             status = message
             statusIsError = isError

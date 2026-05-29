@@ -3,7 +3,7 @@ package com.dyetracker.ui.core
 import net.minecraft.client.font.TextRenderer
 import net.minecraft.client.gl.RenderPipelines
 import net.minecraft.client.gui.DrawContext
-import net.minecraft.util.Identifier
+import net.minecraft.resources.Identifier
 import kotlin.math.roundToInt
 
 /**

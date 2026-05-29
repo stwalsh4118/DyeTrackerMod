@@ -3,7 +3,7 @@ package com.dyetracker.events
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.data.RngDataStore
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents
-import net.minecraft.text.Text
+import net.minecraft.network.chat.Component
 
 /**
  * Handles chat messages to capture RNG-relevant events (Archfiend Dice rolls).
@@ -37,7 +37,7 @@ object ChatEventHandler {
         DyeTrackerMod.info("ChatEventHandler registered")
     }
 
-    private fun onChatMessage(message: Text) {
+    private fun onChatMessage(message: Component) {
         val rawText = message.string
         // Strip Minecraft formatting codes (§X) before pattern matching
         val text = FORMAT_CODE_PATTERN.replace(rawText, "")

@@ -11,10 +11,10 @@ import com.dyetracker.ui.core.Widget
 import com.dyetracker.ui.texture.ImageTextureManager
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements
-import net.minecraft.client.MinecraftClient
+import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.render.RenderTickCounter
-import net.minecraft.util.Identifier
+import net.minecraft.resources.Identifier
 import net.minecraft.util.Util
 import kotlin.math.roundToInt
 
@@ -49,7 +49,7 @@ object HudWidgetHost {
     }
 
     private fun render(context: DrawContext, @Suppress("UNUSED_PARAMETER") tickCounter: RenderTickCounter) {
-        val client = MinecraftClient.getInstance() ?: return
+        val client = Minecraft.getInstance() ?: return
         val now = Util.getMeasuringTimeMs()
         val paused = client.isPaused
         // Advance the shared animation clock BEFORE the F1 check so animations stay in phase

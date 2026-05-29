@@ -4,7 +4,7 @@ import com.dyetracker.DyeTrackerMod
 import com.dyetracker.api.ApiClient
 import com.dyetracker.config.ConfigManager
 import com.dyetracker.dyeprogress.DyeProgressStore
-import net.minecraft.client.MinecraftClient
+import net.minecraft.client.Minecraft
 import java.net.URI
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
@@ -41,7 +41,7 @@ object AccountVerification {
      */
     fun verifyAccount(linkCode: String): CompletableFuture<VerificationResult> {
         // Capture session info on main thread (must be done before async to avoid classloader issues)
-        val session = MinecraftClient.getInstance().session
+        val session = Minecraft.getInstance().session
         val username = session.username
         val uuid = session.uuidOrNull
         val accessToken = session.accessToken

@@ -11,11 +11,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import net.minecraft.client.MinecraftClient
+import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.gui.widget.ButtonWidget
 import net.minecraft.client.gui.widget.TextFieldWidget
-import net.minecraft.text.Text
+import net.minecraft.network.chat.Component
 import org.lwjgl.glfw.GLFW
 
 /**
@@ -61,9 +61,9 @@ object DyeProgressAddAction : EditScreenAction {
             PANEL_TOP_PX + SEARCH_DY,
             contentWidth,
             FIELD_HEIGHT_PX,
-            Text.literal("Search dyes"),
+            Component.literal("Search dyes"),
         )
-        search.setPlaceholder(Text.literal("Search dyes…"))
+        search.setPlaceholder(Component.literal("Search dyes…"))
         search.setChangedListener { query -> refreshMatches(query) }
         searchField = screen.addActionWidget(search)
         screen.focusInitial(search)
@@ -71,7 +71,7 @@ object DyeProgressAddAction : EditScreenAction {
         rowButtons = (0 until MAX_VISIBLE_ROWS).map { i ->
             val rowY = PANEL_TOP_PX + LIST_TOP_DY + i * ROW_STRIDE_PX
             screen.addActionWidget(
-                ButtonWidget.builder(Text.literal(" ")) { selectRow(i) }
+                ButtonWidget.builder(Component.literal(" ")) { selectRow(i) }
                     .dimensions(contentLeft, rowY, contentWidth, ROW_HEIGHT_PX)
                     .build(),
             )
@@ -83,21 +83,21 @@ object DyeProgressAddAction : EditScreenAction {
             PANEL_TOP_PX + PROFILE_DY,
             contentWidth,
             FIELD_HEIGHT_PX,
-            Text.literal("Profile"),
+            Component.literal("Profile"),
         )
         profile.setMaxLength(PROFILE_MAX_LENGTH)
-        profile.setPlaceholder(Text.literal("Profile name (e.g. Mango)"))
+        profile.setPlaceholder(Component.literal("Profile name (e.g. Mango)"))
         profile.setText(lastUsedProfileName())
         profileField = screen.addActionWidget(profile)
 
         val buttonsY = PANEL_TOP_PX + BUTTONS_DY
         screen.addActionWidget(
-            ButtonWidget.builder(Text.literal("Add")) { submit(screen) }
+            ButtonWidget.builder(Component.literal("Add")) { submit(screen) }
                 .dimensions(contentLeft, buttonsY, INNER_BUTTON_WIDTH, CONTROL_HEIGHT_PX)
                 .build(),
         )
         screen.addActionWidget(
-            ButtonWidget.builder(Text.literal("Cancel")) { screen.finishActiveAction(null) }
+            ButtonWidget.builder(Component.literal("Cancel")) { screen.finishActiveAction(null) }
                 .dimensions(
                     panelX + PANEL_WIDTH_PX - PANEL_PADDING_PX - INNER_BUTTON_WIDTH,
                     buttonsY,
@@ -191,7 +191,7 @@ object DyeProgressAddAction : EditScreenAction {
         for (i in rowButtons.indices) {
             val option = visibleMatches.getOrNull(i) ?: continue
             val marker = if (option.dyeId == selected?.dyeId) SELECTED_PREFIX else UNSELECTED_PREFIX
-            rowButtons[i].message = Text.literal(marker + option.displayName)
+            rowButtons[i].message = Component.literal(marker + option.displayName)
         }
     }
 
@@ -219,7 +219,7 @@ object DyeProgressAddAction : EditScreenAction {
         job = scope.launch {
             try {
                 val result = DyeProgressAdder.resolveAndAdd(username, dye.dyeId, profileName)
-                MinecraftClient.getInstance()?.execute {
+                Minecraft.getInstance()?.execute {
                     if (myEpoch != epoch) return@execute // stale — user moved on
                     handleResult(screen, result)
                 }
@@ -251,7 +251,7 @@ object DyeProgressAddAction : EditScreenAction {
 
     /** Set the status line iff the calling job is still current; marshals to the client thread. */
     private fun postStatus(myEpoch: Int, message: String, isError: Boolean) {
-        MinecraftClient.getInstance()?.execute {
+        Minecraft.getInstance()?.execute {
             if (myEpoch != epoch) return@execute
             status = message
             statusIsError = isError

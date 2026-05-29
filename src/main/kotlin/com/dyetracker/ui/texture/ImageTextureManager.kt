@@ -3,13 +3,13 @@ package com.dyetracker.ui.texture
 // All texture construction and release MUST run on the render thread because Mojang's
 // `NativeImage` / `NativeImageBackedTexture` allocate native (off-heap) buffers and
 // upload OpenGL textures. Calling from any other thread crashes the game. `upload`
-// and `release` accept any-thread calls and schedule via `MinecraftClient.execute`.
+// and `release` accept any-thread calls and schedule via `Minecraft.execute`.
 
 import com.dyetracker.DyeTrackerMod
-import net.minecraft.client.MinecraftClient
+import net.minecraft.client.Minecraft
 import net.minecraft.client.texture.NativeImage
 import net.minecraft.client.texture.NativeImageBackedTexture
-import net.minecraft.util.Identifier
+import net.minecraft.resources.Identifier
 import java.awt.image.BufferedImage
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
@@ -64,7 +64,7 @@ object ImageTextureManager {
      */
     fun upload(id: String, image: ImageFrames): CompletableFuture<Unit> {
         val future = CompletableFuture<Unit>()
-        val client = MinecraftClient.getInstance()
+        val client = Minecraft.getInstance()
         if (image.frames.isEmpty()) {
             future.completeExceptionally(IllegalArgumentException("upload requires at least one frame"))
             return future
@@ -123,7 +123,7 @@ object ImageTextureManager {
 
     /** Release an image's textures. Schedules to render thread if needed. */
     fun release(id: String) {
-        val client = MinecraftClient.getInstance()
+        val client = Minecraft.getInstance()
         if (client.isOnThread) {
             releaseInternal(id)
         } else {
@@ -133,7 +133,7 @@ object ImageTextureManager {
 
     /** Release every image; called on mod/client shutdown. */
     fun releaseAll() {
-        val client = MinecraftClient.getInstance()
+        val client = Minecraft.getInstance()
         if (client.isOnThread) {
             images.keys.toList().forEach(::releaseInternal)
         } else {
@@ -143,7 +143,7 @@ object ImageTextureManager {
 
     private fun releaseInternal(id: String) {
         val state = images.remove(id) ?: return
-        val client = MinecraftClient.getInstance()
+        val client = Minecraft.getInstance()
         for (frameId in state.frameIds) {
             try {
                 // destroyTexture invokes texture.close() internally; do NOT also call

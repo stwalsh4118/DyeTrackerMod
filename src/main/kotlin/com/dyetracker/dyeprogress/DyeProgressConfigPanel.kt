@@ -8,7 +8,7 @@ import com.dyetracker.ui.theme.UiTheme
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.gui.widget.ButtonWidget
 import net.minecraft.client.gui.widget.CheckboxWidget
-import net.minecraft.text.Text
+import net.minecraft.network.chat.Component
 
 /** A toggleable piece of the single-dye progress widget, with its checkbox label. */
 enum class DyeProgressPiece(val label: String) {
@@ -74,7 +74,7 @@ object DyeProgressConfigPanel : WidgetConfigPanel {
             var first: CheckboxWidget? = null
             DyeProgressPiece.entries.forEachIndexed { i, piece ->
                 val y = PANEL_TOP_PX + LIST_TOP_DY + i * CHECKBOX_ROW_STRIDE_PX
-                val checkbox = CheckboxWidget.builder(Text.literal(piece.label), screen.textRenderer)
+                val checkbox = CheckboxWidget.builder(Component.literal(piece.label), screen.textRenderer)
                     .pos(contentLeft, y)
                     .checked(pieceValue(cfg, piece))
                     .callback { _, checked -> persist(piece, checked) }
@@ -88,7 +88,7 @@ object DyeProgressConfigPanel : WidgetConfigPanel {
 
         val closeX = panelX + (PANEL_WIDTH_PX - CLOSE_BUTTON_WIDTH_PX) / 2
         screen.addActionWidget(
-            ButtonWidget.builder(Text.literal("Close")) { screen.finishActiveAction(null) }
+            ButtonWidget.builder(Component.literal("Close")) { screen.finishActiveAction(null) }
                 .dimensions(closeX, PANEL_TOP_PX + buttonsDy(), CLOSE_BUTTON_WIDTH_PX, CONTROL_HEIGHT_PX)
                 .build(),
         )

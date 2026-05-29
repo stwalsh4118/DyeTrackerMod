@@ -3,10 +3,10 @@ package com.dyetracker.ui.edit
 import com.dyetracker.DyeTrackerMod
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper
-import net.minecraft.client.MinecraftClient
+import net.minecraft.client.Minecraft
 import net.minecraft.client.option.KeyBinding
 import net.minecraft.client.util.InputUtil
-import net.minecraft.util.Identifier
+import net.minecraft.resources.Identifier
 import org.lwjgl.glfw.GLFW
 
 /**
@@ -49,7 +49,7 @@ object EditModeKeybind {
     }
 
     /** Open edit mode if no other screen is active. Safe to call from any thread. */
-    fun openEditScreen(client: MinecraftClient) {
+    fun openEditScreen(client: Minecraft) {
         if (client.currentScreen != null) return
         client.setScreen(WidgetEditScreen())
     }

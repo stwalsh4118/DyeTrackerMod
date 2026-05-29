@@ -24,10 +24,10 @@ import kotlinx.coroutines.launch
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource
-import net.minecraft.client.MinecraftClient
+import net.minecraft.client.Minecraft
 import net.minecraft.command.CommandRegistryAccess
-import net.minecraft.text.Text
-import net.minecraft.util.Formatting
+import net.minecraft.network.chat.Component
+import net.minecraft.ChatFormatting
 import java.text.SimpleDateFormat
 import java.util.Date
 
@@ -67,8 +67,8 @@ object DyeTrackerCommands {
                         )
                         .executes { context ->
                             context.source.sendFeedback(
-                                Text.literal("Usage: /dyetracker link <code>")
-                                    .formatted(Formatting.YELLOW)
+                                Component.literal("Usage: /dyetracker link <code>")
+                                    .formatted(ChatFormatting.YELLOW)
                             )
                             1
                         }
@@ -122,8 +122,8 @@ object DyeTrackerCommands {
                                 )
                                 .executes { context ->
                                     context.source.sendFeedback(
-                                        Text.literal("Usage: /dyetracker gif add <url>")
-                                            .formatted(Formatting.YELLOW)
+                                        Component.literal("Usage: /dyetracker gif add <url>")
+                                            .formatted(ChatFormatting.YELLOW)
                                     )
                                     1
                                 }
@@ -147,8 +147,8 @@ object DyeTrackerCommands {
                                 )
                                 .executes { context ->
                                     context.source.sendFeedback(
-                                        Text.literal("Usage: /dyetracker gif remove <id>")
-                                            .formatted(Formatting.YELLOW)
+                                        Component.literal("Usage: /dyetracker gif remove <id>")
+                                            .formatted(ChatFormatting.YELLOW)
                                     )
                                     1
                                 }
@@ -162,8 +162,8 @@ object DyeTrackerCommands {
                         )
                         .executes { context ->
                             context.source.sendFeedback(
-                                Text.literal("Usage: /dyetracker gif <add|list|remove|edit>")
-                                    .formatted(Formatting.YELLOW)
+                                Component.literal("Usage: /dyetracker gif <add|list|remove|edit>")
+                                    .formatted(ChatFormatting.YELLOW)
                             )
                             1
                         }
@@ -186,8 +186,8 @@ object DyeTrackerCommands {
                         )
                         .executes { context ->
                             context.source.sendFeedback(
-                                Text.literal("Usage: /dyetracker rotation <toggle|edit>")
-                                    .formatted(Formatting.YELLOW)
+                                Component.literal("Usage: /dyetracker rotation <toggle|edit>")
+                                    .formatted(ChatFormatting.YELLOW)
                             )
                             1
                         }
@@ -212,8 +212,8 @@ object DyeTrackerCommands {
                                 )
                                 .executes { context ->
                                     context.source.sendFeedback(
-                                        Text.literal("Usage: /dyetracker dye remove <id>")
-                                            .formatted(Formatting.YELLOW)
+                                        Component.literal("Usage: /dyetracker dye remove <id>")
+                                            .formatted(ChatFormatting.YELLOW)
                                     )
                                     1
                                 }
@@ -257,24 +257,24 @@ object DyeTrackerCommands {
                                         )
                                         .executes { context ->
                                             context.source.sendFeedback(
-                                                Text.literal("Usage: /dyetracker dye add <dyeId> <profile>")
-                                                    .formatted(Formatting.YELLOW)
+                                                Component.literal("Usage: /dyetracker dye add <dyeId> <profile>")
+                                                    .formatted(ChatFormatting.YELLOW)
                                             )
                                             1
                                         }
                                 )
                                 .executes { context ->
                                     context.source.sendFeedback(
-                                        Text.literal("Usage: /dyetracker dye add <dyeId> <profile>")
-                                            .formatted(Formatting.YELLOW)
+                                        Component.literal("Usage: /dyetracker dye add <dyeId> <profile>")
+                                            .formatted(ChatFormatting.YELLOW)
                                     )
                                     1
                                 }
                         )
                         .executes { context ->
                             context.source.sendFeedback(
-                                Text.literal("Usage: /dyetracker dye <list|remove|edit|toggle|add>")
-                                    .formatted(Formatting.YELLOW)
+                                Component.literal("Usage: /dyetracker dye <list|remove|edit|toggle|add>")
+                                    .formatted(ChatFormatting.YELLOW)
                             )
                             1
                         }
@@ -318,15 +318,15 @@ object DyeTrackerCommands {
     private fun handleGifAddCommand(source: FabricClientCommandSource, rawUrl: String) {
         if (rawUrl.trim().isEmpty()) {
             source.sendFeedback(
-                Text.literal("Invalid URL.")
-                    .formatted(Formatting.RED)
+                Component.literal("Invalid URL.")
+                    .formatted(ChatFormatting.RED)
             )
             return
         }
 
         source.sendFeedback(
-            Text.literal("Downloading…")
-                .formatted(Formatting.YELLOW)
+            Component.literal("Downloading…")
+                .formatted(ChatFormatting.YELLOW)
         )
 
         gifCommandScope.launch {
@@ -336,13 +336,13 @@ object DyeTrackerCommands {
             postOnClient {
                 when (outcome) {
                     is OverlayAddPipeline.Outcome.Success -> source.sendFeedback(
-                        Text.literal(
+                        Component.literal(
                             "Added overlay '${outcome.id}' (${outcome.decoded.frames.size} frames, " +
                                 "${outcome.decoded.totalDurationMs}ms loop)"
-                        ).formatted(Formatting.GREEN)
+                        ).formatted(ChatFormatting.GREEN)
                     )
                     is OverlayAddPipeline.Outcome.Failure -> source.sendFeedback(
-                        Text.literal(outcome.message).formatted(Formatting.RED)
+                        Component.literal(outcome.message).formatted(ChatFormatting.RED)
                     )
                 }
             }
@@ -353,8 +353,8 @@ object DyeTrackerCommands {
         val gifs = ConfigManager.gifPlacements.all()
         if (gifs.isEmpty()) {
             source.sendFeedback(
-                Text.literal("No overlays configured. Add one with /dyetracker gif add <url>")
-                    .formatted(Formatting.YELLOW)
+                Component.literal("No overlays configured. Add one with /dyetracker gif add <url>")
+                    .formatted(ChatFormatting.YELLOW)
             )
             return
         }
@@ -366,9 +366,9 @@ object DyeTrackerCommands {
             }
             val visibility = if (gif.visible) "visible" else "hidden"
             source.sendFeedback(
-                Text.literal(
+                Component.literal(
                     "${gif.id}: $truncatedUrl @(${gif.x}, ${gif.y}) scale ${gif.scale} [$visibility]"
-                ).formatted(Formatting.GRAY)
+                ).formatted(ChatFormatting.GRAY)
             )
         }
     }
@@ -376,15 +376,15 @@ object DyeTrackerCommands {
     private fun handleGifRemoveCommand(source: FabricClientCommandSource, id: String) {
         if (!ConfigManager.gifPlacements.remove(id)) {
             source.sendFeedback(
-                Text.literal("No overlay with id '$id'.")
-                    .formatted(Formatting.RED)
+                Component.literal("No overlay with id '$id'.")
+                    .formatted(ChatFormatting.RED)
             )
             return
         }
         ImageTextureManager.release(id)
         source.sendFeedback(
-            Text.literal("Removed overlay '$id'.")
-                .formatted(Formatting.GREEN)
+            Component.literal("Removed overlay '$id'.")
+                .formatted(ChatFormatting.GREEN)
         )
     }
 
@@ -392,7 +392,7 @@ object DyeTrackerCommands {
     private fun handleGifEditCommand(source: FabricClientCommandSource) {
         // Brigadier client commands already execute on the render thread, so no marshal
         // needed. The screen IS the feedback; no chat output here.
-        MinecraftClient.getInstance().setScreen(WidgetEditScreen())
+        Minecraft.getInstance().setScreen(WidgetEditScreen())
     }
 
     private fun handleRotationToggleCommand(source: FabricClientCommandSource) {
@@ -401,8 +401,8 @@ object DyeTrackerCommands {
         val newVisible = !current
         RotationPlacementEditor.setVisible(RotationWidgetConfig.WIDGET_ID, newVisible)
         source.sendFeedback(
-            Text.literal("Dye rotation widget ${if (newVisible) "shown" else "hidden"}.")
-                .formatted(if (newVisible) Formatting.GREEN else Formatting.YELLOW)
+            Component.literal("Dye rotation widget ${if (newVisible) "shown" else "hidden"}.")
+                .formatted(if (newVisible) ChatFormatting.GREEN else ChatFormatting.YELLOW)
         )
     }
 
@@ -410,7 +410,7 @@ object DyeTrackerCommands {
     private fun handleRotationEditCommand(source: FabricClientCommandSource) {
         // Opens the same shared edit screen as `gif edit`; the rotation widget appears there
         // because it registered a PlacementEditor. The screen is the feedback.
-        MinecraftClient.getInstance().setScreen(WidgetEditScreen())
+        Minecraft.getInstance().setScreen(WidgetEditScreen())
     }
 
     /**
@@ -423,8 +423,8 @@ object DyeTrackerCommands {
         BounceController.setEnabled(newState)
         ConfigManager.setBounceEnabled(newState)
         source.sendFeedback(
-            Text.literal("Bounce mode: ${if (newState) "ON" else "OFF"}")
-                .formatted(if (newState) Formatting.GREEN else Formatting.YELLOW)
+            Component.literal("Bounce mode: ${if (newState) "ON" else "OFF"}")
+                .formatted(if (newState) ChatFormatting.GREEN else ChatFormatting.YELLOW)
         )
     }
 
@@ -432,18 +432,18 @@ object DyeTrackerCommands {
         val widgets = ConfigManager.dyeProgressPlacements.all()
         if (widgets.isEmpty()) {
             source.sendFeedback(
-                Text.literal("No dye widgets configured. Add one in /dyetracker dye edit (+ Add dye) or /dyetracker dye add <dyeId> <profile>")
-                    .formatted(Formatting.YELLOW)
+                Component.literal("No dye widgets configured. Add one in /dyetracker dye edit (+ Add dye) or /dyetracker dye add <dyeId> <profile>")
+                    .formatted(ChatFormatting.YELLOW)
             )
             return
         }
         for (widget in widgets) {
             val visibility = if (widget.visible) "visible" else "hidden"
             source.sendFeedback(
-                Text.literal(
+                Component.literal(
                     "${widget.id}: ${widget.dyeId} ${widget.profileName} " +
                         "@(${widget.x}, ${widget.y}) scale ${widget.scale} [$visibility]"
-                ).formatted(Formatting.GRAY)
+                ).formatted(ChatFormatting.GRAY)
             )
         }
     }
@@ -451,14 +451,14 @@ object DyeTrackerCommands {
     private fun handleDyeRemoveCommand(source: FabricClientCommandSource, id: String) {
         if (!ConfigManager.dyeProgressPlacements.remove(id)) {
             source.sendFeedback(
-                Text.literal("No dye widget with id '$id'.")
-                    .formatted(Formatting.RED)
+                Component.literal("No dye widget with id '$id'.")
+                    .formatted(ChatFormatting.RED)
             )
             return
         }
         source.sendFeedback(
-            Text.literal("Removed dye widget '$id'.")
-                .formatted(Formatting.GREEN)
+            Component.literal("Removed dye widget '$id'.")
+                .formatted(ChatFormatting.GREEN)
         )
     }
 
@@ -466,7 +466,7 @@ object DyeTrackerCommands {
     private fun handleDyeEditCommand(source: FabricClientCommandSource) {
         // Opens the same shared edit screen as `gif edit`; dye widgets appear there because they
         // registered a PlacementEditor, and the "+ Add dye" panel is available. Screen = feedback.
-        MinecraftClient.getInstance().setScreen(WidgetEditScreen())
+        Minecraft.getInstance().setScreen(WidgetEditScreen())
     }
 
     /** Toggle one widget's visibility, or all of them when [id] is null. */
@@ -474,8 +474,8 @@ object DyeTrackerCommands {
         val widgets = ConfigManager.dyeProgressPlacements.all()
         if (widgets.isEmpty()) {
             source.sendFeedback(
-                Text.literal("No dye widgets configured.")
-                    .formatted(Formatting.YELLOW)
+                Component.literal("No dye widgets configured.")
+                    .formatted(ChatFormatting.YELLOW)
             )
             return
         }
@@ -484,45 +484,45 @@ object DyeTrackerCommands {
                 DyeProgressPlacementEditor.setVisible(widget.id, !widget.visible)
             }
             source.sendFeedback(
-                Text.literal("Toggled ${widgets.size} dye widget(s).")
-                    .formatted(Formatting.GREEN)
+                Component.literal("Toggled ${widgets.size} dye widget(s).")
+                    .formatted(ChatFormatting.GREEN)
             )
             return
         }
         val widget = widgets.firstOrNull { it.id == id }
         if (widget == null) {
             source.sendFeedback(
-                Text.literal("No dye widget with id '$id'.")
-                    .formatted(Formatting.RED)
+                Component.literal("No dye widget with id '$id'.")
+                    .formatted(ChatFormatting.RED)
             )
             return
         }
         val newVisible = !widget.visible
         DyeProgressPlacementEditor.setVisible(id, newVisible)
         source.sendFeedback(
-            Text.literal("Dye widget '$id' ${if (newVisible) "shown" else "hidden"}.")
-                .formatted(if (newVisible) Formatting.GREEN else Formatting.YELLOW)
+            Component.literal("Dye widget '$id' ${if (newVisible) "shown" else "hidden"}.")
+                .formatted(if (newVisible) ChatFormatting.GREEN else ChatFormatting.YELLOW)
         )
     }
 
     private fun handleDyeAddCommand(source: FabricClientCommandSource, dyeId: String, profile: String) {
         if (!ConfigManager.config.isLinked()) {
             source.sendFeedback(
-                Text.literal("Account not linked. Use /dyetracker link <code> first.")
-                    .formatted(Formatting.RED)
+                Component.literal("Account not linked. Use /dyetracker link <code> first.")
+                    .formatted(ChatFormatting.RED)
             )
             return
         }
         if (!DyeSprites.has(dyeId)) {
             source.sendFeedback(
-                Text.literal("Unknown dye '$dyeId'. Use /dyetracker dye edit to pick from the list.")
-                    .formatted(Formatting.RED)
+                Component.literal("Unknown dye '$dyeId'. Use /dyetracker dye edit to pick from the list.")
+                    .formatted(ChatFormatting.RED)
             )
             return
         }
         source.sendFeedback(
-            Text.literal("Resolving profile…")
-                .formatted(Formatting.YELLOW)
+            Component.literal("Resolving profile…")
+                .formatted(ChatFormatting.YELLOW)
         )
         val username = ConfigManager.config.linkedUsername
         dyeCommandScope.launch {
@@ -531,24 +531,24 @@ object DyeTrackerCommands {
             postOnClient {
                 when (result) {
                     is DyeProgressAdder.Result.Added -> source.sendFeedback(
-                        Text.literal("Added dye widget '${result.id}' ($dyeId @ ${profile.trim()}).")
-                            .formatted(Formatting.GREEN)
+                        Component.literal("Added dye widget '${result.id}' ($dyeId @ ${profile.trim()}).")
+                            .formatted(ChatFormatting.GREEN)
                     )
                     DyeProgressAdder.Result.NotLinked -> source.sendFeedback(
-                        Text.literal("Account not linked.").formatted(Formatting.RED)
+                        Component.literal("Account not linked.").formatted(ChatFormatting.RED)
                     )
                     DyeProgressAdder.Result.InvalidDye -> source.sendFeedback(
-                        Text.literal("Unknown dye '$dyeId'.").formatted(Formatting.RED)
+                        Component.literal("Unknown dye '$dyeId'.").formatted(ChatFormatting.RED)
                     )
                     DyeProgressAdder.Result.EmptyProfile -> source.sendFeedback(
-                        Text.literal("Enter a profile name.").formatted(Formatting.RED)
+                        Component.literal("Enter a profile name.").formatted(ChatFormatting.RED)
                     )
                     is DyeProgressAdder.Result.UnknownProfile -> source.sendFeedback(
-                        Text.literal("No profile '${result.typed}'. Available: ${result.available.joinToString()}")
-                            .formatted(Formatting.RED)
+                        Component.literal("No profile '${result.typed}'. Available: ${result.available.joinToString()}")
+                            .formatted(ChatFormatting.RED)
                     )
                     is DyeProgressAdder.Result.NetworkError -> source.sendFeedback(
-                        Text.literal("Couldn't load profiles: ${result.message}").formatted(Formatting.RED)
+                        Component.literal("Couldn't load profiles: ${result.message}").formatted(ChatFormatting.RED)
                     )
                 }
             }
@@ -557,15 +557,15 @@ object DyeTrackerCommands {
 
     /** Marshal a callback onto the client thread so we never touch client APIs from IO. */
     private fun postOnClient(block: () -> Unit) {
-        MinecraftClient.getInstance().execute(block)
+        Minecraft.getInstance().execute(block)
     }
 
     private fun handleLinkCommand(source: FabricClientCommandSource, code: String) {
         // Validate code format
         if (code.length != 8 || !code.all { it.isLetterOrDigit() }) {
             source.sendFeedback(
-                Text.literal("Invalid code format. Please enter the 8-character code from the website.")
-                    .formatted(Formatting.RED)
+                Component.literal("Invalid code format. Please enter the 8-character code from the website.")
+                    .formatted(ChatFormatting.RED)
             )
             return
         }
@@ -573,54 +573,54 @@ object DyeTrackerCommands {
         // Check if already linked
         if (AccountVerification.isLinked()) {
             source.sendFeedback(
-                Text.literal("Account already linked as ")
-                    .formatted(Formatting.YELLOW)
+                Component.literal("Account already linked as ")
+                    .formatted(ChatFormatting.YELLOW)
                     .append(
-                        Text.literal(ConfigManager.config.linkedUsername)
-                            .formatted(Formatting.AQUA)
+                        Component.literal(ConfigManager.config.linkedUsername)
+                            .formatted(ChatFormatting.AQUA)
                     )
                     .append(
-                        Text.literal(". Use /dyetracker unlink first.")
-                            .formatted(Formatting.YELLOW)
+                        Component.literal(". Use /dyetracker unlink first.")
+                            .formatted(ChatFormatting.YELLOW)
                     )
             )
             return
         }
 
         source.sendFeedback(
-            Text.literal("Verifying account...")
-                .formatted(Formatting.YELLOW)
+            Component.literal("Verifying account...")
+                .formatted(ChatFormatting.YELLOW)
         )
 
         // Run verification async
         AccountVerification.verifyAccount(code)
             .thenAccept { result ->
                 // Must run on main thread to send feedback
-                MinecraftClient.getInstance().execute {
+                Minecraft.getInstance().execute {
                     if (result.success) {
                         source.sendFeedback(
-                            Text.literal("\u2714 ")
-                                .formatted(Formatting.GREEN)
+                            Component.literal("\u2714 ")
+                                .formatted(ChatFormatting.GREEN)
                                 .append(
-                                    Text.literal(result.message)
-                                        .formatted(Formatting.GREEN)
+                                    Component.literal(result.message)
+                                        .formatted(ChatFormatting.GREEN)
                                 )
                         )
                         source.sendFeedback(
-                            Text.literal("Linked as: ")
-                                .formatted(Formatting.GRAY)
+                            Component.literal("Linked as: ")
+                                .formatted(ChatFormatting.GRAY)
                                 .append(
-                                    Text.literal(result.username ?: "")
-                                        .formatted(Formatting.AQUA, Formatting.BOLD)
+                                    Component.literal(result.username ?: "")
+                                        .formatted(ChatFormatting.AQUA, ChatFormatting.BOLD)
                                 )
                         )
                     } else {
                         source.sendFeedback(
-                            Text.literal("\u2718 ")
-                                .formatted(Formatting.RED)
+                            Component.literal("\u2718 ")
+                                .formatted(ChatFormatting.RED)
                                 .append(
-                                    Text.literal(result.message)
-                                        .formatted(Formatting.RED)
+                                    Component.literal(result.message)
+                                        .formatted(ChatFormatting.RED)
                                 )
                         )
                     }
@@ -631,41 +631,41 @@ object DyeTrackerCommands {
     private fun handleStatusCommand(source: FabricClientCommandSource) {
         if (AccountVerification.isLinked()) {
             source.sendFeedback(
-                Text.literal("Account Status: ")
-                    .formatted(Formatting.GRAY)
+                Component.literal("Account Status: ")
+                    .formatted(ChatFormatting.GRAY)
                     .append(
-                        Text.literal("Linked")
-                            .formatted(Formatting.GREEN, Formatting.BOLD)
+                        Component.literal("Linked")
+                            .formatted(ChatFormatting.GREEN, ChatFormatting.BOLD)
                     )
             )
             source.sendFeedback(
-                Text.literal("Username: ")
-                    .formatted(Formatting.GRAY)
+                Component.literal("Username: ")
+                    .formatted(ChatFormatting.GRAY)
                     .append(
-                        Text.literal(ConfigManager.config.linkedUsername)
-                            .formatted(Formatting.AQUA)
+                        Component.literal(ConfigManager.config.linkedUsername)
+                            .formatted(ChatFormatting.AQUA)
                     )
             )
             source.sendFeedback(
-                Text.literal("UUID: ")
-                    .formatted(Formatting.GRAY)
+                Component.literal("UUID: ")
+                    .formatted(ChatFormatting.GRAY)
                     .append(
-                        Text.literal(ConfigManager.config.linkedUuid)
-                            .formatted(Formatting.DARK_GRAY)
+                        Component.literal(ConfigManager.config.linkedUuid)
+                            .formatted(ChatFormatting.DARK_GRAY)
                     )
             )
             // Show token status
             val hasToken = ConfigManager.config.authToken.isNotEmpty()
             source.sendFeedback(
-                Text.literal("Auth Token: ")
-                    .formatted(Formatting.GRAY)
+                Component.literal("Auth Token: ")
+                    .formatted(ChatFormatting.GRAY)
                     .append(
                         if (hasToken) {
-                            Text.literal("Valid")
-                                .formatted(Formatting.GREEN)
+                            Component.literal("Valid")
+                                .formatted(ChatFormatting.GREEN)
                         } else {
-                            Text.literal("Missing")
-                                .formatted(Formatting.RED)
+                            Component.literal("Missing")
+                                .formatted(ChatFormatting.RED)
                         }
                     )
             )
@@ -681,33 +681,33 @@ object DyeTrackerCommands {
             val lastSyncSuccess = SyncManager.wasLastSyncSuccessful()
 
             source.sendFeedback(
-                Text.literal("Last Sync: ")
-                    .formatted(Formatting.GRAY)
+                Component.literal("Last Sync: ")
+                    .formatted(ChatFormatting.GRAY)
                     .append(
-                        Text.literal(lastSyncText)
-                            .formatted(if (lastSyncSuccess) Formatting.GREEN else Formatting.RED)
+                        Component.literal(lastSyncText)
+                            .formatted(if (lastSyncSuccess) ChatFormatting.GREEN else ChatFormatting.RED)
                     )
                     .append(
                         if (syncPending) {
-                            Text.literal(" (sync pending)")
-                                .formatted(Formatting.YELLOW)
+                            Component.literal(" (sync pending)")
+                                .formatted(ChatFormatting.YELLOW)
                         } else {
-                            Text.literal("")
+                            Component.literal("")
                         }
                     )
             )
         } else {
             source.sendFeedback(
-                Text.literal("Account Status: ")
-                    .formatted(Formatting.GRAY)
+                Component.literal("Account Status: ")
+                    .formatted(ChatFormatting.GRAY)
                     .append(
-                        Text.literal("Not Linked")
-                            .formatted(Formatting.RED)
+                        Component.literal("Not Linked")
+                            .formatted(ChatFormatting.RED)
                     )
             )
             source.sendFeedback(
-                Text.literal("Use /dyetracker link <code> to link your account.")
-                    .formatted(Formatting.YELLOW)
+                Component.literal("Use /dyetracker link <code> to link your account.")
+                    .formatted(ChatFormatting.YELLOW)
             )
         }
     }
@@ -715,8 +715,8 @@ object DyeTrackerCommands {
     private fun handleSyncCommand(source: FabricClientCommandSource) {
         if (!AccountVerification.isLinked()) {
             source.sendFeedback(
-                Text.literal("Account not linked. Use /dyetracker link <code> first.")
-                    .formatted(Formatting.RED)
+                Component.literal("Account not linked. Use /dyetracker link <code> first.")
+                    .formatted(ChatFormatting.RED)
             )
             return
         }
@@ -724,36 +724,36 @@ object DyeTrackerCommands {
         val data = RngDataStore.getData()
         if (!data.hasData()) {
             source.sendFeedback(
-                Text.literal("No RNG data to sync.")
-                    .formatted(Formatting.YELLOW)
+                Component.literal("No RNG data to sync.")
+                    .formatted(ChatFormatting.YELLOW)
             )
             return
         }
 
         source.sendFeedback(
-            Text.literal("Syncing RNG data...")
-                .formatted(Formatting.YELLOW)
+            Component.literal("Syncing RNG data...")
+                .formatted(ChatFormatting.YELLOW)
         )
 
         SyncManager.syncNow(data)
             .thenAccept { result ->
-                MinecraftClient.getInstance().execute {
+                Minecraft.getInstance().execute {
                     if (result.success) {
                         source.sendFeedback(
-                            Text.literal("\u2714 ")
-                                .formatted(Formatting.GREEN)
+                            Component.literal("\u2714 ")
+                                .formatted(ChatFormatting.GREEN)
                                 .append(
-                                    Text.literal("RNG data synced successfully!")
-                                        .formatted(Formatting.GREEN)
+                                    Component.literal("RNG data synced successfully!")
+                                        .formatted(ChatFormatting.GREEN)
                                 )
                         )
                     } else {
                         source.sendFeedback(
-                            Text.literal("\u2718 ")
-                                .formatted(Formatting.RED)
+                            Component.literal("\u2718 ")
+                                .formatted(ChatFormatting.RED)
                                 .append(
-                                    Text.literal("Sync failed: ${result.message}")
-                                        .formatted(Formatting.RED)
+                                    Component.literal("Sync failed: ${result.message}")
+                                        .formatted(ChatFormatting.RED)
                                 )
                         )
                     }
@@ -767,46 +767,46 @@ object DyeTrackerCommands {
             // Re-apply the persisted bounce flag to the live controller (PBI 38).
             BounceController.setEnabled(ConfigManager.isBounceEnabled())
             source.sendFeedback(
-                Text.literal("\u2714 Configuration reloaded")
-                    .formatted(Formatting.GREEN)
+                Component.literal("\u2714 Configuration reloaded")
+                    .formatted(ChatFormatting.GREEN)
             )
             source.sendFeedback(
-                Text.literal("API URL: ")
-                    .formatted(Formatting.GRAY)
+                Component.literal("API URL: ")
+                    .formatted(ChatFormatting.GRAY)
                     .append(
-                        Text.literal(ConfigManager.config.apiUrl)
-                            .formatted(Formatting.AQUA)
+                        Component.literal(ConfigManager.config.apiUrl)
+                            .formatted(ChatFormatting.AQUA)
                     )
             )
             val hasToken = ConfigManager.config.authToken.isNotEmpty()
             source.sendFeedback(
-                Text.literal("Auth Token: ")
-                    .formatted(Formatting.GRAY)
+                Component.literal("Auth Token: ")
+                    .formatted(ChatFormatting.GRAY)
                     .append(
                         if (hasToken) {
-                            Text.literal("Present")
-                                .formatted(Formatting.GREEN)
+                            Component.literal("Present")
+                                .formatted(ChatFormatting.GREEN)
                         } else {
-                            Text.literal("Not set")
-                                .formatted(Formatting.YELLOW)
+                            Component.literal("Not set")
+                                .formatted(ChatFormatting.YELLOW)
                         }
                     )
             )
             source.sendFeedback(
-                Text.literal("Bounce mode: ")
-                    .formatted(Formatting.GRAY)
+                Component.literal("Bounce mode: ")
+                    .formatted(ChatFormatting.GRAY)
                     .append(
                         if (ConfigManager.isBounceEnabled()) {
-                            Text.literal("ON").formatted(Formatting.GREEN)
+                            Component.literal("ON").formatted(ChatFormatting.GREEN)
                         } else {
-                            Text.literal("OFF").formatted(Formatting.YELLOW)
+                            Component.literal("OFF").formatted(ChatFormatting.YELLOW)
                         }
                     )
             )
         } catch (e: Exception) {
             source.sendFeedback(
-                Text.literal("\u2718 Failed to reload config: ${e.message}")
-                    .formatted(Formatting.RED)
+                Component.literal("\u2718 Failed to reload config: ${e.message}")
+                    .formatted(ChatFormatting.RED)
             )
             DyeTrackerMod.LOGGER.error("Failed to reload config", e)
         }
@@ -815,8 +815,8 @@ object DyeTrackerCommands {
     private fun handleUnlinkCommand(source: FabricClientCommandSource) {
         if (!AccountVerification.isLinked()) {
             source.sendFeedback(
-                Text.literal("No account is currently linked.")
-                    .formatted(Formatting.YELLOW)
+                Component.literal("No account is currently linked.")
+                    .formatted(ChatFormatting.YELLOW)
             )
             return
         }
@@ -825,15 +825,15 @@ object DyeTrackerCommands {
         AccountVerification.unlink()
 
         source.sendFeedback(
-            Text.literal("Account ")
-                .formatted(Formatting.GRAY)
+            Component.literal("Account ")
+                .formatted(ChatFormatting.GRAY)
                 .append(
-                    Text.literal(username)
-                        .formatted(Formatting.AQUA)
+                    Component.literal(username)
+                        .formatted(ChatFormatting.AQUA)
                 )
                 .append(
-                    Text.literal(" has been unlinked.")
-                        .formatted(Formatting.GRAY)
+                    Component.literal(" has been unlinked.")
+                        .formatted(ChatFormatting.GRAY)
                 )
         )
     }
@@ -843,41 +843,41 @@ object DyeTrackerCommands {
 
         if (!data.hasData()) {
             source.sendFeedback(
-                Text.literal("No RNG data captured yet.")
-                    .formatted(Formatting.YELLOW)
+                Component.literal("No RNG data captured yet.")
+                    .formatted(ChatFormatting.YELLOW)
             )
             source.sendFeedback(
-                Text.literal("Open RNG meter menus in-game to capture data.")
-                    .formatted(Formatting.GRAY)
+                Component.literal("Open RNG meter menus in-game to capture data.")
+                    .formatted(ChatFormatting.GRAY)
             )
             return
         }
 
         source.sendFeedback(
-            Text.literal("=== RNG Data ===")
-                .formatted(Formatting.GOLD, Formatting.BOLD)
+            Component.literal("=== RNG Data ===")
+                .formatted(ChatFormatting.GOLD, ChatFormatting.BOLD)
         )
 
         // Show dungeon meters
         if (data.dungeonMeters.isNotEmpty()) {
             source.sendFeedback(
-                Text.literal("Dungeon RNG Meters:")
-                    .formatted(Formatting.LIGHT_PURPLE)
+                Component.literal("Dungeon RNG Meters:")
+                    .formatted(ChatFormatting.LIGHT_PURPLE)
             )
             for ((floor, meter) in data.dungeonMeters) {
                 val itemInfo = if (meter.selectedItem != null) {
                     " [${meter.selectedItem}: ${formatXp(meter.goalXp ?: 0)} goal]"
                 } else ""
                 source.sendFeedback(
-                    Text.literal("  ${floor.name}: ")
-                        .formatted(Formatting.GRAY)
+                    Component.literal("  ${floor.name}: ")
+                        .formatted(ChatFormatting.GRAY)
                         .append(
-                            Text.literal("${formatXp(meter.storedXp)} XP")
-                                .formatted(Formatting.WHITE)
+                            Component.literal("${formatXp(meter.storedXp)} XP")
+                                .formatted(ChatFormatting.WHITE)
                         )
                         .append(
-                            Text.literal(itemInfo)
-                                .formatted(Formatting.DARK_GRAY)
+                            Component.literal(itemInfo)
+                                .formatted(ChatFormatting.DARK_GRAY)
                         )
                 )
             }
@@ -889,15 +889,15 @@ object DyeTrackerCommands {
                 " [${meter.selectedItem}: ${formatXp(meter.goalXp ?: 0)} goal]"
             } else ""
             source.sendFeedback(
-                Text.literal("Nucleus RNG: ")
-                    .formatted(Formatting.GREEN)
+                Component.literal("Nucleus RNG: ")
+                    .formatted(ChatFormatting.GREEN)
                     .append(
-                        Text.literal("${formatXp(meter.storedXp)} XP")
-                            .formatted(Formatting.WHITE)
+                        Component.literal("${formatXp(meter.storedXp)} XP")
+                            .formatted(ChatFormatting.WHITE)
                     )
                     .append(
-                        Text.literal(itemInfo)
-                            .formatted(Formatting.DARK_GRAY)
+                        Component.literal(itemInfo)
+                            .formatted(ChatFormatting.DARK_GRAY)
                     )
             )
         }
@@ -908,15 +908,15 @@ object DyeTrackerCommands {
                 " [${meter.selectedItem}: ${formatXp(meter.goalXp ?: 0)} goal]"
             } else ""
             source.sendFeedback(
-                Text.literal("Experimentation RNG: ")
-                    .formatted(Formatting.BLUE)
+                Component.literal("Experimentation RNG: ")
+                    .formatted(ChatFormatting.BLUE)
                     .append(
-                        Text.literal("${formatXp(meter.storedXp)} XP")
-                            .formatted(Formatting.WHITE)
+                        Component.literal("${formatXp(meter.storedXp)} XP")
+                            .formatted(ChatFormatting.WHITE)
                     )
                     .append(
-                        Text.literal(itemInfo)
-                            .formatted(Formatting.DARK_GRAY)
+                        Component.literal(itemInfo)
+                            .formatted(ChatFormatting.DARK_GRAY)
                     )
             )
         }
@@ -924,11 +924,11 @@ object DyeTrackerCommands {
         // Show mineshaft pity
         data.mineshaftPity?.let { pity ->
             source.sendFeedback(
-                Text.literal("Mineshaft Pity: ")
-                    .formatted(Formatting.DARK_AQUA)
+                Component.literal("Mineshaft Pity: ")
+                    .formatted(ChatFormatting.DARK_AQUA)
                     .append(
-                        Text.literal("${pity.pityValue}/2,000")
-                            .formatted(Formatting.WHITE)
+                        Component.literal("${pity.pityValue}/2,000")
+                            .formatted(ChatFormatting.WHITE)
                     )
             )
         }
@@ -936,31 +936,31 @@ object DyeTrackerCommands {
         // Show archfiend dye rolls
         data.archfiendDye?.let { dye ->
             source.sendFeedback(
-                Text.literal("Archfiend Dye:")
-                    .formatted(Formatting.DARK_RED)
+                Component.literal("Archfiend Dye:")
+                    .formatted(ChatFormatting.DARK_RED)
             )
             source.sendFeedback(
-                Text.literal("  High Class Dice: ")
-                    .formatted(Formatting.GRAY)
+                Component.literal("  High Class Dice: ")
+                    .formatted(ChatFormatting.GRAY)
                     .append(
-                        Text.literal("${dye.highClassDiceRolls} rolls")
-                            .formatted(Formatting.WHITE)
+                        Component.literal("${dye.highClassDiceRolls} rolls")
+                            .formatted(ChatFormatting.WHITE)
                     )
                     .append(
-                        Text.literal(" (1/666)")
-                            .formatted(Formatting.DARK_GRAY)
+                        Component.literal(" (1/666)")
+                            .formatted(ChatFormatting.DARK_GRAY)
                     )
             )
             source.sendFeedback(
-                Text.literal("  Archfiend Dice: ")
-                    .formatted(Formatting.GRAY)
+                Component.literal("  Archfiend Dice: ")
+                    .formatted(ChatFormatting.GRAY)
                     .append(
-                        Text.literal("${dye.archfiendDiceRolls} rolls")
-                            .formatted(Formatting.WHITE)
+                        Component.literal("${dye.archfiendDiceRolls} rolls")
+                            .formatted(ChatFormatting.WHITE)
                     )
                     .append(
-                        Text.literal(" (1/6,600)")
-                            .formatted(Formatting.DARK_GRAY)
+                        Component.literal(" (1/6,600)")
+                            .formatted(ChatFormatting.DARK_GRAY)
                     )
             )
         }
@@ -968,15 +968,15 @@ object DyeTrackerCommands {
         // Show nyanza dye commissions
         data.nyanzaDye?.let { dye ->
             source.sendFeedback(
-                Text.literal("Nyanza Dye: ")
-                    .formatted(Formatting.GREEN)
+                Component.literal("Nyanza Dye: ")
+                    .formatted(ChatFormatting.GREEN)
                     .append(
-                        Text.literal("${formatXp(dye.commissionsCompleted.toLong())} commissions")
-                            .formatted(Formatting.WHITE)
+                        Component.literal("${formatXp(dye.commissionsCompleted.toLong())} commissions")
+                            .formatted(ChatFormatting.WHITE)
                     )
                     .append(
-                        Text.literal(" (1/250,000)")
-                            .formatted(Formatting.DARK_GRAY)
+                        Component.literal(" (1/250,000)")
+                            .formatted(ChatFormatting.DARK_GRAY)
                     )
             )
         }
@@ -984,8 +984,8 @@ object DyeTrackerCommands {
         // Show copper dye visitors seen (per-tier snapshot from the Visitor's Logbook)
         data.copperDye?.let { dye ->
             source.sendFeedback(
-                Text.literal("Copper Dye:")
-                    .formatted(Formatting.GOLD)
+                Component.literal("Copper Dye:")
+                    .formatted(ChatFormatting.GOLD)
             )
             // Display drop rates for each rarity tier
             val dropRates = mapOf(
@@ -998,15 +998,15 @@ object DyeTrackerCommands {
             for ((rarity, count) in dye.visitorsSeen) {
                 val dropRate = dropRates[rarity.name] ?: "???"
                 source.sendFeedback(
-                    Text.literal("  ${rarity.name}: ")
-                        .formatted(Formatting.GRAY)
+                    Component.literal("  ${rarity.name}: ")
+                        .formatted(ChatFormatting.GRAY)
                         .append(
-                            Text.literal("$count seen")
-                                .formatted(Formatting.WHITE)
+                            Component.literal("$count seen")
+                                .formatted(ChatFormatting.WHITE)
                         )
                         .append(
-                            Text.literal(" ($dropRate)")
-                                .formatted(Formatting.DARK_GRAY)
+                            Component.literal(" ($dropRate)")
+                                .formatted(ChatFormatting.DARK_GRAY)
                         )
                 )
             }
@@ -1022,87 +1022,87 @@ object DyeTrackerCommands {
 
     private fun showHelp(source: FabricClientCommandSource) {
         source.sendFeedback(
-            Text.literal("DyeTracker Commands:")
-                .formatted(Formatting.GOLD, Formatting.BOLD)
+            Component.literal("DyeTracker Commands:")
+                .formatted(ChatFormatting.GOLD, ChatFormatting.BOLD)
         )
         source.sendFeedback(
-            Text.literal("  /dyetracker link <code>")
-                .formatted(Formatting.YELLOW)
+            Component.literal("  /dyetracker link <code>")
+                .formatted(ChatFormatting.YELLOW)
                 .append(
-                    Text.literal(" - Link your account")
-                        .formatted(Formatting.GRAY)
+                    Component.literal(" - Link your account")
+                        .formatted(ChatFormatting.GRAY)
                 )
         )
         source.sendFeedback(
-            Text.literal("  /dyetracker status")
-                .formatted(Formatting.YELLOW)
+            Component.literal("  /dyetracker status")
+                .formatted(ChatFormatting.YELLOW)
                 .append(
-                    Text.literal(" - Show link status")
-                        .formatted(Formatting.GRAY)
+                    Component.literal(" - Show link status")
+                        .formatted(ChatFormatting.GRAY)
                 )
         )
         source.sendFeedback(
-            Text.literal("  /dyetracker unlink")
-                .formatted(Formatting.YELLOW)
+            Component.literal("  /dyetracker unlink")
+                .formatted(ChatFormatting.YELLOW)
                 .append(
-                    Text.literal(" - Unlink your account")
-                        .formatted(Formatting.GRAY)
+                    Component.literal(" - Unlink your account")
+                        .formatted(ChatFormatting.GRAY)
                 )
         )
         source.sendFeedback(
-            Text.literal("  /dyetracker show")
-                .formatted(Formatting.YELLOW)
+            Component.literal("  /dyetracker show")
+                .formatted(ChatFormatting.YELLOW)
                 .append(
-                    Text.literal(" - Show captured RNG data")
-                        .formatted(Formatting.GRAY)
+                    Component.literal(" - Show captured RNG data")
+                        .formatted(ChatFormatting.GRAY)
                 )
         )
         source.sendFeedback(
-            Text.literal("  /dyetracker sync")
-                .formatted(Formatting.YELLOW)
+            Component.literal("  /dyetracker sync")
+                .formatted(ChatFormatting.YELLOW)
                 .append(
-                    Text.literal(" - Force sync RNG data to backend")
-                        .formatted(Formatting.GRAY)
+                    Component.literal(" - Force sync RNG data to backend")
+                        .formatted(ChatFormatting.GRAY)
                 )
         )
         source.sendFeedback(
-            Text.literal("  /dyetracker reload")
-                .formatted(Formatting.YELLOW)
+            Component.literal("  /dyetracker reload")
+                .formatted(ChatFormatting.YELLOW)
                 .append(
-                    Text.literal(" - Reload config (debug)")
-                        .formatted(Formatting.GRAY)
+                    Component.literal(" - Reload config (debug)")
+                        .formatted(ChatFormatting.GRAY)
                 )
         )
         source.sendFeedback(
-            Text.literal("  /dyetracker gif <add|list|remove|edit>")
-                .formatted(Formatting.YELLOW)
+            Component.literal("  /dyetracker gif <add|list|remove|edit>")
+                .formatted(ChatFormatting.YELLOW)
                 .append(
-                    Text.literal(" - Manage HUD image/GIF overlays")
-                        .formatted(Formatting.GRAY)
+                    Component.literal(" - Manage HUD image/GIF overlays")
+                        .formatted(ChatFormatting.GRAY)
                 )
         )
         source.sendFeedback(
-            Text.literal("  /dyetracker rotation <toggle|edit>")
-                .formatted(Formatting.YELLOW)
+            Component.literal("  /dyetracker rotation <toggle|edit>")
+                .formatted(ChatFormatting.YELLOW)
                 .append(
-                    Text.literal(" - Toggle/position the dye rotation widget")
-                        .formatted(Formatting.GRAY)
+                    Component.literal(" - Toggle/position the dye rotation widget")
+                        .formatted(ChatFormatting.GRAY)
                 )
         )
         source.sendFeedback(
-            Text.literal("  /dyetracker dye <list|remove|edit|toggle|add>")
-                .formatted(Formatting.YELLOW)
+            Component.literal("  /dyetracker dye <list|remove|edit|toggle|add>")
+                .formatted(ChatFormatting.YELLOW)
                 .append(
-                    Text.literal(" - Manage single-dye progress widgets")
-                        .formatted(Formatting.GRAY)
+                    Component.literal(" - Manage single-dye progress widgets")
+                        .formatted(ChatFormatting.GRAY)
                 )
         )
         source.sendFeedback(
-            Text.literal("  /dyetracker bounce [on|off|toggle]")
-                .formatted(Formatting.YELLOW)
+            Component.literal("  /dyetracker bounce [on|off|toggle]")
+                .formatted(ChatFormatting.YELLOW)
                 .append(
-                    Text.literal(" - DVD-bounce your HUD widgets around the screen")
-                        .formatted(Formatting.GRAY)
+                    Component.literal(" - DVD-bounce your HUD widgets around the screen")
+                        .formatted(ChatFormatting.GRAY)
                 )
         )
     }

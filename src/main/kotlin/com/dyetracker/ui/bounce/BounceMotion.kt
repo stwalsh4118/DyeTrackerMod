@@ -8,7 +8,7 @@ package com.dyetracker.ui.bounce
  * in the same step) so the celebration layer can fire.
  *
  * All inputs are plain numbers in scaled-window pixels (and seconds); there are no `DrawContext`,
- * `MinecraftClient`, or Fabric types here, so this runs in the pure-JVM unit suite — the project's
+ * `Minecraft`, or Fabric types here, so this runs in the pure-JVM unit suite — the project's
  * testing gate. Randomized initial direction is the controller's concern (38-2), not this module's:
  * [step] is fully deterministic given its inputs.
  */

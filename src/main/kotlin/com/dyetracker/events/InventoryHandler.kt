@@ -7,12 +7,12 @@ import com.dyetracker.data.DungeonFloor
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.data.VisitorEntry
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents
-import net.minecraft.client.MinecraftClient
-import net.minecraft.client.gui.screen.Screen
+import net.minecraft.client.Minecraft
+import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.gui.screen.ingame.HandledScreen
 import net.minecraft.screen.slot.Slot
-import net.minecraft.text.Text
-import net.minecraft.util.Formatting
+import net.minecraft.network.chat.Component
+import net.minecraft.ChatFormatting
 
 /**
  * Handles inventory screen events to capture RNG meter data.
@@ -42,7 +42,7 @@ object InventoryHandler {
         DyeTrackerMod.info("InventoryHandler registered")
     }
 
-    private fun onScreenInit(client: MinecraftClient, screen: Screen) {
+    private fun onScreenInit(client: Minecraft, screen: Screen) {
         if (screen !is HandledScreen<*>) {
             return
         }
@@ -65,7 +65,7 @@ object InventoryHandler {
         }
     }
 
-    private fun scheduleScan(client: MinecraftClient, screen: HandledScreen<*>, inventoryType: InventoryType) {
+    private fun scheduleScan(client: Minecraft, screen: HandledScreen<*>, inventoryType: InventoryType) {
         var ticksRemaining = SCAN_DELAY_TICKS
         var processed = false
 
@@ -98,7 +98,7 @@ object InventoryHandler {
      * the last-known rotation.
      */
     private fun processDyeRotation(screen: HandledScreen<*>) {
-        val player = MinecraftClient.getInstance().player ?: return
+        val player = Minecraft.getInstance().player ?: return
         val rotation = InventoryUtils.extractDyeRotation(screen.screenHandler.slots, player.inventory)
 
         if (rotation.dyeIds.isEmpty()) {
@@ -110,8 +110,8 @@ object InventoryHandler {
         DyeTrackerMod.info("Captured dye rotation ({} dyes): {}", rotation.dyeIds.size, rotation.dyeIds)
 
         player.sendMessage(
-            Text.literal("Captured current dye rotation (${rotation.dyeIds.size} dyes)")
-                .formatted(Formatting.GREEN),
+            Component.literal("Captured current dye rotation (${rotation.dyeIds.size} dyes)")
+                .formatted(ChatFormatting.GREEN),
             false
         )
     }
@@ -219,7 +219,7 @@ object InventoryHandler {
      * Scans every COMPENDIUM_SCAN_INTERVAL_TICKS ticks to pick up page changes,
      * accumulates dyes across pages, and finalizes when the screen closes.
      */
-    private fun scheduleCompendiumScan(client: MinecraftClient, screen: HandledScreen<*>) {
+    private fun scheduleCompendiumScan(client: Minecraft, screen: HandledScreen<*>) {
         accumulatedDyes.clear()
         var ticksSinceLastScan = SCAN_DELAY_TICKS // Start with initial delay worth of ticks
 
@@ -283,7 +283,7 @@ object InventoryHandler {
      * up page changes, accumulates visitors de-duped by name while this screen is open, and on close
      * merges them into the persisted visitor union (see [finalizeLogbook]).
      */
-    private fun scheduleLogbookScan(client: MinecraftClient, screen: HandledScreen<*>) {
+    private fun scheduleLogbookScan(client: Minecraft, screen: HandledScreen<*>) {
         accumulatedVisitors.clear()
         var ticksSinceLastScan = SCAN_DELAY_TICKS // Start with initial delay worth of ticks
 

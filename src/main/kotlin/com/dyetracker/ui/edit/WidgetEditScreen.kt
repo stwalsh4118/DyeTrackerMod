@@ -8,16 +8,16 @@ import com.dyetracker.ui.hud.HudWidgetEntry
 import com.dyetracker.ui.hud.HudWidgetHost
 import com.dyetracker.ui.hud.HudWidgetRegistry
 import com.dyetracker.ui.theme.UiTheme
-import net.minecraft.client.MinecraftClient
+import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.Click
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.gui.Drawable
 import net.minecraft.client.gui.Element
 import net.minecraft.client.gui.Selectable
-import net.minecraft.client.gui.screen.Screen
+import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.gui.widget.ButtonWidget
 import net.minecraft.client.input.KeyInput
-import net.minecraft.text.Text
+import net.minecraft.network.chat.Component
 import net.minecraft.util.Util
 import org.lwjgl.glfw.GLFW
 import kotlin.math.max
@@ -39,7 +39,7 @@ import kotlin.math.pow
  * deltas are converted to fractional via the current screen size. Drag/scale use the transient
  * update path and flush once on release/close; visibility/delete persist immediately.
  */
-class WidgetEditScreen : Screen(Text.literal(TITLE)) {
+class WidgetEditScreen : Screen(Component.literal(TITLE)) {
 
     private var focusedId: String? = null
 
@@ -63,7 +63,7 @@ class WidgetEditScreen : Screen(Text.literal(TITLE)) {
     private fun buildToolbar() {
         var buttonY = TOOLBAR_TOP_PX
         for (action in EditScreenActionRegistry.all()) {
-            val button = ButtonWidget.builder(Text.literal(action.label)) { activateAction(action) }
+            val button = ButtonWidget.builder(Component.literal(action.label)) { activateAction(action) }
                 .dimensions(width - TOOLBAR_BUTTON_WIDTH - TOOLBAR_MARGIN_PX, buttonY, TOOLBAR_BUTTON_WIDTH, CONTROL_HEIGHT_PX)
                 .build()
             addDrawableChild(button)
@@ -258,7 +258,7 @@ class WidgetEditScreen : Screen(Text.literal(TITLE)) {
         activeAction?.onDismiss()
         activeAction = null
         flushDirty()
-        MinecraftClient.getInstance()?.setScreen(null)
+        Minecraft.getInstance()?.setScreen(null)
     }
 
     private fun flushDirty() {
@@ -270,7 +270,7 @@ class WidgetEditScreen : Screen(Text.literal(TITLE)) {
 
     /** Poll GLFW directly because `Screen.hasShiftDown()` is no longer present in 1.21.10. */
     private fun isShiftHeld(): Boolean {
-        val handle = MinecraftClient.getInstance().window.handle
+        val handle = Minecraft.getInstance().window.handle
         return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS ||
             GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS
     }

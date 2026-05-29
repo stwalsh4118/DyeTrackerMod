@@ -3,7 +3,7 @@ package com.dyetracker.events
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.data.RngDataStore
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents
-import net.minecraft.client.MinecraftClient
+import net.minecraft.client.Minecraft
 
 /**
  * Handles tablist parsing to capture Glacite Mineshaft pity value.
@@ -37,7 +37,7 @@ object TablistHandler {
         DyeTrackerMod.info("TablistHandler registered")
     }
 
-    private fun pollTablist(client: MinecraftClient) {
+    private fun pollTablist(client: Minecraft) {
         val networkHandler = client.networkHandler ?: return
         val playerList = networkHandler.playerList ?: return
 

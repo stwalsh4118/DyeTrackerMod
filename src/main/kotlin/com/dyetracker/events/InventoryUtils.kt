@@ -9,7 +9,7 @@ import com.dyetracker.data.VisitorRarity
 import net.minecraft.inventory.Inventory
 import net.minecraft.item.ItemStack
 import net.minecraft.screen.slot.Slot
-import net.minecraft.text.Text
+import net.minecraft.network.chat.Component
 
 /**
  * Inventory type detection results.
@@ -162,7 +162,7 @@ object InventoryUtils {
     /**
      * Check if an item's lore indicates it is selected.
      */
-    fun isSelected(lore: List<Text>): Boolean {
+    fun isSelected(lore: List<Component>): Boolean {
         return lore.any { line ->
             val cleanLine = stripFormatting(line.string)
             cleanLine.contains("SELECTED") || cleanLine.contains("Click to deselect")
@@ -173,7 +173,7 @@ object InventoryUtils {
      * Extract the goal XP from an item's lore.
      * Looks for patterns like "31,900/75M" or "1,812/8.3k"
      */
-    fun extractGoalXp(lore: List<Text>): Long? {
+    fun extractGoalXp(lore: List<Component>): Long? {
         for (line in lore) {
             val cleanLine = stripFormatting(line.string)
 
@@ -190,7 +190,7 @@ object InventoryUtils {
     /**
      * Extract current XP progress from an item's lore.
      */
-    fun extractCurrentXp(lore: List<Text>): Long? {
+    fun extractCurrentXp(lore: List<Component>): Long? {
         for (line in lore) {
             val cleanLine = stripFormatting(line.string)
 
@@ -253,7 +253,7 @@ object InventoryUtils {
     /**
      * Get the lore lines from an ItemStack.
      */
-    fun getLore(itemStack: ItemStack): List<Text> {
+    fun getLore(itemStack: ItemStack): List<Component> {
         val loreComponent = itemStack.get(net.minecraft.component.DataComponentTypes.LORE)
         return loreComponent?.lines ?: emptyList()
     }
@@ -520,7 +520,7 @@ object InventoryUtils {
      * if absent. Lore lines are joined with spaces first so a sentence split across two lore lines
      * still matches.
      */
-    private fun parseRotationBoost(lore: List<Text>): Pair<Int, Int>? {
+    private fun parseRotationBoost(lore: List<Component>): Pair<Int, Int>? {
         val joined = lore.joinToString(" ") { stripFormatting(it.string) }
         val match = ROTATION_BOOST_PATTERN.find(joined) ?: return null
         val multiplier = match.groupValues[1].toIntOrNull() ?: return null

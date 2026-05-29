@@ -6,7 +6,7 @@ import com.dyetracker.ui.core.Size
 import com.dyetracker.ui.core.UiDraw
 import com.dyetracker.ui.core.Widget
 import com.dyetracker.ui.theme.UiTheme
-import net.minecraft.client.MinecraftClient
+import net.minecraft.client.Minecraft
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -28,7 +28,7 @@ class TextWidget(
     private val minWidth: Int = 0,
 ) : Widget {
 
-    private val textRenderer get() = MinecraftClient.getInstance().textRenderer
+    private val textRenderer get() = Minecraft.getInstance().textRenderer
 
     private fun scaledTextWidth(): Int = (textRenderer.getWidth(text) * scale).roundToInt()
 
