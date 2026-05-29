@@ -181,14 +181,21 @@ object HudWidgetHost {
 
     /**
      * Draw [widget] at ([x], [y]) scaled by [scale]. The whole widget tree is scaled
-     * uniformly via the GUI matrix stack, so text, fills, and sprites all scale together.
+     * uniformly via the GUI matrix stack ([GuiGraphicsExtractor.pose]), so text, fills, and
+     * sprites all scale together. A scale of exactly 1 draws directly (no matrix push), keeping
+     * the common case allocation-free and pixel-identical to an unscaled draw.
      */
-    @Suppress("UNUSED_PARAMETER")
     private fun drawScaled(ctx: RenderContext, widget: Widget, x: Int, y: Int, scale: Float) {
-        // TODO(PBI-52): apply [scale] via the 26.1 GuiGraphicsExtractor.pose() matrix stack
-        // (push / translate(x,y) / scale / draw at 0,0 / pop). Stubbed to an unscaled draw for the
-        // compile-green milestone; widget.draw is itself stubbed (UiDraw no-ops) until PBI-52.
-        widget.draw(ctx, x, y)
+        if (scale == 1f) {
+            widget.draw(ctx, x, y)
+            return
+        }
+        val pose = ctx.drawContext.pose()
+        pose.pushMatrix()
+        pose.translate(x.toFloat(), y.toFloat())
+        pose.scale(scale, scale)
+        widget.draw(ctx, 0, 0)
+        pose.popMatrix()
     }
 
     /** Drop the "first render logged" mark for [id]. Invoked via the texture release listener. */
