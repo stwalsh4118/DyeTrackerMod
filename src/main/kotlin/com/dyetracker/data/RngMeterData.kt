@@ -142,6 +142,35 @@ data class NyanzaDyeData(
 )
 
 /**
+ * Treasure-quality tiers for fishing-treasure catches (PBI 58).
+ *
+ * Matches the in-game catch-quality chat line `<TIER> ... CATCH!` (`⛃ GOOD/GREAT/OUTSTANDING
+ * CATCH!`) parsed by the capture handler, and the per-tier count fields on [TreasureDyeData] /
+ * the backend `treasureDyeSchema`.
+ */
+enum class TreasureQuality {
+    GOOD,
+    GREAT,
+    OUTSTANDING
+}
+
+/**
+ * Treasure Dye tracking data (PBI 58).
+ *
+ * Per-tier counts of fishing treasures caught — Good / Great / Outstanding — captured from the
+ * in-game catch-quality chat line. Each catch is a discrete increment (unlike the Copper
+ * Logbook full-snapshot replace), because the Treasure Dye rolls per catch at a per-tier rate.
+ * The JSON keys (`goodCatches`/`greatCatches`/`outstandingCatches`) follow the property names,
+ * matching the backend `treasureDyeSchema` exactly (PBI 58 task 58-3).
+ */
+@Serializable
+data class TreasureDyeData(
+    val goodCatches: Int = 0,
+    val greatCatches: Int = 0,
+    val outstandingCatches: Int = 0
+)
+
+/**
  * Composite data class holding all RNG data for a player.
  */
 @Serializable
@@ -153,6 +182,7 @@ data class PlayerRngData(
     val archfiendDye: ArchfiendDyeData? = null,
     val copperDye: CopperDyeData? = null,
     val nyanzaDye: NyanzaDyeData? = null,
+    val treasureDye: TreasureDyeData? = null,
     val dyeCollection: DyeCollection? = null,
     // PBI 42: local-only persisted union of all visitors seen in the Logbook (never synced; the
     // per-tier copperDye snapshot is derived from it). Lets the per-tier total survive page-turns,
@@ -170,6 +200,7 @@ data class PlayerRngData(
             archfiendDye != null ||
             copperDye != null ||
             nyanzaDye != null ||
+            treasureDye != null ||
             dyeCollection != null ||
             visitorLogbook != null
     }

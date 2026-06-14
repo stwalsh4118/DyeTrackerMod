@@ -38,6 +38,9 @@ object RngDataStore {
     private var nyanzaDye: NyanzaDyeData? = null
 
     @Volatile
+    private var treasureDye: TreasureDyeData? = null
+
+    @Volatile
     private var dyeCollection: DyeCollection? = null
 
     // PBI 42: persisted union of every visitor seen in the Logbook, keyed by name. The per-tier
@@ -73,6 +76,7 @@ object RngDataStore {
             archfiendDye = loadedData.archfiendDye
             copperDye = loadedData.copperDye
             nyanzaDye = loadedData.nyanzaDye
+            treasureDye = loadedData.treasureDye
             dyeCollection = loadedData.dyeCollection
             visitorLogbook = loadedData.visitorLogbook
 
@@ -224,6 +228,23 @@ object RngDataStore {
     }
 
     /**
+     * Increment the per-tier fishing-treasure catch count for Treasure Dye (PBI 58).
+     *
+     * Each treasure caught is a discrete event (like an Archfiend dice roll), so this is an
+     * increment counter — not a full-snapshot replace like the Copper Logbook. The capture
+     * handler (58-6) calls this once per observed `<TIER> ... CATCH!` chat line.
+     */
+    fun incrementTreasureCatch(quality: TreasureQuality) {
+        val current = treasureDye ?: TreasureDyeData()
+        treasureDye = when (quality) {
+            TreasureQuality.GOOD -> current.copy(goodCatches = current.goodCatches + 1)
+            TreasureQuality.GREAT -> current.copy(greatCatches = current.greatCatches + 1)
+            TreasureQuality.OUTSTANDING -> current.copy(outstandingCatches = current.outstandingCatches + 1)
+        }
+        notifyListeners()
+    }
+
+    /**
      * Update the dye collection from a Vincent inventory scan.
      * Replaces the entire collection with the latest scan results.
      */
@@ -253,6 +274,7 @@ object RngDataStore {
             archfiendDye = archfiendDye,
             copperDye = copperDye,
             nyanzaDye = nyanzaDye,
+            treasureDye = treasureDye,
             dyeCollection = dyeCollection,
             visitorLogbook = visitorLogbook
         )
@@ -269,6 +291,7 @@ object RngDataStore {
         archfiendDye = null
         copperDye = null
         nyanzaDye = null
+        treasureDye = null
         dyeCollection = null
         visitorLogbook = null
         notifyListeners()
