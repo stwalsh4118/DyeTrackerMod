@@ -965,6 +965,50 @@ object DyeTrackerCommands {
             )
         }
 
+        // Show treasure dye rolls
+        data.treasureDye?.let { dye ->
+            source.sendFeedback(
+                Text.literal("Treasure Dye:")
+                    .formatted(Formatting.DARK_RED)
+            )
+            source.sendFeedback(
+                Text.literal("  Outstanding Catchs: ")
+                    .formatted(Formatting.GRAY)
+                    .append(
+                        Text.literal("${dye.outstandingFishingCatch} rolls")
+                            .formatted(Formatting.WHITE)
+                    )
+                    .append(
+                        Text.literal(" (1/10k)")
+                            .formatted(Formatting.DARK_GRAY)
+                    )
+            )
+            source.sendFeedback(
+                Text.literal("  Great Catch: ")
+                    .formatted(Formatting.GRAY)
+                    .append(
+                        Text.literal("${dye.greatFishingCatch} rolls")
+                            .formatted(Formatting.WHITE)
+                    )
+                    .append(
+                        Text.literal(" (1/100k)")
+                            .formatted(Formatting.DARK_GRAY)
+                    )
+            )
+            source.sendFeedback(
+                Text.literal("  Good Catch: ")
+                    .formatted(Formatting.GRAY)
+                    .append(
+                        Text.literal("${dye.goodFishingCatch} rolls")
+                            .formatted(Formatting.WHITE)
+                    )
+                    .append(
+                        Text.literal(" (1/1M)")
+                            .formatted(Formatting.DARK_GRAY)
+                    )
+            )
+        }
+
         // Show nyanza dye commissions
         data.nyanzaDye?.let { dye ->
             source.sendFeedback(

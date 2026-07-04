@@ -63,6 +63,18 @@ data class ArchfiendDyeData(
     val archfiendDiceRolls: Int = 0
 )
 
+
+/**
+ * Treasure Dye fishing tracking data.
+ * Tracks catches of treasure from outstanding, great, and good catches.
+ */
+@Serializable
+data class TreasureDyeData(
+    val outstandingFishingCatch: Int = 0,
+    val greatFishingCatch: Int = 0,
+    val goodFishingCatch: Int = 0
+)
+
 /**
  * Garden visitor rarity tiers.
  * Each tier has different Copper Dye drop rates.
@@ -151,6 +163,7 @@ data class PlayerRngData(
     val experimentationMeter: ExperimentationRngMeter? = null,
     val mineshaftPity: MineshaftPity? = null,
     val archfiendDye: ArchfiendDyeData? = null,
+    val treasureDye: TreasureDyeData? = null,
     val copperDye: CopperDyeData? = null,
     val nyanzaDye: NyanzaDyeData? = null,
     val dyeCollection: DyeCollection? = null,
@@ -168,6 +181,7 @@ data class PlayerRngData(
             experimentationMeter != null ||
             mineshaftPity != null ||
             archfiendDye != null ||
+            treasureDye != null ||
             copperDye != null ||
             nyanzaDye != null ||
             dyeCollection != null ||

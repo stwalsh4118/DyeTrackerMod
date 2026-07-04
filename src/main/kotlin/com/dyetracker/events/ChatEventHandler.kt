@@ -25,6 +25,12 @@ object ChatEventHandler {
     private val HIGH_CLASS_DICE_PATTERN = Regex("""Your High Class Archfiend Dice rolled a \d!""")
     private val ARCHFIEND_DICE_PATTERN = Regex("""Your Archfiend Dice rolled a \d!""")
 
+
+    // Treasure Dye String
+    private const val OUTSTANDING_CATCH_STRING = "OUTSTANDING CATCH!"
+    private const val GREAT_CATCH_STRING = "GREAT CATCH!"
+    private const val GOOD_CATCH_STRING = "GOOD CATCH!"
+
     /**
      * Register the chat event listener.
      */
@@ -54,5 +60,31 @@ object ChatEventHandler {
             DyeTrackerMod.debug("Detected Archfiend Dice roll")
             return
         }
+
+
+
+        if (text.contains(OUTSTANDING_CATCH_STRING)) {
+            DyeTrackerMod.info("Trying to increase Outstanding Catch count")
+            RngDataStore.incrementOutstandingCatch()
+            DyeTrackerMod.debug("Detected Outstanding Catch")
+            return
+        } else if (text.contains(GREAT_CATCH_STRING)) {
+            DyeTrackerMod.info("Trying to increase Great Catch count")
+            RngDataStore.incrementGreatCatch()
+            DyeTrackerMod.debug("Detected Great Catch")
+            return
+        } else if (text.contains(GOOD_CATCH_STRING)) {
+            DyeTrackerMod.info("Trying to increase Good Catch count")
+            RngDataStore.incrementGoodCatch()
+            DyeTrackerMod.debug("Detected Good Catch")
+            return
+        }
+
+        //TODO AND NOTES for treasure Dye
+        /* ODDS:
+        * Good catches 1/1M
+        * Great Catches 1/100k
+        * Outstanding 1/10k
+        * */
     }
 }

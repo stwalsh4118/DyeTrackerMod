@@ -32,6 +32,9 @@ object RngDataStore {
     private var archfiendDye: ArchfiendDyeData? = null
 
     @Volatile
+    private var treasureDye: TreasureDyeData? = null
+
+    @Volatile
     private var copperDye: CopperDyeData? = null
 
     @Volatile
@@ -71,6 +74,7 @@ object RngDataStore {
             experimentationMeter = loadedData.experimentationMeter
             mineshaftPity = loadedData.mineshaftPity
             archfiendDye = loadedData.archfiendDye
+            treasureDye = loadedData.treasureDye
             copperDye = loadedData.copperDye
             nyanzaDye = loadedData.nyanzaDye
             dyeCollection = loadedData.dyeCollection
@@ -176,6 +180,24 @@ object RngDataStore {
     fun incrementArchfiendDiceRoll() {
         val current = archfiendDye ?: ArchfiendDyeData()
         archfiendDye = current.copy(archfiendDiceRolls = current.archfiendDiceRolls + 1)
+        notifyListeners()
+    }
+
+    fun incrementOutstandingCatch(){
+        val current = treasureDye ?: TreasureDyeData()
+        treasureDye = current.copy(outstandingFishingCatch = current.outstandingFishingCatch + 1)
+        notifyListeners()
+    }
+
+    fun incrementGreatCatch (){
+        val current = treasureDye ?: TreasureDyeData()
+        treasureDye = current.copy(greatFishingCatch = current.greatFishingCatch + 1)
+        notifyListeners()
+    }
+
+    fun incrementGoodCatch (){
+        val current = treasureDye ?: TreasureDyeData()
+        treasureDye = current.copy(goodFishingCatch = current.goodFishingCatch + 1)
         notifyListeners()
     }
 

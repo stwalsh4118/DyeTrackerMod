@@ -9,6 +9,7 @@ import com.dyetracker.data.DungeonRngMeter
 import com.dyetracker.data.ExperimentationRngMeter
 import com.dyetracker.data.MineshaftPity
 import com.dyetracker.data.NucleusRngMeter
+import com.dyetracker.data.TreasureDyeData
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -23,6 +24,7 @@ data class SyncRngDataRequest(
     val experimentationMeter: ExperimentationRngMeter? = null,
     val mineshaftPity: MineshaftPity? = null,
     val archfiendDye: ArchfiendDyeData? = null,
+    val treasureDye: TreasureDyeData? = null,
     val copperDye: CopperDyeData? = null,
     val nyanzaDye: NyanzaDyeData? = null,
     val modTimestamp: Long
