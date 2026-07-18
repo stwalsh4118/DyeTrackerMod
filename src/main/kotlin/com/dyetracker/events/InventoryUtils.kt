@@ -6,10 +6,17 @@ import com.dyetracker.data.DungeonFloor
 import com.dyetracker.data.DyeRotation
 import com.dyetracker.data.VisitorEntry
 import com.dyetracker.data.VisitorRarity
+//? if >=26.1 {
+/*import net.minecraft.world.Container as Inventory
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.inventory.Slot
+import net.minecraft.network.chat.Component as Text
+*///?} else {
 import net.minecraft.inventory.Inventory
 import net.minecraft.item.ItemStack
 import net.minecraft.screen.slot.Slot
 import net.minecraft.text.Text
+//?}
 
 /**
  * Inventory type detection results.
@@ -39,6 +46,15 @@ data class SelectedItemInfo(
  * Utility functions for detecting RNG meter inventory types and parsing item lore.
  */
 object InventoryUtils {
+
+    // Yarn's Slot.stack/Slot.inventory and ItemStack.name were renamed to getItem()/container and
+    // getHoverName() on the official mappings 26.x uses; these shims keep every call site below
+    // unchanged instead of touching each one individually.
+    //? if >=26.1 {
+    /*private val Slot.stack: ItemStack get() = item
+    private val Slot.inventory: Inventory get() = container
+    private val ItemStack.name: Text get() = hoverName
+    *///?}
 
     // Dungeon RNG meter title patterns
     private const val M5_TITLE = "Master Mode Floor V"
@@ -254,8 +270,13 @@ object InventoryUtils {
      * Get the lore lines from an ItemStack.
      */
     fun getLore(itemStack: ItemStack): List<Text> {
+        //? if >=26.1 {
+        /*val loreComponent = itemStack.get(net.minecraft.core.component.DataComponents.LORE)
+        return loreComponent?.lines() ?: emptyList()
+        *///?} else {
         val loreComponent = itemStack.get(net.minecraft.component.DataComponentTypes.LORE)
         return loreComponent?.lines ?: emptyList()
+        //?}
     }
 
     /**
@@ -450,7 +471,7 @@ object InventoryUtils {
      * Extract all dye items from a Vincent inventory screen.
      * Returns a list of DroppedDye for each recognized dye in the inventory.
      */
-    fun extractDyeCollection(slots: Iterable<net.minecraft.screen.slot.Slot>): List<DroppedDye> {
+    fun extractDyeCollection(slots: Iterable<Slot>): List<DroppedDye> {
         val dyes = mutableListOf<DroppedDye>()
         for (slot in slots) {
             val stack = slot.stack
