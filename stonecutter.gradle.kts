@@ -12,7 +12,7 @@ stonecutter parameters {
     // }
 }
 
-stonecutter active "26.1"
+stonecutter active "26.1.2"
 
 // Aggregate `build` across every registered version. Stonecutter 0.7+ no longer
 // auto-generates this; we register it manually so `./gradlew chiseledBuild`
