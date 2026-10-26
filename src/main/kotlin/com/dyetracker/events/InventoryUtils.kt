@@ -49,11 +49,12 @@ object InventoryUtils {
     private const val EXPERIMENTATION_TITLE = "Experimentation Table"
     private const val RNG_METER_SUFFIX = "RNG Meter"
 
-    // Vincent dye compendium GUI title
-    private const val VINCENT_TITLE = "Dye Compendium"
+    // Vincent dye collection GUI titles. Hypixel renamed "Dye Compendium" to "Dye Guide" (PBI 62);
+    // the old title is kept so a server still showing it keeps working.
+    private val VINCENT_TITLES = setOf("Dye Guide", "Dye Compendium")
 
     // Vincent current dye rotation GUI title (a distinct chest GUI; exact match so it does not
-    // collide with the "Dye Compendium" compendium screen).
+    // collide with the "Dye Guide" collection screen).
     private const val ROTATION_TITLE = "Dyes"
 
     // Commission Milestones GUI title (the sub-screen reached from the main Commissions menu;
@@ -84,7 +85,7 @@ object InventoryUtils {
         val cleanTitle = stripFormatting(title)
 
         // Check for Vincent dye collection GUI
-        if (cleanTitle == VINCENT_TITLE) {
+        if (cleanTitle in VINCENT_TITLES) {
             return InventoryType.VincentDyeCollection
         }
 
