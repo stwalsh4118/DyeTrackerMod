@@ -73,6 +73,8 @@ One release tag carries the jars of **both** lines (1.21.x and 26.x). The `relea
 
 > The 26.x line must be on the public repo as branch `mc-26x` for `--ref mc-26x` to work.
 
+> **Pre-releases for testers:** a tag with a suffix (e.g. `v1.11.0-beta.1`) is published as a GitHub pre-release, so it never shows as the latest release. Jars are named `dyetracker-1.11.0-beta.1+<mc>.jar`.
+
 > **Always push tag `vX.Y.Z` to the public repo before any workflow run.** Never `workflow_dispatch` a version whose tag does not exist yet: the action would then create the tag at the head of the default branch (`main`, the 1.21.x code) while it uploads the other line's jars. Release metadata shows `target_commitish: main`, the same as every past release.
 
 ## Important Guidelines
