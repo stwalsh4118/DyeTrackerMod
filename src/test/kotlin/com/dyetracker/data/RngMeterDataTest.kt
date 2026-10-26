@@ -166,6 +166,69 @@ class RngMeterDataTest {
     }
 
     @Test
+    fun `TreasureDyeData round-trips through JSON with the per-tier catch keys (PBI 58)`() {
+        val original = TreasureDyeData(goodCatches = 50_000, greatCatches = 5_000, outstandingCatches = 500)
+
+        val encoded = Json.encodeToString(original)
+        assertTrue(encoded.contains("goodCatches"), "must serialize the goodCatches key")
+        assertTrue(encoded.contains("greatCatches"), "must serialize the greatCatches key")
+        assertTrue(encoded.contains("outstandingCatches"), "must serialize the outstandingCatches key")
+
+        val decoded = json.decodeFromString<TreasureDyeData>(encoded)
+        assertEquals(original, decoded)
+    }
+
+    @Test
+    fun `incrementTreasureCatch bumps only the matching tier and accumulates (PBI 58)`() {
+        RngDataStore.incrementTreasureCatch(TreasureQuality.GOOD)
+        RngDataStore.incrementTreasureCatch(TreasureQuality.GOOD)
+        RngDataStore.incrementTreasureCatch(TreasureQuality.GREAT)
+        RngDataStore.incrementTreasureCatch(TreasureQuality.OUTSTANDING)
+
+        val treasure = RngDataStore.getData().treasureDye
+        assertEquals(2, treasure?.goodCatches)
+        assertEquals(1, treasure?.greatCatches)
+        assertEquals(1, treasure?.outstandingCatches)
+    }
+
+    @Test
+    fun `PlayerRngData hasData is true when a treasureDye block is present (PBI 58)`() {
+        val withTreasure = PlayerRngData(treasureDye = TreasureDyeData(outstandingCatches = 1))
+        assertTrue(withTreasure.hasData())
+    }
+
+    @Test
+    fun `SyncRngDataRequest carries treasureDye with the per-tier catch keys (PBI 58)`() {
+        val request = SyncRngDataRequest(
+            treasureDye = TreasureDyeData(goodCatches = 3, greatCatches = 2, outstandingCatches = 1),
+            modTimestamp = 1_700_000_000_000L
+        )
+
+        val encoded = Json.encodeToString(request)
+        assertTrue(encoded.contains("treasureDye"), "sync payload should carry treasureDye when present")
+        assertTrue(encoded.contains("goodCatches"), "treasureDye must use the goodCatches key")
+        assertTrue(encoded.contains("greatCatches"), "treasureDye must use the greatCatches key")
+        assertTrue(encoded.contains("outstandingCatches"), "treasureDye must use the outstandingCatches key")
+    }
+
+    @Test
+    fun `legacy data json without a treasureDye key deserializes to null (PBI 58 forward-compat)`() {
+        // A data.json written before PBI 58 has no treasureDye key; the field must default to null.
+        val legacy = """
+            {
+              "dungeonMeters": {
+                "M5": { "floor": "M5", "storedXp": 500 }
+              }
+            }
+        """.trimIndent()
+
+        val data = json.decodeFromString<PlayerRngData>(legacy)
+
+        assertEquals(null, data.treasureDye)
+        assertTrue(data.hasData())
+    }
+
+    @Test
     fun `legacy data json containing slayerMeters deserializes without slayer data and does not throw`() {
         // A data.json written by a pre-PBI-47 mod build still carries slayerMeters; the trimmed
         // PlayerRngData must ignore the unknown key rather than fail to load.

@@ -2,11 +2,13 @@ package com.dyetracker.events
 
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.data.RngDataStore
+import com.dyetracker.data.TreasureQuality
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents
 import net.minecraft.network.chat.Component
 
 /**
- * Handles chat messages to capture RNG-relevant events (Archfiend Dice rolls).
+ * Handles chat messages to capture RNG-relevant events (Archfiend Dice rolls, fishing-treasure
+ * catches).
  *
  * PBI 47: slayer RNG-meter chat capture was removed. Slayer dyes are now estimated
  * from per-tier boss kill counts on the backend, so the mod no longer tracks the
@@ -15,6 +17,10 @@ import net.minecraft.network.chat.Component
  * PBI 42: the Garden visitor "OFFER ACCEPTED" chat capture was removed. Copper Dye
  * progress is now sourced from a full snapshot of every visitor seen, read from the
  * in-game Visitor's Logbook GUI (see InventoryHandler), not from accepted-offer chat.
+ *
+ * PBI 58: fishing-treasure catches are captured from the catch-quality chat line
+ * (`⛃ GOOD/GREAT/OUTSTANDING CATCH!`) to track Treasure Dye per tier — see
+ * [parseTreasureQuality].
  */
 object ChatEventHandler {
 
@@ -24,6 +30,19 @@ object ChatEventHandler {
     // Archfiend Dice patterns - check High Class first (more specific pattern)
     private val HIGH_CLASS_DICE_PATTERN = Regex("""Your High Class Archfiend Dice rolled a \d!""")
     private val ARCHFIEND_DICE_PATTERN = Regex("""Your Archfiend Dice rolled a \d!""")
+
+    // PBI 58: fishing-treasure catch-quality lines. The server prints `⛃ <TIER> CATCH!` for every
+    // catch, where <TIER> is GOOD/GREAT/OUTSTANDING; junk-pool variants insert a filler word
+    // (`⛃ GREAT JUNK CATCH!`). We strip the leading ⛃ icon + whitespace, then match the tier
+    // ANCHORED at the start of the line. Anchoring doubles as the player-chat guard: a teammate
+    // announcing "GREAT JUNK CATCH" in party/all chat arrives as "<name>: ..." (or "[rank] name:
+    // ..."), which never starts with the tier word, so it is rejected without enumerating
+    // Hypixel's channel/rank prefixes. The optional `(?: [A-Z]+)*` filler counts ANY loot pool
+    // (treasure or junk) at the rolled tier and tolerates future pool words (per 58-1).
+    private val LEADING_TREASURE_ICON_PATTERN = Regex("""^[\s⛃]+""")
+    private val GOOD_CATCH_PATTERN = Regex("""^GOOD(?: [A-Z]+)* CATCH""")
+    private val GREAT_CATCH_PATTERN = Regex("""^GREAT(?: [A-Z]+)* CATCH""")
+    private val OUTSTANDING_CATCH_PATTERN = Regex("""^OUTSTANDING(?: [A-Z]+)* CATCH""")
 
     /**
      * Register the chat event listener.
@@ -53,6 +72,35 @@ object ChatEventHandler {
             RngDataStore.incrementArchfiendDiceRoll()
             DyeTrackerMod.debug("Detected Archfiend Dice roll")
             return
+        }
+
+        // PBI 58: fishing-treasure catch — increment the per-tier Treasure Dye counter.
+        val treasureQuality = parseTreasureQuality(text)
+        if (treasureQuality != null) {
+            RngDataStore.incrementTreasureCatch(treasureQuality)
+            DyeTrackerMod.debug("Detected $treasureQuality treasure catch")
+            return
+        }
+    }
+
+    /**
+     * Map a format-code-stripped chat line to the fishing-treasure quality tier it announces, or
+     * null when the line is not a (server) catch-quality message.
+     *
+     * Pure (no Minecraft types) so it is unit-testable. The leading `⛃` icon + whitespace are
+     * stripped, then each tier pattern is matched ANCHORED at the start of the line — so a
+     * teammate's party/all-chat announcement (`<name>: GREAT JUNK CATCH`) is rejected (it does not
+     * start with the tier word), while both treasure and junk loot-pool catches are counted at the
+     * rolled tier. The three tier words are mutually exclusive first tokens, so the match order is
+     * irrelevant (Outstanding → Great → Good for readability).
+     */
+    fun parseTreasureQuality(text: String): TreasureQuality? {
+        val line = LEADING_TREASURE_ICON_PATTERN.replace(text, "")
+        return when {
+            OUTSTANDING_CATCH_PATTERN.containsMatchIn(line) -> TreasureQuality.OUTSTANDING
+            GREAT_CATCH_PATTERN.containsMatchIn(line) -> TreasureQuality.GREAT
+            GOOD_CATCH_PATTERN.containsMatchIn(line) -> TreasureQuality.GOOD
+            else -> null
         }
     }
 }
