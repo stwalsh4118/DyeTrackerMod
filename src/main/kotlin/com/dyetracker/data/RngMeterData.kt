@@ -4,46 +4,8 @@ import kotlinx.serialization.Serializable
 
 // PBI 47: SlayerType + SlayerRngMeter removed — slayer dyes are estimated from per-tier
 // boss kill counts on the backend, so the mod no longer models slayer RNG meters.
-
-/**
- * Dungeon floors that have RNG meters.
- */
-@Serializable
-enum class DungeonFloor {
-    M5,
-    M7
-}
-
-/**
- * RNG meter data for a dungeon floor.
- */
-@Serializable
-data class DungeonRngMeter(
-    val floor: DungeonFloor,
-    val storedXp: Long,
-    val selectedItem: String? = null,
-    val goalXp: Long? = null
-)
-
-/**
- * RNG meter data for Crystal Hollows Nucleus.
- */
-@Serializable
-data class NucleusRngMeter(
-    val storedXp: Long,
-    val selectedItem: String? = null,
-    val goalXp: Long? = null
-)
-
-/**
- * RNG meter data for Experimentation Table.
- */
-@Serializable
-data class ExperimentationRngMeter(
-    val storedXp: Long,
-    val selectedItem: String? = null,
-    val goalXp: Long? = null
-)
+// PBI 63: the dungeon (M5/M7), Crystal Nucleus and Experimentation Table RNG-meter models were
+// removed the same way — the mod no longer captures those RNG meters.
 
 /**
  * Mineshaft pity counter (0-2000).
@@ -175,9 +137,6 @@ data class TreasureDyeData(
  */
 @Serializable
 data class PlayerRngData(
-    val dungeonMeters: Map<DungeonFloor, DungeonRngMeter> = emptyMap(),
-    val nucleusMeter: NucleusRngMeter? = null,
-    val experimentationMeter: ExperimentationRngMeter? = null,
     val mineshaftPity: MineshaftPity? = null,
     val archfiendDye: ArchfiendDyeData? = null,
     val copperDye: CopperDyeData? = null,
@@ -193,10 +152,7 @@ data class PlayerRngData(
      * Returns true if any RNG data has been captured.
      */
     fun hasData(): Boolean {
-        return dungeonMeters.isNotEmpty() ||
-            nucleusMeter != null ||
-            experimentationMeter != null ||
-            mineshaftPity != null ||
+        return mineshaftPity != null ||
             archfiendDye != null ||
             copperDye != null ||
             nyanzaDye != null ||

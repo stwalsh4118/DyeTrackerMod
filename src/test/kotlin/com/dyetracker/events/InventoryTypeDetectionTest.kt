@@ -7,7 +7,8 @@ import kotlin.test.assertNull
 /**
  * Unit tests for [InventoryUtils.detectInventoryType] on Vincent's screens. Hypixel renamed the
  * collection screen from "Dye Compendium" to "Dye Guide" (PBI 62), with a page prefix such as
- * "(1/3) Dye Guide"; every variant must be detected.
+ * "(1/3) Dye Guide"; every variant must be detected. PBI 63: RNG-meter screens are no longer
+ * captured, so their titles must not be detected.
  */
 class InventoryTypeDetectionTest {
 
@@ -40,5 +41,21 @@ class InventoryTypeDetectionTest {
     @Test
     fun `unrelated title is not detected`() {
         assertNull(InventoryUtils.detectInventoryType("Dye Shop"))
+    }
+
+    @Test
+    fun `dungeon RNG meter titles are not detected (PBI 63)`() {
+        assertNull(InventoryUtils.detectInventoryType("Catacombs RNG Meter - Master Mode Floor VII"))
+        assertNull(InventoryUtils.detectInventoryType("Master Mode Floor V RNG Meter"))
+    }
+
+    @Test
+    fun `Crystal Hollows RNG meter title is not detected (PBI 63)`() {
+        assertNull(InventoryUtils.detectInventoryType("Crystal Hollows RNG Meter"))
+    }
+
+    @Test
+    fun `Experimentation Table RNG title is not detected (PBI 63)`() {
+        assertNull(InventoryUtils.detectInventoryType("Experimentation Table RNG"))
     }
 }

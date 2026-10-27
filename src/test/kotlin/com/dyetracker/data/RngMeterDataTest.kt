@@ -13,10 +13,18 @@ import kotlin.test.assertTrue
  * PBI 47: proves the mod's RNG data model + sync payload no longer carry slayer meters,
  * and that a legacy `data.json` still containing a `slayerMeters` object deserializes
  * without error (forward-compat via `ignoreUnknownKeys`, mirroring DataPersistence's Json).
+ * PBI 63: the same for the dungeon, nucleus and experimentation meters.
  */
 class RngMeterDataTest {
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    // Mirrors DataPersistence's private Json flags, so a decode here behaves like loading data.json.
+    private val persistenceJson = Json {
+        prettyPrint = true
+        encodeDefaults = true
+        ignoreUnknownKeys = true
+    }
 
     // The mergeVisitorsSeen tests mutate the RngDataStore singleton; reset it after each
     // test so no residual copperDye / visitorLogbook state can leak into other tests in this JVM.
@@ -26,28 +34,8 @@ class RngMeterDataTest {
     }
 
     @Test
-    fun `SyncRngDataRequest serialized JSON has no slayerMeters key but keeps other meters`() {
-        val request = SyncRngDataRequest(
-            dungeonMeters = mapOf(DungeonFloor.M5 to DungeonRngMeter(DungeonFloor.M5, storedXp = 500)),
-            nucleusMeter = NucleusRngMeter(storedXp = 1000),
-            modTimestamp = 1_700_000_000_000L
-        )
-
-        val encoded = Json.encodeToString(request)
-
-        assertFalse(encoded.contains("slayerMeters"), "sync payload must not carry slayerMeters")
-        assertTrue(encoded.contains("dungeonMeters"), "sync payload should still carry dungeonMeters")
-        assertTrue(encoded.contains("nucleusMeter"), "sync payload should still carry nucleusMeter")
-    }
-
-    @Test
-    fun `PlayerRngData hasData is true with only a dungeon meter and false when empty`() {
+    fun `PlayerRngData hasData is false when empty`() {
         assertFalse(PlayerRngData().hasData())
-
-        val withDungeon = PlayerRngData(
-            dungeonMeters = mapOf(DungeonFloor.M7 to DungeonRngMeter(DungeonFloor.M7, storedXp = 10))
-        )
-        assertTrue(withDungeon.hasData())
     }
 
     @Test
@@ -216,9 +204,7 @@ class RngMeterDataTest {
         // A data.json written before PBI 58 has no treasureDye key; the field must default to null.
         val legacy = """
             {
-              "dungeonMeters": {
-                "M5": { "floor": "M5", "storedXp": 500 }
-              }
+              "archfiendDye": { "highClassDiceRolls": 3, "archfiendDiceRolls": 1 }
             }
         """.trimIndent()
 
@@ -237,15 +223,35 @@ class RngMeterDataTest {
               "slayerMeters": {
                 "REVENANT": { "slayerType": "REVENANT", "storedXp": 12345, "goalXp": 50000 }
               },
-              "dungeonMeters": {
-                "M5": { "floor": "M5", "storedXp": 500 }
-              }
+              "nyanzaDye": { "commissionsCompleted": 208 }
             }
         """.trimIndent()
 
         val data = json.decodeFromString<PlayerRngData>(legacy)
 
-        assertEquals(1, data.dungeonMeters.size)
+        assertEquals(208, data.nyanzaDye?.commissionsCompleted)
+        assertTrue(data.hasData())
+    }
+
+    @Test
+    fun `legacy data json with dungeon, nucleus and experimentation meters decodes with copper intact (PBI 63)`() {
+        // A data.json written by a pre-PBI-63 mod build still carries the meter keys; the trimmed
+        // PlayerRngData must ignore them and keep every surviving block.
+        val legacy = """
+            {
+              "dungeonMeters":{"M7":{"floor":"M7","storedXp":100}},
+              "nucleusMeter":{"storedXp":5},
+              "experimentationMeter":null,
+              "copperDye":{"visitorsSeen":{"RARE":3,"SPECIAL":7}}
+            }
+        """.trimIndent()
+
+        val data = persistenceJson.decodeFromString<PlayerRngData>(legacy)
+
+        assertEquals(
+            mapOf(VisitorRarity.RARE to 3, VisitorRarity.SPECIAL to 7),
+            data.copperDye?.visitorsSeen
+        )
         assertTrue(data.hasData())
     }
 }
