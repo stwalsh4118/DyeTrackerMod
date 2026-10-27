@@ -3,7 +3,7 @@ package com.dyetracker.client
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.Screen
 
-/**
+/*
  * Screen and HUD-visibility access across the 26.x nodes. Minecraft 26.2 moved this state off
  * [Minecraft] onto its `gui` field (`Gui`): `setScreen` → `gui.setScreen`, the `screen` field →
  * `gui.screen()`, and F1's `options.hideGui` → `gui.hud.isHidden()`.
