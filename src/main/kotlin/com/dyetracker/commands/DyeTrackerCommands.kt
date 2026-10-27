@@ -4,7 +4,6 @@ import com.dyetracker.DyeTrackerMod
 import com.dyetracker.auth.AccountVerification
 import com.dyetracker.client.showScreen
 import com.dyetracker.config.ConfigManager
-import com.dyetracker.data.DungeonFloor
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.dyeprogress.DyeProgressAdder
 import com.dyetracker.dyeprogress.DyeProgressPlacementEditor
@@ -847,7 +846,7 @@ object DyeTrackerCommands {
                     .withStyle(ChatFormatting.YELLOW)
             )
             source.sendFeedback(
-                Component.literal("Open RNG meter menus in-game to capture data.")
+                Component.literal("Open the tracked menus in-game to capture data.")
                     .withStyle(ChatFormatting.GRAY)
             )
             return
@@ -857,69 +856,6 @@ object DyeTrackerCommands {
             Component.literal("=== RNG Data ===")
                 .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD)
         )
-
-        // Show dungeon meters
-        if (data.dungeonMeters.isNotEmpty()) {
-            source.sendFeedback(
-                Component.literal("Dungeon RNG Meters:")
-                    .withStyle(ChatFormatting.LIGHT_PURPLE)
-            )
-            for ((floor, meter) in data.dungeonMeters) {
-                val itemInfo = if (meter.selectedItem != null) {
-                    " [${meter.selectedItem}: ${formatXp(meter.goalXp ?: 0)} goal]"
-                } else ""
-                source.sendFeedback(
-                    Component.literal("  ${floor.name}: ")
-                        .withStyle(ChatFormatting.GRAY)
-                        .append(
-                            Component.literal("${formatXp(meter.storedXp)} XP")
-                                .withStyle(ChatFormatting.WHITE)
-                        )
-                        .append(
-                            Component.literal(itemInfo)
-                                .withStyle(ChatFormatting.DARK_GRAY)
-                        )
-                )
-            }
-        }
-
-        // Show nucleus meter
-        data.nucleusMeter?.let { meter ->
-            val itemInfo = if (meter.selectedItem != null) {
-                " [${meter.selectedItem}: ${formatXp(meter.goalXp ?: 0)} goal]"
-            } else ""
-            source.sendFeedback(
-                Component.literal("Nucleus RNG: ")
-                    .withStyle(ChatFormatting.GREEN)
-                    .append(
-                        Component.literal("${formatXp(meter.storedXp)} XP")
-                            .withStyle(ChatFormatting.WHITE)
-                    )
-                    .append(
-                        Component.literal(itemInfo)
-                            .withStyle(ChatFormatting.DARK_GRAY)
-                    )
-            )
-        }
-
-        // Show experimentation meter
-        data.experimentationMeter?.let { meter ->
-            val itemInfo = if (meter.selectedItem != null) {
-                " [${meter.selectedItem}: ${formatXp(meter.goalXp ?: 0)} goal]"
-            } else ""
-            source.sendFeedback(
-                Component.literal("Experimentation RNG: ")
-                    .withStyle(ChatFormatting.BLUE)
-                    .append(
-                        Component.literal("${formatXp(meter.storedXp)} XP")
-                            .withStyle(ChatFormatting.WHITE)
-                    )
-                    .append(
-                        Component.literal(itemInfo)
-                            .withStyle(ChatFormatting.DARK_GRAY)
-                    )
-            )
-        }
 
         // Show mineshaft pity
         data.mineshaftPity?.let { pity ->

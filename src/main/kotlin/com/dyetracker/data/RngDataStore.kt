@@ -1,7 +1,6 @@
 package com.dyetracker.data
 
 import com.dyetracker.DyeTrackerMod
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -16,14 +15,6 @@ fun interface RngDataChangeListener {
  * This store is updated by various event handlers and read by the show command.
  */
 object RngDataStore {
-
-    private val dungeonMeters = ConcurrentHashMap<DungeonFloor, DungeonRngMeter>()
-
-    @Volatile
-    private var nucleusMeter: NucleusRngMeter? = null
-
-    @Volatile
-    private var experimentationMeter: ExperimentationRngMeter? = null
 
     @Volatile
     private var mineshaftPity: MineshaftPity? = null
@@ -67,11 +58,6 @@ object RngDataStore {
         val loadedData = DataPersistence.load()
         if (loadedData != null) {
             // Populate internal state from loaded data
-            loadedData.dungeonMeters.forEach { (floor, meter) ->
-                dungeonMeters[floor] = meter
-            }
-            nucleusMeter = loadedData.nucleusMeter
-            experimentationMeter = loadedData.experimentationMeter
             mineshaftPity = loadedData.mineshaftPity
             archfiendDye = loadedData.archfiendDye
             copperDye = loadedData.copperDye
@@ -118,43 +104,6 @@ object RngDataStore {
                 DyeTrackerMod.error("Error notifying RNG data listener", e)
             }
         }
-    }
-
-    /**
-     * Update the dungeon RNG meter for a floor.
-     */
-    fun updateDungeonMeter(floor: DungeonFloor, xp: Long, item: String?, goalXp: Long?) {
-        dungeonMeters[floor] = DungeonRngMeter(
-            floor = floor,
-            storedXp = xp,
-            selectedItem = item,
-            goalXp = goalXp
-        )
-        notifyListeners()
-    }
-
-    /**
-     * Update the nucleus RNG meter.
-     */
-    fun updateNucleusMeter(xp: Long, item: String?, goalXp: Long?) {
-        nucleusMeter = NucleusRngMeter(
-            storedXp = xp,
-            selectedItem = item,
-            goalXp = goalXp
-        )
-        notifyListeners()
-    }
-
-    /**
-     * Update the experimentation table RNG meter.
-     */
-    fun updateExperimentationMeter(xp: Long, item: String?, goalXp: Long?) {
-        experimentationMeter = ExperimentationRngMeter(
-            storedXp = xp,
-            selectedItem = item,
-            goalXp = goalXp
-        )
-        notifyListeners()
     }
 
     /**
@@ -267,9 +216,6 @@ object RngDataStore {
      */
     fun getData(): PlayerRngData {
         return PlayerRngData(
-            dungeonMeters = dungeonMeters.toMap(),
-            nucleusMeter = nucleusMeter,
-            experimentationMeter = experimentationMeter,
             mineshaftPity = mineshaftPity,
             archfiendDye = archfiendDye,
             copperDye = copperDye,
@@ -284,9 +230,6 @@ object RngDataStore {
      * Clear all stored RNG data.
      */
     fun clear() {
-        dungeonMeters.clear()
-        nucleusMeter = null
-        experimentationMeter = null
         mineshaftPity = null
         archfiendDye = null
         copperDye = null

@@ -3,7 +3,6 @@ package com.dyetracker.events
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.DroppedDye
-import com.dyetracker.data.DungeonFloor
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.data.VisitorEntry
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents
@@ -15,8 +14,8 @@ import net.minecraft.network.chat.Component
 import net.minecraft.ChatFormatting
 
 /**
- * Handles inventory screen events to capture RNG meter data.
- * Detects when RNG meter inventories are opened and scans for selected items.
+ * Handles inventory screen events for the screens the mod captures (Vincent, rotation, commissions,
+ * Visitor's Logbook).
  */
 object InventoryHandler {
 
@@ -81,9 +80,6 @@ object InventoryHandler {
 
     private fun processInventory(screen: AbstractContainerScreen<*>, inventoryType: InventoryType) {
         when (inventoryType) {
-            is InventoryType.DungeonRngMeter -> processDungeonMeter(screen, inventoryType.floor)
-            is InventoryType.NucleusRngMeter -> processNucleusMeter(screen)
-            is InventoryType.ExperimentationRngMeter -> processExperimentationMeter(screen)
             is InventoryType.CommissionMilestones -> processCommissionMilestones(screen)
             is InventoryType.VincentDyeRotation -> processDyeRotation(screen)
             is InventoryType.VincentDyeCollection -> {} // Handled by scheduleCompendiumScan
@@ -113,79 +109,6 @@ object InventoryHandler {
             Component.literal("Captured current dye rotation (${rotation.dyeIds.size} dyes)")
                 .withStyle(ChatFormatting.GREEN)
         )
-    }
-
-    /**
-     * Process a dungeon RNG meter inventory.
-     */
-    private fun processDungeonMeter(screen: AbstractContainerScreen<*>, floor: DungeonFloor) {
-        val handler = screen.menu
-        var storedXp = 0L
-        var selectedItem: String? = null
-        var goalXp: Long? = null
-
-        for (slot in handler.slots) {
-            val stack = slot.item
-            if (stack.isEmpty) continue
-
-            val lore = InventoryUtils.getLore(stack)
-
-            // Check if this item shows stored XP (usually a status item)
-            val currentXp = InventoryUtils.extractCurrentXp(lore)
-            if (currentXp != null && currentXp > storedXp) {
-                storedXp = currentXp
-            }
-
-            // Check if this is a selected item
-            val selected = InventoryUtils.parseSelectedItem(stack)
-            if (selected != null) {
-                selectedItem = selected.itemName
-                goalXp = selected.goalXp
-                DyeTrackerMod.debug(
-                    "Found selected dungeon item: {} for {} (goal: {})",
-                    selectedItem,
-                    floor,
-                    goalXp
-                )
-            }
-        }
-
-        RngDataStore.updateDungeonMeter(floor, storedXp, selectedItem, goalXp)
-        DyeTrackerMod.debug("Updated dungeon meter {}: xp={}, item={}", floor, storedXp, selectedItem)
-    }
-
-    /**
-     * Process a Nucleus RNG meter inventory.
-     */
-    private fun processNucleusMeter(screen: AbstractContainerScreen<*>) {
-        val handler = screen.menu
-        var storedXp = 0L
-        var selectedItem: String? = null
-        var goalXp: Long? = null
-
-        for (slot in handler.slots) {
-            val stack = slot.item
-            if (stack.isEmpty) continue
-
-            val lore = InventoryUtils.getLore(stack)
-
-            // Check for stored XP
-            val currentXp = InventoryUtils.extractCurrentXp(lore)
-            if (currentXp != null && currentXp > storedXp) {
-                storedXp = currentXp
-            }
-
-            // Check if this is a selected item
-            val selected = InventoryUtils.parseSelectedItem(stack)
-            if (selected != null) {
-                selectedItem = selected.itemName
-                goalXp = selected.goalXp
-                DyeTrackerMod.debug("Found selected nucleus item: {} (goal: {})", selectedItem, goalXp)
-            }
-        }
-
-        RngDataStore.updateNucleusMeter(storedXp, selectedItem, goalXp)
-        DyeTrackerMod.debug("Updated nucleus meter: xp={}, item={}", storedXp, selectedItem)
     }
 
     /**
@@ -344,39 +267,5 @@ object InventoryHandler {
             accumulatedVisitors.size
         )
         accumulatedVisitors.clear()
-    }
-
-    /**
-     * Process an Experimentation Table RNG meter inventory.
-     */
-    private fun processExperimentationMeter(screen: AbstractContainerScreen<*>) {
-        val handler = screen.menu
-        var storedXp = 0L
-        var selectedItem: String? = null
-        var goalXp: Long? = null
-
-        for (slot in handler.slots) {
-            val stack = slot.item
-            if (stack.isEmpty) continue
-
-            val lore = InventoryUtils.getLore(stack)
-
-            // Check for stored XP
-            val currentXp = InventoryUtils.extractCurrentXp(lore)
-            if (currentXp != null && currentXp > storedXp) {
-                storedXp = currentXp
-            }
-
-            // Check if this is a selected item
-            val selected = InventoryUtils.parseSelectedItem(stack)
-            if (selected != null) {
-                selectedItem = selected.itemName
-                goalXp = selected.goalXp
-                DyeTrackerMod.debug("Found selected experimentation item: {} (goal: {})", selectedItem, goalXp)
-            }
-        }
-
-        RngDataStore.updateExperimentationMeter(storedXp, selectedItem, goalXp)
-        DyeTrackerMod.debug("Updated experimentation meter: xp={}, item={}", storedXp, selectedItem)
     }
 }
