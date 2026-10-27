@@ -12,9 +12,15 @@ class BrewingStandTrackerTest {
 
     private val slot = 0
 
-    private fun empty(index: Int = slot): Map<Int, String?> = mapOf(index to null)
+    // A loaded stand always shows glass panes around its slots, so the helpers' snapshots carry
+    // one; an all-empty snapshot only happens before the window contents arrive.
+    private val fillerSlot = 9
+    private val fillerName = "Glass Pane"
 
-    private fun item(name: String, index: Int = slot): Map<Int, String?> = mapOf(index to name)
+    private fun empty(index: Int = slot): Map<Int, String?> = mapOf(index to null, fillerSlot to fillerName)
+
+    private fun item(name: String, index: Int = slot): Map<Int, String?> =
+        mapOf(index to name, fillerSlot to fillerName)
 
     @Test
     fun `a brewed potion present at open is counted when removed`() {
@@ -108,6 +114,29 @@ class BrewingStandTrackerTest {
         assertEquals(emptyList(), reopened.observe(item("Speed I Potion")))
         assertEquals(listOf(PotionTier.I), reopened.observe(empty()))
         assertEquals(emptyList(), reopened.observe(empty()))
+    }
+
+    @Test
+    fun `an all-empty snapshot before the container loads is ignored`() {
+        val tracker = BrewingStandTracker()
+
+        // Hypixel sends the window contents after the screen opens, so the first tick can be empty.
+        assertEquals(emptyList(), tracker.observe(mapOf(0 to null, 1 to null)))
+        assertEquals(
+            emptyList(),
+            tracker.observe(mapOf(0 to "Regeneration VII Potion", 1 to "Speed V Potion"))
+        )
+        assertEquals(listOf(PotionTier.VII, PotionTier.V), tracker.observe(mapOf(0 to null, 1 to null)))
+    }
+
+    @Test
+    fun `an all-empty snapshot after the container loaded still counts removals`() {
+        val tracker = BrewingStandTracker()
+        tracker.observe(mapOf(0 to "Speed I Potion", 1 to null))
+
+        assertEquals(listOf(PotionTier.I), tracker.observe(mapOf(0 to null, 1 to null)))
+        assertEquals(emptyList(), tracker.observe(mapOf(0 to null, 1 to "Speed V Potion")))
+        assertEquals(emptyList(), tracker.observe(mapOf(0 to null, 1 to null)))
     }
 
     @Test

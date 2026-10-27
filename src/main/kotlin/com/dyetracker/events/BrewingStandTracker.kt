@@ -10,8 +10,12 @@ import com.dyetracker.data.PotionTier
  * Watching the slots (rather than clicks) covers click, shift-click, hotkeys and the `$` sell
  * button alike.
  *
- * One tracker per opened screen. For each slot it keeps the last item name and whether the player
- * put that item in:
+ * One tracker per opened screen. A snapshot where every slot is empty, seen before any item has
+ * been seen, is ignored: the server sends the window contents after the screen opens, so the
+ * first ticks can show an empty stand. The first snapshot with any item is the first observation;
+ * after that, an all-empty snapshot is a real removal and is handled as usual.
+ *
+ * For each slot it keeps the last item name and whether the player put that item in:
  * - **first observation of a slot** (the screen just opened): remember the name, not placed by the
  *   player. Nothing is counted.
  * - **same name**: nothing changes.
@@ -25,7 +29,9 @@ import com.dyetracker.data.PotionTier
  * changing is never counted, and a brewed potion is counted once, when it leaves.
  *
  * Known gap: a potion that was already in the stand when the screen opened is counted when taken
- * out, even if it was never brewed there, because the tracker cannot tell how it got there.
+ * out, even if it was never brewed there, because the tracker cannot tell how it got there. A
+ * one-tick swap (clicking a stand slot while holding another potion) looks like a brew in place, so
+ * the potion taken out is not counted and the player's own potion is counted when removed.
  */
 class BrewingStandTracker {
 
@@ -33,12 +39,19 @@ class BrewingStandTracker {
 
     private val slots = mutableMapOf<Int, SlotState>()
 
+    // Becomes true at the first snapshot with any item; until then all-empty snapshots are ignored
+    private var loaded = false
+
     /**
      * Compare [slotNames] (slot index -> stripped item name, or null for an empty slot) with the
      * last snapshot and return the tiers of the potions that left the stand, in slot order of
-     * [slotNames].
+     * [slotNames]. Returns nothing for an all-empty snapshot before the stand has loaded.
      */
     fun observe(slotNames: Map<Int, String?>): List<PotionTier> {
+        if (!loaded) {
+            if (slotNames.values.all { it == null }) return emptyList()
+            loaded = true
+        }
         val removed = mutableListOf<PotionTier>()
         for ((index, name) in slotNames) {
             val previous = slots[index]
