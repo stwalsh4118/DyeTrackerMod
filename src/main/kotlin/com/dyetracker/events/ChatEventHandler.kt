@@ -21,6 +21,12 @@ import net.minecraft.text.Text
  * PBI 58: fishing-treasure catches are captured from the catch-quality chat line
  * (`⛃ GOOD/GREAT/OUTSTANDING CATCH!`) to track Treasure Dye per tier — see
  * [parseTreasureQuality].
+ *
+ * PBI 66: Fossil excavations (the `EXCAVATION COMPLETE` reward block, one per Suspicious Scrap)
+ * and Dark Auctions attended (`Transferring to Dark Auction...`) are counted for Fossil Dye and
+ * Dark Purple Dye — see [isExcavationComplete] and [isDarkAuctionTransfer]. Both match whole lines
+ * (after [chatLines] trims them and strips a chat-mod stack suffix), so player chat that quotes the
+ * line is never counted.
  */
 object ChatEventHandler {
 
@@ -43,6 +49,17 @@ object ChatEventHandler {
     private val GOOD_CATCH_PATTERN = Regex("""^GOOD(?: [A-Z]+)* CATCH""")
     private val GREAT_CATCH_PATTERN = Regex("""^GREAT(?: [A-Z]+)* CATCH""")
     private val OUTSTANDING_CATCH_PATTERN = Regex("""^OUTSTANDING(?: [A-Z]+)* CATCH""")
+
+    // PBI 66: some chat mods collapse repeated lines into one and append a count (` (3)`); it is
+    // stripped from each line before matching so a stacked repeat still reads as the server line.
+    private val STACK_SUFFIX_PATTERN = Regex("""\s*\(\d+\)$""")
+
+    // PBI 66: the header line of the Fossil excavation reward block (one per Suspicious Scrap).
+    private const val EXCAVATION_COMPLETE_LINE = "EXCAVATION COMPLETE"
+
+    // PBI 66: the line printed when warping into a Dark Auction (one per auction attended). The
+    // trailing ellipsis may arrive as three dots or the single `…` character.
+    private val DARK_AUCTION_TRANSFER_PATTERN = Regex("""^Transferring to Dark Auction(?:\.\.\.|…)?$""")
 
     /**
      * Register the chat event listener.
@@ -81,7 +98,54 @@ object ChatEventHandler {
             DyeTrackerMod.debug("Detected $treasureQuality treasure catch")
             return
         }
+
+        // PBI 66: Fossil excavation — increment the Fossil Dye excavation counter.
+        if (isExcavationComplete(text)) {
+            RngDataStore.incrementExcavation()
+            DyeTrackerMod.debug("Detected Fossil excavation")
+            return
+        }
+
+        // PBI 66: Dark Auction transfer — increment the Dark Purple Dye auction counter.
+        if (isDarkAuctionTransfer(text)) {
+            RngDataStore.incrementDarkAuction()
+            DyeTrackerMod.debug("Detected Dark Auction transfer")
+            return
+        }
     }
+
+    /**
+     * Split a format-code-stripped chat message into its visible lines (PBI 66).
+     *
+     * Pure (no Minecraft types) so it is unit-testable. Splits on `\n`, trims each line, strips a
+     * chat-mod stack suffix (` (3)`, see [STACK_SUFFIX_PATTERN]) and drops empty lines. A multi-line
+     * server block (the Fossil `EXCAVATION COMPLETE` / `REWARDS` block) arrives as one message, so
+     * the line-wise parsers below look at each of its lines.
+     */
+    fun chatLines(text: String): List<String> =
+        text.split("\n")
+            .map { STACK_SUFFIX_PATTERN.replace(it.trim(), "") }
+            .filter { it.isNotEmpty() }
+
+    /**
+     * True when a format-code-stripped chat message contains the Fossil excavation header line
+     * (PBI 66) — one per Suspicious Scrap excavated.
+     *
+     * A line must EQUAL [EXCAVATION_COMPLETE_LINE]; exact matching is the player-chat guard (a
+     * teammate's `Steve: EXCAVATION COMPLETE` never equals the bare line).
+     */
+    fun isExcavationComplete(text: String): Boolean =
+        chatLines(text).any { it == EXCAVATION_COMPLETE_LINE }
+
+    /**
+     * True when a format-code-stripped chat message contains the Dark Auction transfer line
+     * (PBI 66) — one per Dark Auction attended.
+     *
+     * Each line is matched whole against [DARK_AUCTION_TRANSFER_PATTERN] (anchored), which is the
+     * player-chat guard, the same as [isExcavationComplete].
+     */
+    fun isDarkAuctionTransfer(text: String): Boolean =
+        chatLines(text).any { DARK_AUCTION_TRANSFER_PATTERN.matches(it) }
 
     /**
      * Map a format-code-stripped chat line to the fishing-treasure quality tier it announces, or

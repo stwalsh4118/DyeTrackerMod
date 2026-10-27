@@ -133,6 +133,31 @@ data class TreasureDyeData(
 )
 
 /**
+ * Fossil Dye tracking data (PBI 66).
+ *
+ * Count of Suspicious Scraps excavated, captured from the in-game `EXCAVATION COMPLETE` chat block.
+ * Each excavation is a discrete increment (like a Treasure catch), because the Fossil Dye rolls
+ * once per excavation. The JSON key (`excavations`) follows the property name, matching the
+ * backend contract.
+ */
+@Serializable
+data class FossilDyeData(
+    val excavations: Int = 0
+)
+
+/**
+ * Dark Purple Dye tracking data (PBI 66).
+ *
+ * Count of Dark Auctions attended, captured from the in-game `Transferring to Dark Auction...`
+ * chat line. Each auction attended is a discrete increment. The JSON key (`auctionsAttended`)
+ * follows the property name, matching the backend contract.
+ */
+@Serializable
+data class DarkPurpleDyeData(
+    val auctionsAttended: Int = 0
+)
+
+/**
  * Composite data class holding all RNG data for a player.
  */
 @Serializable
@@ -142,6 +167,8 @@ data class PlayerRngData(
     val copperDye: CopperDyeData? = null,
     val nyanzaDye: NyanzaDyeData? = null,
     val treasureDye: TreasureDyeData? = null,
+    val fossilDye: FossilDyeData? = null,
+    val darkPurpleDye: DarkPurpleDyeData? = null,
     val dyeCollection: DyeCollection? = null,
     // PBI 42: local-only persisted union of all visitors seen in the Logbook (never synced; the
     // per-tier copperDye snapshot is derived from it). Lets the per-tier total survive page-turns,
@@ -157,6 +184,8 @@ data class PlayerRngData(
             copperDye != null ||
             nyanzaDye != null ||
             treasureDye != null ||
+            fossilDye != null ||
+            darkPurpleDye != null ||
             dyeCollection != null ||
             visitorLogbook != null
     }

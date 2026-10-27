@@ -947,6 +947,38 @@ object DyeTrackerCommands {
                 )
             }
         }
+
+        // Show fossil dye excavations (PBI 66)
+        data.fossilDye?.let { dye ->
+            source.sendFeedback(
+                Text.literal("Fossil Dye: ")
+                    .formatted(Formatting.GOLD)
+                    .append(
+                        Text.literal("${formatXp(dye.excavations.toLong())} excavations")
+                            .formatted(Formatting.WHITE)
+                    )
+                    .append(
+                        Text.literal(" (1/500,000)")
+                            .formatted(Formatting.DARK_GRAY)
+                    )
+            )
+        }
+
+        // Show dark purple dye auctions attended (PBI 66)
+        data.darkPurpleDye?.let { dye ->
+            source.sendFeedback(
+                Text.literal("Dark Purple Dye: ")
+                    .formatted(Formatting.DARK_PURPLE)
+                    .append(
+                        Text.literal("${formatXp(dye.auctionsAttended.toLong())} Dark Auctions")
+                            .formatted(Formatting.WHITE)
+                    )
+                    .append(
+                        Text.literal(" (1/400 per round, 3 rounds)")
+                            .formatted(Formatting.DARK_GRAY)
+                    )
+            )
+        }
     }
 
     /**

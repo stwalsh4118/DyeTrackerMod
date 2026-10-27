@@ -2,7 +2,9 @@ package com.dyetracker.api
 
 import com.dyetracker.data.ArchfiendDyeData
 import com.dyetracker.data.CopperDyeData
+import com.dyetracker.data.DarkPurpleDyeData
 import com.dyetracker.data.DroppedDye
+import com.dyetracker.data.FossilDyeData
 import com.dyetracker.data.NyanzaDyeData
 import com.dyetracker.data.TreasureDyeData
 import com.dyetracker.data.MineshaftPity
@@ -21,6 +23,8 @@ data class SyncRngDataRequest(
     val copperDye: CopperDyeData? = null,
     val nyanzaDye: NyanzaDyeData? = null,
     val treasureDye: TreasureDyeData? = null,
+    val fossilDye: FossilDyeData? = null,
+    val darkPurpleDye: DarkPurpleDyeData? = null,
     val modTimestamp: Long
 )
 

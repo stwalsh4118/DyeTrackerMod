@@ -32,6 +32,12 @@ object RngDataStore {
     private var treasureDye: TreasureDyeData? = null
 
     @Volatile
+    private var fossilDye: FossilDyeData? = null
+
+    @Volatile
+    private var darkPurpleDye: DarkPurpleDyeData? = null
+
+    @Volatile
     private var dyeCollection: DyeCollection? = null
 
     // PBI 42: persisted union of every visitor seen in the Logbook, keyed by name. The per-tier
@@ -63,6 +69,8 @@ object RngDataStore {
             copperDye = loadedData.copperDye
             nyanzaDye = loadedData.nyanzaDye
             treasureDye = loadedData.treasureDye
+            fossilDye = loadedData.fossilDye
+            darkPurpleDye = loadedData.darkPurpleDye
             dyeCollection = loadedData.dyeCollection
             visitorLogbook = loadedData.visitorLogbook
 
@@ -194,6 +202,30 @@ object RngDataStore {
     }
 
     /**
+     * Increment the Suspicious Scrap excavation count for Fossil Dye (PBI 66).
+     *
+     * Each excavation is a discrete event, so this is an increment counter. The capture handler
+     * calls this once per observed `EXCAVATION COMPLETE` chat block.
+     */
+    fun incrementExcavation() {
+        val current = fossilDye ?: FossilDyeData()
+        fossilDye = current.copy(excavations = current.excavations + 1)
+        notifyListeners()
+    }
+
+    /**
+     * Increment the Dark Auctions attended count for Dark Purple Dye (PBI 66).
+     *
+     * Each auction attended is a discrete event, so this is an increment counter. The capture
+     * handler calls this once per observed `Transferring to Dark Auction...` chat line.
+     */
+    fun incrementDarkAuction() {
+        val current = darkPurpleDye ?: DarkPurpleDyeData()
+        darkPurpleDye = current.copy(auctionsAttended = current.auctionsAttended + 1)
+        notifyListeners()
+    }
+
+    /**
      * Update the dye collection from a Vincent inventory scan.
      * Replaces the entire collection with the latest scan results.
      */
@@ -221,6 +253,8 @@ object RngDataStore {
             copperDye = copperDye,
             nyanzaDye = nyanzaDye,
             treasureDye = treasureDye,
+            fossilDye = fossilDye,
+            darkPurpleDye = darkPurpleDye,
             dyeCollection = dyeCollection,
             visitorLogbook = visitorLogbook
         )
@@ -235,6 +269,8 @@ object RngDataStore {
         copperDye = null
         nyanzaDye = null
         treasureDye = null
+        fossilDye = null
+        darkPurpleDye = null
         dyeCollection = null
         visitorLogbook = null
         notifyListeners()

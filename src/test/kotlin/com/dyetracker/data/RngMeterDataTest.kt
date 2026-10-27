@@ -215,6 +215,98 @@ class RngMeterDataTest {
     }
 
     @Test
+    fun `FossilDyeData round-trips through JSON with the excavations key (PBI 66)`() {
+        val original = FossilDyeData(excavations = 1_234)
+
+        val encoded = Json.encodeToString(original)
+        assertTrue(encoded.contains("excavations"), "must serialize the excavations key")
+
+        val decoded = json.decodeFromString<FossilDyeData>(encoded)
+        assertEquals(original, decoded)
+    }
+
+    @Test
+    fun `DarkPurpleDyeData round-trips through JSON with the auctionsAttended key (PBI 66)`() {
+        val original = DarkPurpleDyeData(auctionsAttended = 42)
+
+        val encoded = Json.encodeToString(original)
+        assertTrue(encoded.contains("auctionsAttended"), "must serialize the auctionsAttended key")
+
+        val decoded = json.decodeFromString<DarkPurpleDyeData>(encoded)
+        assertEquals(original, decoded)
+    }
+
+    @Test
+    fun `incrementExcavation accumulates the Fossil Dye excavation count (PBI 66)`() {
+        RngDataStore.incrementExcavation()
+        RngDataStore.incrementExcavation()
+        RngDataStore.incrementExcavation()
+
+        assertEquals(3, RngDataStore.getData().fossilDye?.excavations)
+    }
+
+    @Test
+    fun `incrementDarkAuction accumulates the Dark Purple Dye auction count (PBI 66)`() {
+        RngDataStore.incrementDarkAuction()
+        RngDataStore.incrementDarkAuction()
+
+        assertEquals(2, RngDataStore.getData().darkPurpleDye?.auctionsAttended)
+    }
+
+    @Test
+    fun `clear resets the Fossil and Dark Purple Dye counts (PBI 66)`() {
+        RngDataStore.incrementExcavation()
+        RngDataStore.incrementDarkAuction()
+
+        RngDataStore.clear()
+
+        assertEquals(null, RngDataStore.getData().fossilDye)
+        assertEquals(null, RngDataStore.getData().darkPurpleDye)
+    }
+
+    @Test
+    fun `PlayerRngData hasData is true when only a fossilDye block is present (PBI 66)`() {
+        assertTrue(PlayerRngData(fossilDye = FossilDyeData(excavations = 1)).hasData())
+    }
+
+    @Test
+    fun `PlayerRngData hasData is true when only a darkPurpleDye block is present (PBI 66)`() {
+        assertTrue(PlayerRngData(darkPurpleDye = DarkPurpleDyeData(auctionsAttended = 1)).hasData())
+    }
+
+    @Test
+    fun `SyncRngDataRequest carries fossilDye and darkPurpleDye with their count keys (PBI 66)`() {
+        val request = SyncRngDataRequest(
+            fossilDye = FossilDyeData(excavations = 7),
+            darkPurpleDye = DarkPurpleDyeData(auctionsAttended = 3),
+            modTimestamp = 1_700_000_000_000L
+        )
+
+        val encoded = Json.encodeToString(request)
+        assertTrue(encoded.contains("\"fossilDye\":{\"excavations\":7}"), "sync payload should carry fossilDye.excavations")
+        assertTrue(
+            encoded.contains("\"darkPurpleDye\":{\"auctionsAttended\":3}"),
+            "sync payload should carry darkPurpleDye.auctionsAttended"
+        )
+    }
+
+    @Test
+    fun `legacy data json without fossilDye or darkPurpleDye keys deserializes both to null (PBI 66 forward-compat)`() {
+        // A data.json written before PBI 66 has neither key; both fields must default to null.
+        val legacy = """
+            {
+              "treasureDye": { "goodCatches": 4, "greatCatches": 2, "outstandingCatches": 1 }
+            }
+        """.trimIndent()
+
+        val data = persistenceJson.decodeFromString<PlayerRngData>(legacy)
+
+        assertEquals(null, data.fossilDye)
+        assertEquals(null, data.darkPurpleDye)
+        assertTrue(data.hasData())
+    }
+
+    @Test
     fun `legacy data json containing slayerMeters deserializes without slayer data and does not throw`() {
         // A data.json written by a pre-PBI-47 mod build still carries slayerMeters; the trimmed
         // PlayerRngData must ignore the unknown key rather than fail to load.
