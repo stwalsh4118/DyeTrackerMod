@@ -53,10 +53,13 @@ loom {
 }
 
 tasks.processResources {
+    // Each node claims only its own Minecraft version (versions/<mc>/gradle.properties).
+    val minecraftDependency = project.property("minecraft_dependency")
     inputs.property("version", project.version)
+    inputs.property("minecraft_dependency", minecraftDependency)
 
     filesMatching("fabric.mod.json") {
-        expand("version" to project.version)
+        expand(mapOf("version" to project.version, "minecraft_dependency" to minecraftDependency))
     }
 }
 

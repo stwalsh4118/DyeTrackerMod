@@ -1,6 +1,8 @@
 package com.dyetracker.ui.edit
 
 import com.dyetracker.DyeTrackerMod
+import com.dyetracker.client.currentScreen
+import com.dyetracker.client.showScreen
 import com.mojang.blaze3d.platform.InputConstants
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper
@@ -50,7 +52,7 @@ object EditModeKeybind {
 
     /** Open edit mode if no other screen is active. Safe to call from any thread. */
     fun openEditScreen(client: Minecraft) {
-        if (client.screen != null) return
-        client.setScreen(WidgetEditScreen())
+        if (client.currentScreen() != null) return
+        client.showScreen(WidgetEditScreen())
     }
 }

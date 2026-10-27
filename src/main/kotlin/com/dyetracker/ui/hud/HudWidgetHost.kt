@@ -1,6 +1,7 @@
 package com.dyetracker.ui.hud
 
 import com.dyetracker.DyeTrackerMod
+import com.dyetracker.client.isHudHidden
 import com.dyetracker.ui.bounce.BounceController
 import com.dyetracker.ui.bounce.BounceInput
 import com.dyetracker.ui.bounce.CornerCelebration
@@ -62,7 +63,7 @@ object HudWidgetHost {
             if (!paused && delta > 0) runningTimeMs += delta
         }
 
-        if (client.options.hideGui) return
+        if (client.isHudHidden()) return
 
         val entries = HudWidgetRegistry.entries()
         if (entries.isEmpty()) return

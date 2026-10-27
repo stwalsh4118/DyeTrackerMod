@@ -2,6 +2,7 @@ package com.dyetracker.commands
 
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.auth.AccountVerification
+import com.dyetracker.client.showScreen
 import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.DungeonFloor
 import com.dyetracker.data.RngDataStore
@@ -391,7 +392,7 @@ object DyeTrackerCommands {
     private fun handleGifEditCommand(source: FabricClientCommandSource) {
         // Brigadier client commands already execute on the render thread, so no marshal
         // needed. The screen IS the feedback; no chat output here.
-        Minecraft.getInstance().setScreen(WidgetEditScreen())
+        Minecraft.getInstance().showScreen(WidgetEditScreen())
     }
 
     private fun handleRotationToggleCommand(source: FabricClientCommandSource) {
@@ -409,7 +410,7 @@ object DyeTrackerCommands {
     private fun handleRotationEditCommand(source: FabricClientCommandSource) {
         // Opens the same shared edit screen as `gif edit`; the rotation widget appears there
         // because it registered a PlacementEditor. The screen is the feedback.
-        Minecraft.getInstance().setScreen(WidgetEditScreen())
+        Minecraft.getInstance().showScreen(WidgetEditScreen())
     }
 
     /**
@@ -465,7 +466,7 @@ object DyeTrackerCommands {
     private fun handleDyeEditCommand(source: FabricClientCommandSource) {
         // Opens the same shared edit screen as `gif edit`; dye widgets appear there because they
         // registered a PlacementEditor, and the "+ Add dye" panel is available. Screen = feedback.
-        Minecraft.getInstance().setScreen(WidgetEditScreen())
+        Minecraft.getInstance().showScreen(WidgetEditScreen())
     }
 
     /** Toggle one widget's visibility, or all of them when [id] is null. */

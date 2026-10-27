@@ -1,5 +1,6 @@
 package com.dyetracker.ui.edit
 
+import com.dyetracker.client.showScreen
 import com.dyetracker.ui.core.HorizontalAlignment
 import com.dyetracker.ui.core.PlacementEditor
 import com.dyetracker.ui.core.RenderContext
@@ -262,7 +263,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
         activeAction?.onDismiss()
         activeAction = null
         flushDirty()
-        Minecraft.getInstance()?.setScreen(null)
+        Minecraft.getInstance()?.showScreen(null)
     }
 
     private fun flushDirty() {
