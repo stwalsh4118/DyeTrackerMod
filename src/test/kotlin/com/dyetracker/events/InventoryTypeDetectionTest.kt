@@ -6,7 +6,8 @@ import kotlin.test.assertNull
 
 /**
  * Unit tests for [InventoryUtils.detectInventoryType] on Vincent's screens. Hypixel renamed the
- * collection screen from "Dye Compendium" to "Dye Guide" (PBI 62); both titles must be detected.
+ * collection screen from "Dye Compendium" to "Dye Guide" (PBI 62), with a page prefix such as
+ * "(1/3) Dye Guide"; every variant must be detected.
  */
 class InventoryTypeDetectionTest {
 
@@ -31,7 +32,13 @@ class InventoryTypeDetectionTest {
     }
 
     @Test
+    fun `paged Dye Guide titles are the Vincent dye collection`() {
+        assertEquals(InventoryType.VincentDyeCollection, InventoryUtils.detectInventoryType("(1/3) Dye Guide"))
+        assertEquals(InventoryType.VincentDyeCollection, InventoryUtils.detectInventoryType("§8(3/3) Dye Guide"))
+    }
+
+    @Test
     fun `unrelated title is not detected`() {
-        assertNull(InventoryUtils.detectInventoryType("Dye Guide Shop"))
+        assertNull(InventoryUtils.detectInventoryType("Dye Shop"))
     }
 }
