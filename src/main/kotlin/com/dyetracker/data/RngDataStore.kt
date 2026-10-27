@@ -16,6 +16,12 @@ fun interface RngDataChangeListener {
  */
 object RngDataStore {
 
+    // PBI 66: Holly Dye gift-reward key limits. They keep a synced payload inside the backend's
+    // limits (500 keys, 120-char keys; a rarity is at most 15 chars, so a 100-char reward fits).
+    const val HOLLY_MAX_REWARD_KEYS = 500
+    const val HOLLY_MAX_REWARD_TEXT_LENGTH = 100
+    const val HOLLY_OVERFLOW_KEY = "OTHER|other"
+
     @Volatile
     private var mineshaftPity: MineshaftPity? = null
 
@@ -36,6 +42,9 @@ object RngDataStore {
 
     @Volatile
     private var darkPurpleDye: DarkPurpleDyeData? = null
+
+    @Volatile
+    private var hollyDye: HollyDyeData? = null
 
     @Volatile
     private var dyeCollection: DyeCollection? = null
@@ -71,6 +80,7 @@ object RngDataStore {
             treasureDye = loadedData.treasureDye
             fossilDye = loadedData.fossilDye
             darkPurpleDye = loadedData.darkPurpleDye
+            hollyDye = loadedData.hollyDye
             dyeCollection = loadedData.dyeCollection
             visitorLogbook = loadedData.visitorLogbook
 
@@ -226,6 +236,26 @@ object RngDataStore {
     }
 
     /**
+     * Count one gift reward chat line for Holly Dye (PBI 66).
+     *
+     * The key is `"<rarity>|<reward>"` with the reward cut to [HOLLY_MAX_REWARD_TEXT_LENGTH] chars,
+     * kept raw (the backend normalises it). Once [HOLLY_MAX_REWARD_KEYS] distinct keys are stored, a
+     * new key counts under [HOLLY_OVERFLOW_KEY] instead, so the gift still counts; an existing key
+     * keeps incrementing itself.
+     */
+    fun incrementGiftReward(rarity: String, reward: String) {
+        val current = hollyDye?.giftRewards ?: emptyMap()
+        val rewardKey = "$rarity|${reward.take(HOLLY_MAX_REWARD_TEXT_LENGTH)}"
+        val key = if (rewardKey !in current && current.size >= HOLLY_MAX_REWARD_KEYS) {
+            HOLLY_OVERFLOW_KEY
+        } else {
+            rewardKey
+        }
+        hollyDye = HollyDyeData(giftRewards = current + (key to ((current[key] ?: 0) + 1)))
+        notifyListeners()
+    }
+
+    /**
      * Update the dye collection from a Vincent inventory scan.
      * Replaces the entire collection with the latest scan results.
      */
@@ -255,6 +285,7 @@ object RngDataStore {
             treasureDye = treasureDye,
             fossilDye = fossilDye,
             darkPurpleDye = darkPurpleDye,
+            hollyDye = hollyDye,
             dyeCollection = dyeCollection,
             visitorLogbook = visitorLogbook
         )
@@ -271,6 +302,7 @@ object RngDataStore {
         treasureDye = null
         fossilDye = null
         darkPurpleDye = null
+        hollyDye = null
         dyeCollection = null
         visitorLogbook = null
         notifyListeners()

@@ -158,6 +158,19 @@ data class DarkPurpleDyeData(
 )
 
 /**
+ * Holly Dye tracking data (PBI 66).
+ *
+ * Counts of gift reward chat lines (`<RARITY>! <reward> gift with <player>!`), one per gift given
+ * or opened. Keys are `"<RARITY>|<reward text>"`, kept raw: the chat line does not say the gift's
+ * color, so the backend normalises the keys and estimates the red share. The JSON key
+ * (`giftRewards`) follows the property name, matching the backend contract.
+ */
+@Serializable
+data class HollyDyeData(
+    val giftRewards: Map<String, Int> = emptyMap()
+)
+
+/**
  * Composite data class holding all RNG data for a player.
  */
 @Serializable
@@ -169,6 +182,7 @@ data class PlayerRngData(
     val treasureDye: TreasureDyeData? = null,
     val fossilDye: FossilDyeData? = null,
     val darkPurpleDye: DarkPurpleDyeData? = null,
+    val hollyDye: HollyDyeData? = null,
     val dyeCollection: DyeCollection? = null,
     // PBI 42: local-only persisted union of all visitors seen in the Logbook (never synced; the
     // per-tier copperDye snapshot is derived from it). Lets the per-tier total survive page-turns,
@@ -186,6 +200,7 @@ data class PlayerRngData(
             treasureDye != null ||
             fossilDye != null ||
             darkPurpleDye != null ||
+            hollyDye != null ||
             dyeCollection != null ||
             visitorLogbook != null
     }

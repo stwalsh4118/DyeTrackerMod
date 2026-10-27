@@ -979,6 +979,22 @@ object DyeTrackerCommands {
                     )
             )
         }
+
+        // Show holly dye gift count (PBI 66); the red share is estimated by the backend
+        data.hollyDye?.let { dye ->
+            source.sendFeedback(
+                Text.literal("Holly Dye: ")
+                    .formatted(Formatting.RED)
+                    .append(
+                        Text.literal("${formatXp(dye.giftRewards.values.sumOf { it.toLong() })} gifts")
+                            .formatted(Formatting.WHITE)
+                    )
+                    .append(
+                        Text.literal(" (red share estimated online)")
+                            .formatted(Formatting.DARK_GRAY)
+                    )
+            )
+        }
     }
 
     /**

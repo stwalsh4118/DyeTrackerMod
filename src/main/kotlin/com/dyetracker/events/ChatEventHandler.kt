@@ -7,6 +7,12 @@ import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents
 import net.minecraft.text.Text
 
 /**
+ * One gift reward chat line (PBI 66): the [rarity] word and the raw [reward] text, as parsed by
+ * [ChatEventHandler.parseGiftReward]. The line does not say the gift's color, so both stay raw.
+ */
+data class GiftReward(val rarity: String, val reward: String)
+
+/**
  * Handles chat messages to capture RNG-relevant events (Archfiend Dice rolls, fishing-treasure
  * catches).
  *
@@ -27,6 +33,10 @@ import net.minecraft.text.Text
  * Dark Purple Dye — see [isExcavationComplete] and [isDarkAuctionTransfer]. Both match whole lines
  * (after [chatLines] trims them and strips a chat-mod stack suffix), so player chat that quotes the
  * line is never counted.
+ *
+ * PBI 66: gift reward lines (`<RARITY>! <reward> gift with <player>!`, one per gift given or
+ * opened) are counted raw by rarity and reward for Holly Dye — see [parseGiftReward]. The backend
+ * estimates how many of them were Red Gifts.
  */
 object ChatEventHandler {
 
@@ -60,6 +70,12 @@ object ChatEventHandler {
     // PBI 66: the line printed when warping into a Dark Auction (one per auction attended). The
     // trailing ellipsis may arrive as three dots or the single `…` character.
     private val DARK_AUCTION_TRANSFER_PATTERN = Regex("""^Transferring to Dark Auction(?:\.\.\.|…)?$""")
+
+    // PBI 66: the gift reward line, `<RARITY>! <reward> gift with <player>!`, printed for every gift
+    // given or opened. Group 1 is the rarity word, group 2 the reward (lazy, so a reward that itself
+    // contains "gift" stays whole). Anchoring at the start is the player-chat guard: a chat line
+    // (`[MVP+] Steve: SWEET! ...`, `Party > ...`) never starts with the rarity word.
+    private val GIFT_LINE_PATTERN = Regex("""^([A-Z]{1,15})! (.+?) gift with (.+)!$""")
 
     /**
      * Register the chat event listener.
@@ -112,6 +128,13 @@ object ChatEventHandler {
             DyeTrackerMod.debug("Detected Dark Auction transfer")
             return
         }
+
+        // PBI 66: gift reward — count it raw under its rarity and reward for Holly Dye.
+        parseGiftReward(text)?.let {
+            RngDataStore.incrementGiftReward(it.rarity, it.reward)
+            DyeTrackerMod.debug("Detected ${it.rarity} gift reward: ${it.reward}")
+            return
+        }
     }
 
     /**
@@ -146,6 +169,21 @@ object ChatEventHandler {
      */
     fun isDarkAuctionTransfer(text: String): Boolean =
         chatLines(text).any { DARK_AUCTION_TRANSFER_PATTERN.matches(it) }
+
+    /**
+     * Parse a format-code-stripped chat message into the gift reward it announces (PBI 66), or null
+     * when no line of it is a gift reward line.
+     *
+     * Pure (no Minecraft types) so it is unit-testable. The first of [chatLines] (which already
+     * strips a chat-mod stack suffix) that matches [GIFT_LINE_PATTERN] gives the rarity and the
+     * trimmed reward text. Player chat that quotes the line is rejected by the anchored pattern.
+     */
+    fun parseGiftReward(text: String): GiftReward? =
+        chatLines(text).firstNotNullOfOrNull { line ->
+            GIFT_LINE_PATTERN.matchEntire(line)?.let { match ->
+                GiftReward(match.groupValues[1], match.groupValues[2].trim())
+            }
+        }
 
     /**
      * Map a format-code-stripped chat line to the fishing-treasure quality tier it announces, or

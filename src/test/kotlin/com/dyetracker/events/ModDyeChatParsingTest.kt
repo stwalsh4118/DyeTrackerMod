@@ -3,12 +3,14 @@ package com.dyetracker.events
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
  * Unit tests for the pure Fossil-excavation and Dark-Auction chat parsing in [ChatEventHandler]
  * (PBI 66): [ChatEventHandler.chatLines], [ChatEventHandler.isExcavationComplete] and
- * [ChatEventHandler.isDarkAuctionTransfer].
+ * [ChatEventHandler.isDarkAuctionTransfer]; and the gift-reward parsing for Holly Dye,
+ * [ChatEventHandler.parseGiftReward].
  *
  * Text is passed already-stripped of Minecraft formatting codes (§X), as `onChatMessage` supplies
  * it. Mirrors the pure-helper structure of [TreasureCatchParsingTest].
@@ -89,5 +91,65 @@ class ModDyeChatParsingTest {
     @Test
     fun `chatLines strips the stack suffix`() {
         assertEquals(listOf("COMMON! x"), ChatEventHandler.chatLines("COMMON! x (12)"))
+    }
+
+    @Test
+    fun `common gift line parses rarity and reward`() {
+        assertEquals(
+            GiftReward("COMMON", "+500 Fishing XP"),
+            ChatEventHandler.parseGiftReward("COMMON! +500 Fishing XP gift with [VIP+] ZywOoPlay_!")
+        )
+    }
+
+    @Test
+    fun `rare gift line parses rarity and reward`() {
+        assertEquals(
+            GiftReward("RARE", "+20,000 Coins"),
+            ChatEventHandler.parseGiftReward("RARE! +20,000 Coins gift with [VIP+] ZywOoPlay_!")
+        )
+    }
+
+    @Test
+    fun `sweet gift line parses rarity and reward`() {
+        assertEquals(
+            GiftReward("SWEET", "Winter Sack"),
+            ChatEventHandler.parseGiftReward("SWEET! Winter Sack gift with [MVP++] BigTimGames!")
+        )
+    }
+
+    @Test
+    fun `stacked gift line parses (chat-mod repeat suffix ignored)`() {
+        assertEquals(
+            GiftReward("SWEET", "Winter Sack"),
+            ChatEventHandler.parseGiftReward("SWEET! Winter Sack gift with [MVP++] BigTimGames! (3)")
+        )
+    }
+
+    @Test
+    fun `reward containing the word gift keeps it`() {
+        assertEquals(
+            GiftReward("SANTA", "Golden Gift"),
+            ChatEventHandler.parseGiftReward("SANTA! Golden Gift gift with Bob!")
+        )
+    }
+
+    @Test
+    fun `unrelated line is not a gift`() {
+        assertNull(ChatEventHandler.parseGiftReward("☠ Felipok_ froze to death."))
+    }
+
+    @Test
+    fun `player chat echoing a gift line is rejected`() {
+        assertNull(ChatEventHandler.parseGiftReward("[MVP+] Steve: SWEET! Winter Sack gift with Bob!"))
+    }
+
+    @Test
+    fun `party chat echoing a gift line is rejected`() {
+        assertNull(ChatEventHandler.parseGiftReward("Party > Steve: RARE! +5,000 Coins gift with Bob!"))
+    }
+
+    @Test
+    fun `gift-giving confirmation is not a gift reward`() {
+        assertNull(ChatEventHandler.parseGiftReward("You gave a gift to Bob!"))
     }
 }
