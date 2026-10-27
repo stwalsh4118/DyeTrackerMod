@@ -6,6 +6,7 @@ import com.dyetracker.data.DarkPurpleDyeData
 import com.dyetracker.data.DroppedDye
 import com.dyetracker.data.FossilDyeData
 import com.dyetracker.data.HollyDyeData
+import com.dyetracker.data.MochaDyeData
 import com.dyetracker.data.NyanzaDyeData
 import com.dyetracker.data.TreasureDyeData
 import com.dyetracker.data.MineshaftPity
@@ -27,6 +28,7 @@ data class SyncRngDataRequest(
     val fossilDye: FossilDyeData? = null,
     val darkPurpleDye: DarkPurpleDyeData? = null,
     val hollyDye: HollyDyeData? = null,
+    val mochaDye: MochaDyeData? = null,
     val modTimestamp: Long
 )
 

@@ -171,6 +171,26 @@ data class HollyDyeData(
 )
 
 /**
+ * Potion tiers I-VIII, read from a brewed potion's name (`Regeneration VII Potion`) (PBI 66).
+ *
+ * Used as the key of [MochaDyeData.potionsByTier], so it serialises by enum name (`"VII"`).
+ */
+@Serializable
+enum class PotionTier { I, II, III, IV, V, VI, VII, VIII }
+
+/**
+ * Mocha Dye tracking data (PBI 66).
+ *
+ * Per-tier counts of potions taken out of the Brewing Stand after brewing. The Mocha Dye rolls
+ * once per brewed potion at a per-tier rate. Serialises like [CopperDyeData.visitorsSeen], with
+ * tier names as keys (`{"potionsByTier":{"VII":2}}`), matching the backend contract.
+ */
+@Serializable
+data class MochaDyeData(
+    val potionsByTier: Map<PotionTier, Int> = emptyMap()
+)
+
+/**
  * Composite data class holding all RNG data for a player.
  */
 @Serializable
@@ -183,6 +203,7 @@ data class PlayerRngData(
     val fossilDye: FossilDyeData? = null,
     val darkPurpleDye: DarkPurpleDyeData? = null,
     val hollyDye: HollyDyeData? = null,
+    val mochaDye: MochaDyeData? = null,
     val dyeCollection: DyeCollection? = null,
     // PBI 42: local-only persisted union of all visitors seen in the Logbook (never synced; the
     // per-tier copperDye snapshot is derived from it). Lets the per-tier total survive page-turns,
@@ -201,6 +222,7 @@ data class PlayerRngData(
             fossilDye != null ||
             darkPurpleDye != null ||
             hollyDye != null ||
+            mochaDye != null ||
             dyeCollection != null ||
             visitorLogbook != null
     }

@@ -423,6 +423,71 @@ class RngMeterDataTest {
     }
 
     @Test
+    fun `MochaDyeData round-trips through JSON with tier names as potionsByTier keys (PBI 66)`() {
+        val original = MochaDyeData(potionsByTier = mapOf(PotionTier.VII to 2))
+
+        val encoded = Json.encodeToString(original)
+        assertEquals("{\"potionsByTier\":{\"VII\":2}}", encoded)
+
+        val decoded = json.decodeFromString<MochaDyeData>(encoded)
+        assertEquals(original, decoded)
+    }
+
+    @Test
+    fun `incrementBrewedPotion counts potions per tier (PBI 66)`() {
+        RngDataStore.incrementBrewedPotion(PotionTier.VII)
+        RngDataStore.incrementBrewedPotion(PotionTier.VII)
+        RngDataStore.incrementBrewedPotion(PotionTier.I)
+
+        assertEquals(
+            mapOf(PotionTier.VII to 2, PotionTier.I to 1),
+            RngDataStore.getData().mochaDye?.potionsByTier
+        )
+    }
+
+    @Test
+    fun `clear resets the Mocha Dye potion counts (PBI 66)`() {
+        RngDataStore.incrementBrewedPotion(PotionTier.VIII)
+
+        RngDataStore.clear()
+
+        assertEquals(null, RngDataStore.getData().mochaDye)
+    }
+
+    @Test
+    fun `PlayerRngData hasData is true when only a mochaDye block is present (PBI 66)`() {
+        assertTrue(PlayerRngData(mochaDye = MochaDyeData(potionsByTier = mapOf(PotionTier.III to 1))).hasData())
+    }
+
+    @Test
+    fun `SyncRngDataRequest carries mochaDye potionsByTier (PBI 66)`() {
+        val request = SyncRngDataRequest(
+            mochaDye = MochaDyeData(potionsByTier = mapOf(PotionTier.VII to 2)),
+            modTimestamp = 1_700_000_000_000L
+        )
+
+        val encoded = Json.encodeToString(request)
+        assertTrue(
+            encoded.contains("\"mochaDye\":{\"potionsByTier\":{\"VII\":2}}"),
+            "sync payload should carry mochaDye.potionsByTier"
+        )
+    }
+
+    @Test
+    fun `legacy data json without a mochaDye key deserializes to null (PBI 66 forward-compat)`() {
+        val legacy = """
+            {
+              "hollyDye": { "giftRewards": { "RARE|+20,000 Coins": 1 } }
+            }
+        """.trimIndent()
+
+        val data = persistenceJson.decodeFromString<PlayerRngData>(legacy)
+
+        assertEquals(null, data.mochaDye)
+        assertTrue(data.hasData())
+    }
+
+    @Test
     fun `legacy data json containing slayerMeters deserializes without slayer data and does not throw`() {
         // A data.json written by a pre-PBI-47 mod build still carries slayerMeters; the trimmed
         // PlayerRngData must ignore the unknown key rather than fail to load.

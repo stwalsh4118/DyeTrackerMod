@@ -47,6 +47,9 @@ object RngDataStore {
     private var hollyDye: HollyDyeData? = null
 
     @Volatile
+    private var mochaDye: MochaDyeData? = null
+
+    @Volatile
     private var dyeCollection: DyeCollection? = null
 
     // PBI 42: persisted union of every visitor seen in the Logbook, keyed by name. The per-tier
@@ -81,6 +84,7 @@ object RngDataStore {
             fossilDye = loadedData.fossilDye
             darkPurpleDye = loadedData.darkPurpleDye
             hollyDye = loadedData.hollyDye
+            mochaDye = loadedData.mochaDye
             dyeCollection = loadedData.dyeCollection
             visitorLogbook = loadedData.visitorLogbook
 
@@ -259,6 +263,18 @@ object RngDataStore {
     }
 
     /**
+     * Count one potion of [tier] taken out of the Brewing Stand for Mocha Dye (PBI 66).
+     *
+     * Each brewed potion is a discrete event, so this is a per-tier increment counter. The
+     * Brewing Stand watcher calls this once per finished potion that leaves the stand.
+     */
+    fun incrementBrewedPotion(tier: PotionTier) {
+        val current = mochaDye?.potionsByTier ?: emptyMap()
+        mochaDye = MochaDyeData(potionsByTier = current + (tier to ((current[tier] ?: 0) + 1)))
+        notifyListeners()
+    }
+
+    /**
      * Update the dye collection from a Vincent inventory scan.
      * Replaces the entire collection with the latest scan results.
      */
@@ -289,6 +305,7 @@ object RngDataStore {
             fossilDye = fossilDye,
             darkPurpleDye = darkPurpleDye,
             hollyDye = hollyDye,
+            mochaDye = mochaDye,
             dyeCollection = dyeCollection,
             visitorLogbook = visitorLogbook
         )
@@ -306,6 +323,7 @@ object RngDataStore {
         fossilDye = null
         darkPurpleDye = null
         hollyDye = null
+        mochaDye = null
         dyeCollection = null
         visitorLogbook = null
         notifyListeners()

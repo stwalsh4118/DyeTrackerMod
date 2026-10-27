@@ -3,6 +3,7 @@ package com.dyetracker.commands
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.auth.AccountVerification
 import com.dyetracker.config.ConfigManager
+import com.dyetracker.data.PotionTier
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.dyeprogress.DyeProgressAdder
 import com.dyetracker.dyeprogress.DyeProgressPlacementEditor
@@ -994,6 +995,30 @@ object DyeTrackerCommands {
                             .formatted(Formatting.DARK_GRAY)
                     )
             )
+        }
+
+        // Show mocha dye potions brewed, total then per tier (PBI 66)
+        data.mochaDye?.let { dye ->
+            source.sendFeedback(
+                Text.literal("Mocha Dye: ")
+                    .formatted(Formatting.GOLD)
+                    .append(
+                        Text.literal("${formatXp(dye.potionsByTier.values.sumOf { it.toLong() })} potions brewed")
+                            .formatted(Formatting.WHITE)
+                    )
+            )
+            for (tier in PotionTier.entries) {
+                val count = dye.potionsByTier[tier] ?: 0
+                if (count == 0) continue
+                source.sendFeedback(
+                    Text.literal("  Tier ${tier.name}: ")
+                        .formatted(Formatting.GRAY)
+                        .append(
+                            Text.literal(formatXp(count.toLong()))
+                                .formatted(Formatting.WHITE)
+                        )
+                )
+            }
         }
     }
 

@@ -181,6 +181,7 @@ object ApiClient {
             fossilDye = data.fossilDye,
             darkPurpleDye = data.darkPurpleDye,
             hollyDye = data.hollyDye,
+            mochaDye = data.mochaDye,
             modTimestamp = System.currentTimeMillis()
         )
         val body = json.encodeToString(requestBody)
