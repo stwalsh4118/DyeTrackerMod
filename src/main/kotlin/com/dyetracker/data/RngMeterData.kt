@@ -133,6 +133,64 @@ data class TreasureDyeData(
 )
 
 /**
+ * Fossil Dye tracking data (PBI 66).
+ *
+ * Count of Suspicious Scraps excavated, captured from the in-game `EXCAVATION COMPLETE` chat block.
+ * Each excavation is a discrete increment (like a Treasure catch), because the Fossil Dye rolls
+ * once per excavation. The JSON key (`excavations`) follows the property name, matching the
+ * backend contract.
+ */
+@Serializable
+data class FossilDyeData(
+    val excavations: Int = 0
+)
+
+/**
+ * Dark Purple Dye tracking data (PBI 66).
+ *
+ * Count of Dark Auctions attended, captured from the in-game `Transferring to Dark Auction...`
+ * chat line. Each auction attended is a discrete increment. The JSON key (`auctionsAttended`)
+ * follows the property name, matching the backend contract.
+ */
+@Serializable
+data class DarkPurpleDyeData(
+    val auctionsAttended: Int = 0
+)
+
+/**
+ * Holly Dye tracking data (PBI 66).
+ *
+ * Counts of gift reward chat lines (`<RARITY>! <reward> gift with <player>!`), one per gift given
+ * or opened. Keys are `"<RARITY>|<reward text>"`, kept raw: the chat line does not say the gift's
+ * color, so the backend normalises the keys and estimates the red share. The JSON key
+ * (`giftRewards`) follows the property name, matching the backend contract.
+ */
+@Serializable
+data class HollyDyeData(
+    val giftRewards: Map<String, Int> = emptyMap()
+)
+
+/**
+ * Potion tiers I-VIII, read from a brewed potion's name (`Regeneration VII Potion`) (PBI 66).
+ *
+ * Used as the key of [MochaDyeData.potionsByTier], so it serialises by enum name (`"VII"`).
+ */
+@Serializable
+enum class PotionTier { I, II, III, IV, V, VI, VII, VIII }
+
+/**
+ * Mocha Dye tracking data (PBI 66).
+ *
+ * Per-tier counts of potions taken out of the Brewing Stand after brewing. The Mocha Dye rolls
+ * once per brewed potion at a per-tier rate. Serialises like [CopperDyeData.visitorsSeen], with
+ * tier names as keys (`{"potionsByTier":{"VII":2}}`), matching the backend contract.
+ */
+@Serializable
+data class MochaDyeData(
+    val potionsByTier: Map<PotionTier, Int> = emptyMap()
+)
+
+/**
  * Composite data class holding all RNG data for a player.
  */
 @Serializable
@@ -142,6 +200,10 @@ data class PlayerRngData(
     val copperDye: CopperDyeData? = null,
     val nyanzaDye: NyanzaDyeData? = null,
     val treasureDye: TreasureDyeData? = null,
+    val fossilDye: FossilDyeData? = null,
+    val darkPurpleDye: DarkPurpleDyeData? = null,
+    val hollyDye: HollyDyeData? = null,
+    val mochaDye: MochaDyeData? = null,
     val dyeCollection: DyeCollection? = null,
     // PBI 42: local-only persisted union of all visitors seen in the Logbook (never synced; the
     // per-tier copperDye snapshot is derived from it). Lets the per-tier total survive page-turns,
@@ -157,6 +219,10 @@ data class PlayerRngData(
             copperDye != null ||
             nyanzaDye != null ||
             treasureDye != null ||
+            fossilDye != null ||
+            darkPurpleDye != null ||
+            hollyDye != null ||
+            mochaDye != null ||
             dyeCollection != null ||
             visitorLogbook != null
     }

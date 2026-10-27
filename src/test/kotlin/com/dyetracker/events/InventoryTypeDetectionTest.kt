@@ -39,6 +39,16 @@ class InventoryTypeDetectionTest {
     }
 
     @Test
+    fun `Brewing Stand is the brewing stand screen (PBI 66)`() {
+        assertEquals(InventoryType.BrewingStand, InventoryUtils.detectInventoryType("Brewing Stand"))
+    }
+
+    @Test
+    fun `Brewing Stand Upgrades is not the brewing stand screen (PBI 66)`() {
+        assertNull(InventoryUtils.detectInventoryType("Brewing Stand Upgrades"))
+    }
+
+    @Test
     fun `unrelated title is not detected`() {
         assertNull(InventoryUtils.detectInventoryType("Dye Shop"))
     }

@@ -3,6 +3,7 @@ package com.dyetracker.events
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.data.DroppedDye
 import com.dyetracker.data.DyeRotation
+import com.dyetracker.data.PotionTier
 import com.dyetracker.data.VisitorEntry
 import com.dyetracker.data.VisitorRarity
 import net.minecraft.world.Container
@@ -20,6 +21,8 @@ sealed class InventoryType {
     data object VincentDyeRotation : InventoryType()
     // PBI 42: Garden "Visitor's Logbook" GUI — Copper Dye is sourced from every visitor seen.
     data object VisitorLogbook : InventoryType()
+    // PBI 66: SkyBlock "Brewing Stand" GUI — Mocha Dye is sourced from each brewed potion taken out.
+    data object BrewingStand : InventoryType()
 }
 
 /**
@@ -43,6 +46,13 @@ object InventoryUtils {
     // Visitor's Logbook GUI title (PBI 42). Matched with `contains` (not exact) so a paginated
     // title carrying a page-indicator suffix still resolves; no other screen contains this phrase.
     private const val VISITOR_LOGBOOK_TITLE = "Visitor's Logbook"
+
+    // Brewing Stand GUI title (PBI 66). Matched exactly: it is a plain vanilla-style title, and a
+    // `contains` match would also catch other screens that start with it.
+    private const val BREWING_STAND_TITLE = "Brewing Stand"
+
+    // A brewed potion's name ends with its tier numeral and "Potion" ("Regeneration VII Potion").
+    private val POTION_TIER_PATTERN = Regex("""(?:^|\s)(I|II|III|IV|V|VI|VII|VIII) Potion$""")
 
     // Item name inside the Commission Milestones GUI whose lore carries the absolute completed
     // count. Milestone I's threshold (5) never changes, so the "X/5" pattern is always present.
@@ -76,6 +86,11 @@ object InventoryUtils {
         // Check for the Garden Visitor's Logbook GUI (PBI 42)
         if (cleanTitle.contains(VISITOR_LOGBOOK_TITLE)) {
             return InventoryType.VisitorLogbook
+        }
+
+        // Check for the Brewing Stand GUI (PBI 66, exact match)
+        if (cleanTitle == BREWING_STAND_TITLE) {
+            return InventoryType.BrewingStand
         }
 
         return null
@@ -117,6 +132,18 @@ object InventoryUtils {
      */
     fun stripFormatting(text: String): String {
         return text.replace(Regex("§."), "")
+    }
+
+    // ==================== Brewing Stand Parsing ====================
+
+    /**
+     * Read the potion tier from a potion's name (PBI 66), e.g. `Regeneration VII Potion` -> VII.
+     * Returns null for a name without a tier (`Awkward Potion`, `Water Bottle`, `Potion`).
+     */
+    fun parsePotionTier(name: String): PotionTier? {
+        val cleanName = stripFormatting(name).trim()
+        val match = POTION_TIER_PATTERN.find(cleanName) ?: return null
+        return PotionTier.valueOf(match.groupValues[1])
     }
 
     // ==================== Vincent Dye Collection Parsing ====================

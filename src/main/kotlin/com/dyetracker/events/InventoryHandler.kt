@@ -15,7 +15,7 @@ import net.minecraft.ChatFormatting
 
 /**
  * Handles inventory screen events for the screens the mod captures (Vincent, rotation, commissions,
- * Visitor's Logbook).
+ * Visitor's Logbook, Brewing Stand).
  */
 object InventoryHandler {
 
@@ -24,6 +24,10 @@ object InventoryHandler {
 
     // How often to re-scan a paginated GUI (Dye Compendium, Visitor's Logbook) for page changes (in ticks)
     private const val COMPENDIUM_SCAN_INTERVAL_TICKS = 10
+
+    // A container screen's handler lists the player's main inventory and hotbar after the
+    // container's own slots (PBI 66: only the Brewing Stand's own slots are watched)
+    private const val PLAYER_INVENTORY_SLOT_COUNT = 36
 
     // Accumulated dyes across all pages while the Dye Compendium is open
     private val accumulatedDyes = mutableMapOf<String, DroppedDye>()
@@ -58,6 +62,9 @@ object InventoryHandler {
             is InventoryType.VisitorLogbook ->
                 // Visitor's Logbook is paginated — scan continuously and accumulate (PBI 42)
                 scheduleLogbookScan(client, screen)
+            is InventoryType.BrewingStand ->
+                // Brewing Stand: watch the stand's slots every tick for potions leaving it (PBI 66)
+                scheduleBrewingWatch(screen)
             else ->
                 // Other inventory types: one-shot scan after delay
                 scheduleScan(client, screen, inventoryType)
@@ -84,6 +91,7 @@ object InventoryHandler {
             is InventoryType.VincentDyeRotation -> processDyeRotation(screen)
             is InventoryType.VincentDyeCollection -> {} // Handled by scheduleCompendiumScan
             is InventoryType.VisitorLogbook -> {} // PBI 42: paginated capture wired in 42-5 (scheduleLogbookScan)
+            is InventoryType.BrewingStand -> {} // PBI 66: watched every tick by scheduleBrewingWatch
         }
     }
 
@@ -197,6 +205,32 @@ object InventoryHandler {
             accumulatedDyes.size, merged.size
         )
         accumulatedDyes.clear()
+    }
+
+    /**
+     * Watch the Brewing Stand's own slots every tick while it is open (PBI 66). A new
+     * [BrewingStandTracker] per opened screen compares each tick's slot names with the last and
+     * reports the potions that left the stand; each one counts toward Mocha Dye. The player's
+     * inventory slots are left out, so a potion moved into the inventory leaves the stand's slot
+     * empty and is counted once.
+     */
+    private fun scheduleBrewingWatch(screen: AbstractContainerScreen<*>) {
+        val tracker = BrewingStandTracker()
+
+        ScreenEvents.afterTick(screen).register { _ ->
+            val slots = screen.menu.slots
+            val standSlotCount = slots.size - PLAYER_INVENTORY_SLOT_COUNT
+            val slotNames = mutableMapOf<Int, String?>()
+            for (index in 0 until standSlotCount) {
+                val stack = slots[index].item
+                slotNames[index] = if (stack.isEmpty) null else InventoryUtils.stripFormatting(stack.hoverName.string)
+            }
+
+            for (tier in tracker.observe(slotNames)) {
+                RngDataStore.incrementBrewedPotion(tier)
+                DyeTrackerMod.debug("Brewed potion taken out of the Brewing Stand: tier {}", tier)
+            }
+        }
     }
 
     /**

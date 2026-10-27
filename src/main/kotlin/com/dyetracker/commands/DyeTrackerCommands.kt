@@ -4,6 +4,7 @@ import com.dyetracker.DyeTrackerMod
 import com.dyetracker.auth.AccountVerification
 import com.dyetracker.client.showScreen
 import com.dyetracker.config.ConfigManager
+import com.dyetracker.data.PotionTier
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.dyeprogress.DyeProgressAdder
 import com.dyetracker.dyeprogress.DyeProgressPlacementEditor
@@ -943,6 +944,78 @@ object DyeTrackerCommands {
                         .append(
                             Component.literal(" ($dropRate)")
                                 .withStyle(ChatFormatting.DARK_GRAY)
+                        )
+                )
+            }
+        }
+
+        // Show fossil dye excavations (PBI 66)
+        data.fossilDye?.let { dye ->
+            source.sendFeedback(
+                Component.literal("Fossil Dye: ")
+                    .withStyle(ChatFormatting.GOLD)
+                    .append(
+                        Component.literal("${formatXp(dye.excavations.toLong())} excavations")
+                            .withStyle(ChatFormatting.WHITE)
+                    )
+                    .append(
+                        Component.literal(" (1/500,000)")
+                            .withStyle(ChatFormatting.DARK_GRAY)
+                    )
+            )
+        }
+
+        // Show dark purple dye auctions attended (PBI 66)
+        data.darkPurpleDye?.let { dye ->
+            source.sendFeedback(
+                Component.literal("Dark Purple Dye: ")
+                    .withStyle(ChatFormatting.DARK_PURPLE)
+                    .append(
+                        Component.literal("${formatXp(dye.auctionsAttended.toLong())} Dark Auctions")
+                            .withStyle(ChatFormatting.WHITE)
+                    )
+                    .append(
+                        Component.literal(" (1/400 per round, 3 rounds)")
+                            .withStyle(ChatFormatting.DARK_GRAY)
+                    )
+            )
+        }
+
+        // Show holly dye gift count (PBI 66); the red share is estimated by the backend
+        data.hollyDye?.let { dye ->
+            source.sendFeedback(
+                Component.literal("Holly Dye: ")
+                    .withStyle(ChatFormatting.RED)
+                    .append(
+                        Component.literal("${formatXp(dye.giftRewards.values.sumOf { it.toLong() })} gifts")
+                            .withStyle(ChatFormatting.WHITE)
+                    )
+                    .append(
+                        Component.literal(" (red share estimated online)")
+                            .withStyle(ChatFormatting.DARK_GRAY)
+                    )
+            )
+        }
+
+        // Show mocha dye potions brewed, total then per tier (PBI 66)
+        data.mochaDye?.let { dye ->
+            source.sendFeedback(
+                Component.literal("Mocha Dye: ")
+                    .withStyle(ChatFormatting.GOLD)
+                    .append(
+                        Component.literal("${formatXp(dye.potionsByTier.values.sumOf { it.toLong() })} potions brewed")
+                            .withStyle(ChatFormatting.WHITE)
+                    )
+            )
+            for (tier in PotionTier.entries) {
+                val count = dye.potionsByTier[tier] ?: 0
+                if (count == 0) continue
+                source.sendFeedback(
+                    Component.literal("  Tier ${tier.name}: ")
+                        .withStyle(ChatFormatting.GRAY)
+                        .append(
+                            Component.literal(formatXp(count.toLong()))
+                                .withStyle(ChatFormatting.WHITE)
                         )
                 )
             }

@@ -16,6 +16,12 @@ fun interface RngDataChangeListener {
  */
 object RngDataStore {
 
+    // PBI 66: Holly Dye gift-reward key limits. They keep a synced payload inside the backend's
+    // limits (500 keys, 120-char keys; a rarity is at most 15 chars, so a 100-char reward fits).
+    const val HOLLY_MAX_REWARD_KEYS = 500
+    const val HOLLY_MAX_REWARD_TEXT_LENGTH = 100
+    const val HOLLY_OVERFLOW_KEY = "OTHER|other"
+
     @Volatile
     private var mineshaftPity: MineshaftPity? = null
 
@@ -30,6 +36,18 @@ object RngDataStore {
 
     @Volatile
     private var treasureDye: TreasureDyeData? = null
+
+    @Volatile
+    private var fossilDye: FossilDyeData? = null
+
+    @Volatile
+    private var darkPurpleDye: DarkPurpleDyeData? = null
+
+    @Volatile
+    private var hollyDye: HollyDyeData? = null
+
+    @Volatile
+    private var mochaDye: MochaDyeData? = null
 
     @Volatile
     private var dyeCollection: DyeCollection? = null
@@ -63,6 +81,10 @@ object RngDataStore {
             copperDye = loadedData.copperDye
             nyanzaDye = loadedData.nyanzaDye
             treasureDye = loadedData.treasureDye
+            fossilDye = loadedData.fossilDye
+            darkPurpleDye = loadedData.darkPurpleDye
+            hollyDye = loadedData.hollyDye
+            mochaDye = loadedData.mochaDye
             dyeCollection = loadedData.dyeCollection
             visitorLogbook = loadedData.visitorLogbook
 
@@ -194,6 +216,65 @@ object RngDataStore {
     }
 
     /**
+     * Increment the Suspicious Scrap excavation count for Fossil Dye (PBI 66).
+     *
+     * Each excavation is a discrete event, so this is an increment counter. The capture handler
+     * calls this once per observed `EXCAVATION COMPLETE` chat block.
+     */
+    fun incrementExcavation() {
+        val current = fossilDye ?: FossilDyeData()
+        fossilDye = current.copy(excavations = current.excavations + 1)
+        notifyListeners()
+    }
+
+    /**
+     * Increment the Dark Auctions attended count for Dark Purple Dye (PBI 66).
+     *
+     * Each auction attended is a discrete event, so this is an increment counter. The capture
+     * handler calls this once per observed `Transferring to Dark Auction...` chat line.
+     */
+    fun incrementDarkAuction() {
+        val current = darkPurpleDye ?: DarkPurpleDyeData()
+        darkPurpleDye = current.copy(auctionsAttended = current.auctionsAttended + 1)
+        notifyListeners()
+    }
+
+    /**
+     * Count one gift reward chat line for Holly Dye (PBI 66).
+     *
+     * The key is `"<rarity>|<reward>"` with the reward cut to [HOLLY_MAX_REWARD_TEXT_LENGTH] chars,
+     * kept raw (the backend normalises it). Once `HOLLY_MAX_REWARD_KEYS - 1` keys other than
+     * [HOLLY_OVERFLOW_KEY] are stored, a new key counts under [HOLLY_OVERFLOW_KEY] instead, so the
+     * gift still counts and the map never exceeds [HOLLY_MAX_REWARD_KEYS] keys (the backend rejects a
+     * sync with more). An existing key keeps incrementing itself.
+     */
+    fun incrementGiftReward(rarity: String, reward: String) {
+        val current = hollyDye?.giftRewards ?: emptyMap()
+        val rewardKey = "$rarity|${reward.take(HOLLY_MAX_REWARD_TEXT_LENGTH)}"
+        val realKeys = current.keys.count { it != HOLLY_OVERFLOW_KEY }
+        val isNewRealKey = rewardKey !in current && rewardKey != HOLLY_OVERFLOW_KEY
+        val key = if (isNewRealKey && realKeys >= HOLLY_MAX_REWARD_KEYS - 1) {
+            HOLLY_OVERFLOW_KEY
+        } else {
+            rewardKey
+        }
+        hollyDye = HollyDyeData(giftRewards = current + (key to ((current[key] ?: 0) + 1)))
+        notifyListeners()
+    }
+
+    /**
+     * Count one potion of [tier] taken out of the Brewing Stand for Mocha Dye (PBI 66).
+     *
+     * Each brewed potion is a discrete event, so this is a per-tier increment counter. The
+     * Brewing Stand watcher calls this once per finished potion that leaves the stand.
+     */
+    fun incrementBrewedPotion(tier: PotionTier) {
+        val current = mochaDye?.potionsByTier ?: emptyMap()
+        mochaDye = MochaDyeData(potionsByTier = current + (tier to ((current[tier] ?: 0) + 1)))
+        notifyListeners()
+    }
+
+    /**
      * Update the dye collection from a Vincent inventory scan.
      * Replaces the entire collection with the latest scan results.
      */
@@ -221,6 +302,10 @@ object RngDataStore {
             copperDye = copperDye,
             nyanzaDye = nyanzaDye,
             treasureDye = treasureDye,
+            fossilDye = fossilDye,
+            darkPurpleDye = darkPurpleDye,
+            hollyDye = hollyDye,
+            mochaDye = mochaDye,
             dyeCollection = dyeCollection,
             visitorLogbook = visitorLogbook
         )
@@ -235,6 +320,10 @@ object RngDataStore {
         copperDye = null
         nyanzaDye = null
         treasureDye = null
+        fossilDye = null
+        darkPurpleDye = null
+        hollyDye = null
+        mochaDye = null
         dyeCollection = null
         visitorLogbook = null
         notifyListeners()
