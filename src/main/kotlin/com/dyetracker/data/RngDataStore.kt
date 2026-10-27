@@ -239,14 +239,17 @@ object RngDataStore {
      * Count one gift reward chat line for Holly Dye (PBI 66).
      *
      * The key is `"<rarity>|<reward>"` with the reward cut to [HOLLY_MAX_REWARD_TEXT_LENGTH] chars,
-     * kept raw (the backend normalises it). Once [HOLLY_MAX_REWARD_KEYS] distinct keys are stored, a
-     * new key counts under [HOLLY_OVERFLOW_KEY] instead, so the gift still counts; an existing key
-     * keeps incrementing itself.
+     * kept raw (the backend normalises it). Once `HOLLY_MAX_REWARD_KEYS - 1` keys other than
+     * [HOLLY_OVERFLOW_KEY] are stored, a new key counts under [HOLLY_OVERFLOW_KEY] instead, so the
+     * gift still counts and the map never exceeds [HOLLY_MAX_REWARD_KEYS] keys (the backend rejects a
+     * sync with more). An existing key keeps incrementing itself.
      */
     fun incrementGiftReward(rarity: String, reward: String) {
         val current = hollyDye?.giftRewards ?: emptyMap()
         val rewardKey = "$rarity|${reward.take(HOLLY_MAX_REWARD_TEXT_LENGTH)}"
-        val key = if (rewardKey !in current && current.size >= HOLLY_MAX_REWARD_KEYS) {
+        val realKeys = current.keys.count { it != HOLLY_OVERFLOW_KEY }
+        val isNewRealKey = rewardKey !in current && rewardKey != HOLLY_OVERFLOW_KEY
+        val key = if (isNewRealKey && realKeys >= HOLLY_MAX_REWARD_KEYS - 1) {
             HOLLY_OVERFLOW_KEY
         } else {
             rewardKey

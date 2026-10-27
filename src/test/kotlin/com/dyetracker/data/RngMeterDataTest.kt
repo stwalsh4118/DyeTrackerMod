@@ -342,8 +342,8 @@ class RngMeterDataTest {
     }
 
     @Test
-    fun `incrementGiftReward sends a new reward to the overflow key once 500 keys are stored (PBI 66)`() {
-        repeat(500) { RngDataStore.incrementGiftReward("COMMON", "reward $it") }
+    fun `incrementGiftReward sends a new reward to the overflow key once 499 real keys are stored (PBI 66)`() {
+        repeat(499) { RngDataStore.incrementGiftReward("COMMON", "reward $it") }
 
         RngDataStore.incrementGiftReward("RARE", "brand new reward")
         RngDataStore.incrementGiftReward("COMMON", "reward 0")
@@ -352,7 +352,32 @@ class RngMeterDataTest {
         assertEquals(1, rewards["OTHER|other"], "a new reward past the cap must count under OTHER|other")
         assertEquals(null, rewards["RARE|brand new reward"])
         assertEquals(2, rewards["COMMON|reward 0"], "an existing key must still increment itself")
-        assertEquals(501, rewards.size)
+        assertEquals(500, rewards.size, "the map must never exceed the backend's 500-key limit")
+    }
+
+    @Test
+    fun `incrementGiftReward still adds a new reward as its own key with 498 real keys stored (PBI 66)`() {
+        repeat(498) { RngDataStore.incrementGiftReward("COMMON", "reward $it") }
+
+        RngDataStore.incrementGiftReward("RARE", "brand new reward")
+
+        val rewards = RngDataStore.getData().hollyDye?.giftRewards.orEmpty()
+        assertEquals(1, rewards["RARE|brand new reward"])
+        assertEquals(null, rewards["OTHER|other"])
+        assertEquals(499, rewards.size)
+    }
+
+    @Test
+    fun `incrementGiftReward keeps sending new rewards to the overflow key at 500 keys (PBI 66)`() {
+        repeat(499) { RngDataStore.incrementGiftReward("COMMON", "reward $it") }
+        RngDataStore.incrementGiftReward("RARE", "first overflow")
+
+        RngDataStore.incrementGiftReward("RARE", "second overflow")
+        RngDataStore.incrementGiftReward("SWEET", "third overflow")
+
+        val rewards = RngDataStore.getData().hollyDye?.giftRewards.orEmpty()
+        assertEquals(3, rewards["OTHER|other"])
+        assertEquals(500, rewards.size)
     }
 
     @Test
