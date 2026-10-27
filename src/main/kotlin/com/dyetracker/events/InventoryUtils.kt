@@ -49,9 +49,10 @@ object InventoryUtils {
     private const val EXPERIMENTATION_TITLE = "Experimentation Table"
     private const val RNG_METER_SUFFIX = "RNG Meter"
 
-    // Vincent dye collection GUI titles. Hypixel renamed "Dye Compendium" to "Dye Guide" (PBI 62);
-    // the old title is kept so a server still showing it keeps working.
-    private val VINCENT_TITLES = setOf("Dye Guide", "Dye Compendium")
+    // Vincent dye collection GUI titles. Hypixel renamed "Dye Compendium" to "Dye Guide" (PBI 62) and
+    // prefixes each page with its number ("(1/3) Dye Guide"), so match by substring. The old title is
+    // kept so a server still showing it keeps working.
+    private val VINCENT_TITLES = listOf("Dye Guide", "Dye Compendium")
 
     // Vincent current dye rotation GUI title (a distinct chest GUI; exact match so it does not
     // collide with the "Dye Guide" collection screen).
@@ -85,7 +86,7 @@ object InventoryUtils {
         val cleanTitle = stripFormatting(title)
 
         // Check for Vincent dye collection GUI
-        if (cleanTitle in VINCENT_TITLES) {
+        if (VINCENT_TITLES.any { cleanTitle.contains(it) }) {
             return InventoryType.VincentDyeCollection
         }
 
