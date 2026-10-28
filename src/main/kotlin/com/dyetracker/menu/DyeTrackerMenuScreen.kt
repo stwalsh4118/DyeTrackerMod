@@ -382,7 +382,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             tab = MenuTab.valueOf(tabPill.key)
             return true
         }
-        if (tab == MenuTab.SETTINGS) return clickSettings(click.x(), click.y())
+        if (tab == MenuTab.SETTINGS) return clickSettings(click.x(), click.y(), doubled)
         val dyes = visibleDyes()
         val grid = gridGeometry(dyes.size)
         val currentStrip = strip
@@ -461,15 +461,16 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * Runs the action of the Settings pill at ([mouseX], [mouseY]), as its `/dyetracker` command
-     * does; an inactive pill does nothing. Returns whether a pill took the click.
+     * does; an inactive pill does nothing. A [doubled] click never confirms the unlink. Returns
+     * whether a pill took the click.
      */
-    private fun clickSettings(mouseX: Double, mouseY: Double): Boolean {
+    private fun clickSettings(mouseX: Double, mouseY: Double, doubled: Boolean): Boolean {
         val now = Util.getMillis()
         val clicked = placedSettingsRows(now).firstOrNull { placed ->
             placed.row.pillStyle != PillStyle.INACTIVE && placed.pill?.rect?.contains(mouseX, mouseY) == true
         } ?: return false
         when (clicked.row.key) {
-            SettingsKey.ACCOUNT -> if (unlinkConfirm.click(now)) {
+            SettingsKey.ACCOUNT -> if (unlinkConfirm.click(now, doubled)) {
                 AccountVerification.unlink()
                 showRowMessage(SettingsKey.ACCOUNT, UNLINKED_TEXT, UiTheme.Colors.TEXT_SUBTLE)
             }

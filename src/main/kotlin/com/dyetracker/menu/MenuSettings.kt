@@ -32,16 +32,21 @@ fun toggleLabel(state: ToggleState): String = when (state) {
 
 /**
  * A two-click confirm (the Settings tab's Unlink): the first [click] arms it, and a second click
- * at most [windowMs] later confirms and disarms it. A click after the window arms it again.
+ * at most [windowMs] later confirms and disarms it. A click after the window arms it again. The
+ * second half of a double click never confirms, so the armed state is drawn before it can.
  * Times are from one clock (e.g. `Util.getMillis`).
  */
 class ConfirmClick(private val windowMs: Long = MenuLayout.UNLINK_CONFIRM_MS) {
     /** When the first click armed the confirm; `null` while disarmed. */
     private var armedAtMs: Long? = null
 
-    /** `true` when this click confirms; `false` when it only arms (or re-arms) the confirm. */
-    fun click(nowMs: Long): Boolean {
+    /**
+     * `true` when this click confirms; `false` when it only arms (or re-arms) the confirm. A
+     * [doubled] click arms a disarmed confirm but never confirms, and leaves an armed one's window as is.
+     */
+    fun click(nowMs: Long, doubled: Boolean = false): Boolean {
         if (isArmed(nowMs)) {
+            if (doubled) return false
             armedAtMs = null
             return true
         }

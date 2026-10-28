@@ -101,6 +101,41 @@ class MenuSettingsTest {
     }
 
     @Test
+    fun `a double click arms but never confirms`() {
+        val confirm = ConfirmClick()
+        confirm.click(nowMs = 10_000L)
+
+        assertFalse(confirm.click(nowMs = 10_100L, doubled = true), "the second half of a double click does not unlink")
+        assertTrue(confirm.isArmed(nowMs = 10_100L), "the confirm stays armed so it can be shown")
+    }
+
+    @Test
+    fun `a double click on a disarmed confirm arms it`() {
+        val confirm = ConfirmClick()
+
+        assertFalse(confirm.click(nowMs = 10_000L, doubled = true))
+        assertTrue(confirm.isArmed(nowMs = 10_000L))
+    }
+
+    @Test
+    fun `a plain click after a double click confirms`() {
+        val confirm = ConfirmClick()
+        confirm.click(nowMs = 10_000L)
+        confirm.click(nowMs = 10_100L, doubled = true)
+
+        assertTrue(confirm.click(nowMs = 11_000L))
+    }
+
+    @Test
+    fun `a double click keeps the first click's window`() {
+        val confirm = ConfirmClick()
+        confirm.click(nowMs = 10_000L)
+        confirm.click(nowMs = 10_100L, doubled = true)
+
+        assertFalse(confirm.isArmed(nowMs = 13_001L), "the window still ends 3s after the arming click")
+    }
+
+    @Test
     fun `isArmed is false before any click`() {
         assertFalse(ConfirmClick().isArmed(nowMs = 10_000L))
     }
