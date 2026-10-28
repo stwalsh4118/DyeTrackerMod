@@ -9,7 +9,8 @@ import kotlin.test.assertTrue
 
 /**
  * Unit coverage for [DyeProgressPoller.pollProfiles] (task 34-4): one fetch per DISTINCT
- * profile, and no-op gating when not linked / no username / no widgets. The 30s timer and real
+ * profile, and no-op gating when there is no username / no widgets (task 67-6 dropped the
+ * linked gate: an unlinked player polls under their in-game name). The 30s timer and real
  * network are exercised in 34-8; here a fake fetcher records calls.
  */
 class DyeProgressPollerTest {
@@ -39,7 +40,6 @@ class DyeProgressPollerTest {
     fun `fetches each distinct profile exactly once`() {
         val rec = Recorder()
         val fetched = DyeProgressPoller.pollProfiles(
-            isLinked = true,
             username = "Notch",
             profileIds = listOf("A", "A", "B"),
             fetch = rec::fetch,
@@ -53,26 +53,24 @@ class DyeProgressPollerTest {
     }
 
     @Test
-    fun `no-op when not linked`() {
+    fun `polls with any non-blank username`() {
         val rec = Recorder()
         val fetched = DyeProgressPoller.pollProfiles(
-            isLinked = false,
-            username = "Notch",
-            profileIds = listOf("A", "B"),
+            username = "Steve",
+            profileIds = listOf("A"),
             fetch = rec::fetch,
             update = rec::update,
         )
 
-        assertTrue(fetched.isEmpty())
-        assertTrue(rec.fetched.isEmpty())
-        assertTrue(rec.updated.isEmpty())
+        assertEquals(setOf("A"), fetched)
+        assertEquals(listOf("A"), rec.fetched)
+        assertEquals(listOf("A"), rec.updated)
     }
 
     @Test
     fun `no-op when username is blank`() {
         val rec = Recorder()
         val fetched = DyeProgressPoller.pollProfiles(
-            isLinked = true,
             username = "   ",
             profileIds = listOf("A"),
             fetch = rec::fetch,
@@ -87,7 +85,6 @@ class DyeProgressPollerTest {
     fun `no-op when there are no widgets`() {
         val rec = Recorder()
         val fetched = DyeProgressPoller.pollProfiles(
-            isLinked = true,
             username = "Notch",
             profileIds = emptyList(),
             fetch = rec::fetch,
@@ -102,7 +99,6 @@ class DyeProgressPollerTest {
     fun `blank profile ids are ignored`() {
         val rec = Recorder()
         val fetched = DyeProgressPoller.pollProfiles(
-            isLinked = true,
             username = "Notch",
             profileIds = listOf("", "  ", "B"),
             fetch = rec::fetch,

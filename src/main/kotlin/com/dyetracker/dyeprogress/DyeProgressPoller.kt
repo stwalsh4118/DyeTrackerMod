@@ -3,6 +3,7 @@ package com.dyetracker.dyeprogress
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.api.ApiClient
 import com.dyetracker.api.DyeProgressResponse
+import com.dyetracker.auth.PlayerIdentity
 import com.dyetracker.config.ConfigManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -15,13 +16,13 @@ import kotlinx.coroutines.launch
 
 /**
  * Background scheduler that keeps [DyeProgressStore] current. Every [POLL_INTERVAL_MS] it
- * fetches dye progress for the linked player's account, one request per distinct `profileId`
- * across all configured widgets (so N widgets sharing a profile cost a single fetch).
+ * fetches dye progress for the player's account, one request per distinct `profileId` across
+ * all configured widgets (so N widgets sharing a profile cost a single fetch).
  *
- * The widget always represents the linked player's own account
- * ([ConfigManager.config.linkedUsername]); only the profile varies. Polling no-ops when the
- * account is not linked or when there are zero configured widgets. Failures are logged and
- * never propagate into gameplay.
+ * The widget always represents the player's own account ([PlayerIdentity.hudUsername]: the
+ * linked account, else the in-game name, so unlinked players' widgets fill in too); only the
+ * profile varies. Polling no-ops when there is no username or when there are zero configured
+ * widgets. Failures are logged and never propagate into gameplay.
  */
 object DyeProgressPoller {
 
@@ -71,8 +72,7 @@ object DyeProgressPoller {
 
     private fun tick() {
         pollProfiles(
-            isLinked = ConfigManager.config.isLinked(),
-            username = ConfigManager.config.linkedUsername,
+            username = PlayerIdentity.hudUsername(),
             profileIds = ConfigManager.dyeProgressPlacements.all().map { it.profileId },
             fetch = ApiClient::fetchDyeProgress,
             update = DyeProgressStore::update,
@@ -81,17 +81,16 @@ object DyeProgressPoller {
 
     /**
      * Pure, testable poll core: fetch each DISTINCT non-blank profile once and write the result.
-     * No-ops (returns an empty set) when not linked, when [username] is blank, or when there are
-     * no profiles. Returns the set of profiles actually fetched (for tests / diagnostics).
+     * No-ops (returns an empty set) when [username] is blank or when there are no non-blank
+     * profiles. Returns the set of profiles actually fetched (for tests / diagnostics).
      */
     internal fun pollProfiles(
-        isLinked: Boolean,
         username: String,
         profileIds: List<String>,
         fetch: (String, String) -> ApiClient.ApiResult<DyeProgressResponse>,
         update: (String, ApiClient.ApiResult<DyeProgressResponse>) -> Unit,
     ): Set<String> {
-        if (!isLinked || username.isBlank()) return emptySet()
+        if (username.isBlank()) return emptySet()
         val distinct = profileIds.filterTo(LinkedHashSet()) { it.isNotBlank() }
         if (distinct.isEmpty()) return emptySet()
         for (profileId in distinct) {
