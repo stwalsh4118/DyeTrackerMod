@@ -7,13 +7,15 @@ import kotlin.math.max
 
 /**
  * Where the Collection tab's parts sit below the profile strip: the summary line at [summaryY],
- * the progress bar at [barY], the empty hint at [hintY] (`null` when it doesn't show), and the
- * card grid's [viewport] with its [contentHeight]. The grid's unscrolled top is `viewport.y`.
+ * the progress bar at [barY], the empty hint at [hintY] (`null` when it doesn't show), the filter
+ * [pills] (`key to rect`, as [layoutPills] places them), and the card grid's [viewport] with its
+ * [contentHeight]. The grid's unscrolled top is `viewport.y`.
  */
 data class CollectionGeometry(
     val summaryY: Int,
     val barY: Int,
     val hintY: Int?,
+    val pills: List<Pair<String, Rect>>,
     val viewport: Rect,
     val contentHeight: Int,
 )
@@ -116,8 +118,10 @@ object MenuLayout {
     /**
      * The Collection tab's layout from [top] down, [gridWidth] wide from [left]: the summary line
      * ([lineHeight] tall), [TEXT_GAP] below it the progress bar, then when [showHint] the hint line
-     * [STRIP_GAP] below the bar, and [OUTER_MARGIN] below that the grid of [itemCount] cards in
-     * [columns] columns, down to [OUTER_MARGIN] above the [screenHeight].
+     * [STRIP_GAP] below the bar, [STRIP_GAP] below that the [pillLabels] wrapping within
+     * [gridWidth] ([layoutPills], widths by [measure]), and [OUTER_MARGIN] below the last pill row
+     * (or the hint or bar, without pills) the grid of [itemCount] cards in [columns] columns, down
+     * to [OUTER_MARGIN] above the [screenHeight].
      */
     fun collectionGeometry(
         top: Int,
@@ -126,17 +130,22 @@ object MenuLayout {
         screenHeight: Int,
         lineHeight: Int,
         showHint: Boolean,
+        pillLabels: List<Pair<String, String>>,
+        measure: (String) -> Int,
         itemCount: Int,
         columns: Int,
     ): CollectionGeometry {
         val barY = top + lineHeight + TEXT_GAP
         val barBottom = barY + UiTheme.Sizing.PROGRESS_BAR_HEIGHT
         val hintY = if (showHint) barBottom + STRIP_GAP else null
-        val gridTop = (hintY?.let { it + lineHeight } ?: barBottom) + OUTER_MARGIN
+        val hintOrBarBottom = hintY?.let { it + lineHeight } ?: barBottom
+        val pills = layoutPills(pillLabels, measure, left, hintOrBarBottom + STRIP_GAP, gridWidth)
+        val gridTop = (pills.maxOfOrNull { it.second.bottom } ?: hintOrBarBottom) + OUTER_MARGIN
         return CollectionGeometry(
             summaryY = top,
             barY = barY,
             hintY = hintY,
+            pills = pills,
             viewport = Rect(left, gridTop, gridWidth, screenHeight - gridTop - OUTER_MARGIN),
             contentHeight = contentHeight(itemCount, columns),
         )

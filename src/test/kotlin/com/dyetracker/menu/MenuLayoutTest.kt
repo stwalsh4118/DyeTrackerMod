@@ -5,7 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/** Unit coverage for the menu card-grid geometry (tasks 67-1, 67-2) and the Collection tab layout (68-2). */
+/** Unit coverage for the menu card-grid geometry (tasks 67-1, 67-2) and the Collection tab layout (68-2, 68-3). */
 class MenuLayoutTest {
 
     @Test
@@ -179,17 +179,29 @@ class MenuLayoutTest {
         assertNull(hit(x, y, itemCount = 0))
     }
 
-    /** The Collection tab's layout below a strip ending at y=42 (top 50), 2 columns, 9px text. */
-    private fun collection(showHint: Boolean, itemCount: Int = 5) = MenuLayout.collectionGeometry(
+    /**
+     * The Collection tab's layout below a strip ending at y=42 (top 50), 2 columns, 9px text, with
+     * [pills] for its pill block; every character measures 6px.
+     */
+    private fun collection(
+        showHint: Boolean,
+        itemCount: Int = 5,
+        pills: List<Pair<String, String>> = emptyList(),
+    ) = MenuLayout.collectionGeometry(
         top = 50,
         left = 10,
         gridWidth = 328,
         screenHeight = 400,
         lineHeight = 9,
         showHint = showHint,
+        pillLabels = pills,
+        measure = { it.length * 6 },
         itemCount = itemCount,
         columns = 2,
     )
+
+    /** Pill widths with 8px padding each side: 100, 100 and 136, so the third wraps in 328px. */
+    private val collectionPills = listOf("a" to "x".repeat(14), "b" to "y".repeat(14), "c" to "z".repeat(20))
 
     @Test
     fun `collection summary line is at the top and the bar a text gap below it`() {
@@ -221,5 +233,37 @@ class MenuLayoutTest {
     fun `collection content height is the card rows`() {
         assertEquals(3 * 70 + 2 * 8, collection(showHint = false).contentHeight)
         assertEquals(0, collection(showHint = true, itemCount = 0).contentHeight)
+    }
+
+    @Test
+    fun `collection pills go a strip gap below the bar and the grid an outer margin below them`() {
+        val geometry = collection(showHint = false, pills = collectionPills)
+
+        val pillTop = 63 + 4 + 8
+        assertEquals(
+            listOf(
+                "a" to Rect(10, pillTop, 100, 16),
+                "b" to Rect(10 + 100 + 4, pillTop, 100, 16),
+                "c" to Rect(10, pillTop + 16 + 4, 136, 16),
+            ),
+            geometry.pills,
+        )
+        val top = pillTop + 16 + 4 + 16 + 16
+        assertEquals(Rect(10, top, 328, 400 - top - 16), geometry.viewport)
+    }
+
+    @Test
+    fun `collection pills go a strip gap below the hint when it shows`() {
+        val geometry = collection(showHint = true, pills = collectionPills)
+
+        val pillTop = 75 + 9 + 8
+        assertEquals(pillTop, geometry.pills.first().second.y)
+        val top = pillTop + 16 + 4 + 16 + 16
+        assertEquals(top, geometry.viewport.y)
+    }
+
+    @Test
+    fun `collection without pills has none`() {
+        assertEquals(emptyList(), collection(showHint = false).pills)
     }
 }

@@ -70,9 +70,11 @@ import kotlin.math.roundToInt
  *
  * The header's tab pills switch between the Dyes tab (all of the above), the Collection tab and
  * the Settings tab. The Collection tab keeps the profile strip and shows which of the Dyes tab's
- * dyes the player owns on that profile, like the website's Collection page ([CollectionTabView]);
- * it fetches the collection on opening the tab and on each profile switch or Refresh while on it,
- * dropping a result for another profile or one a newer request superseded ([collectionRequest]).
+ * dyes the player owns on that profile, like the website's Collection page ([CollectionTabView]),
+ * with category chips (owned/total each) and an All / Owned / Unowned filter of its own, kept while
+ * the screen is open; it fetches the collection on opening the tab and on each profile switch or
+ * Refresh while on it, dropping a result for another profile or one a newer request superseded
+ * ([collectionRequest]).
  * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, the layout
  * editor), each control calling what its `/dyetracker` command calls. Settings state is read fresh
  * every frame, so a change made by a command meanwhile shows at once.
@@ -87,7 +89,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /** How a pill is drawn, beyond [MenuPill.selected]'s two website `Button` variants. */
-    private enum class PillStyle {
+    internal enum class PillStyle {
         /** The website primary `Button`: white with black text. */
         SELECTED,
 
@@ -102,6 +104,9 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
         /** Shown but not clickable: muted text, no hover. */
         INACTIVE,
+
+        /** A Collection category chip whose dyes are all owned: unselected, with emerald text. */
+        COMPLETE,
     }
 
     /** What a Settings row is about; picks what a click on its pill does. */
@@ -251,6 +256,12 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /** Pixels the Collection grid is scrolled up by; apart from the Dyes grid's [scroll]. */
     private var collectionScroll = 0
+
+    /** Category the Collection grid is filtered to; `null` shows every dye. Apart from the Dyes tab's [category]. */
+    private var collectionCategory: String? = null
+
+    /** Which Collection cards show by ownership. */
+    private var ownedFilter = OwnedFilter.ALL
 
     /**
      * Refresh is ignored: a dyes load runs, or on the Collection tab a collection fetch does. On
@@ -475,7 +486,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 return true
             }
         }
-        if (tab == MenuTab.COLLECTION) return false // Collection cards aren't clickable
+        if (tab == MenuTab.COLLECTION) return clickCollectionPill(click.x(), click.y()) // its cards aren't clickable
         val loaded = state as? ViewState.Loaded ?: return false // control pills and cards only show over loaded dyes
         val pill = pillAt(grid.pills, click.x(), click.y())
         if (pill != null) {
@@ -498,6 +509,24 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             grid.viewport,
         ) ?: return false
         pinCard(dyes[index], loaded.result.profile)
+        return true
+    }
+
+    /**
+     * Applies the Collection filter pill at ([mouseX], [mouseY]): a category chip ("All Dyes" for
+     * none) or an owned-filter pill. The Collection grid scrolls back to the top. Returns whether
+     * a pill took the click; none shows until the collection is loaded.
+     */
+    private fun clickCollectionPill(mouseX: Double, mouseY: Double): Boolean {
+        val cells = collectionCells() ?: return false
+        val pill = pillAt(collectionPills(cells, collectionGeometry(cells)), mouseX, mouseY) ?: return false
+        val filter = OwnedFilter.entries.firstOrNull { ownedFilterKey(it) == pill.key }
+        when {
+            filter != null -> ownedFilter = filter
+            pill.key == ALL_PILL_KEY -> collectionCategory = null
+            else -> collectionCategory = pill.key
+        }
+        collectionScroll = 0
         return true
     }
 
@@ -647,7 +676,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * The Collection tab's cards: every loaded dye, owned or not, once both the Dyes tab's dyes
-     * and the collection are loaded for the same profile; else `null`.
+     * and the collection are loaded for the same profile; else `null`. The grid shows
+     * [visibleCollectionCells] of them.
      */
     private fun collectionCells(): List<CollectionCell>? {
         val loaded = state as? ViewState.Loaded ?: return null
@@ -656,7 +686,11 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         return MenuCollection.cells(loaded.result.dyes, owned.owned)
     }
 
-    /** Where the Collection tab's parts sit for [cells] on the current screen size. */
+    /** The Collection [cells] in the selected [collectionCategory] that [ownedFilter] keeps: what its grid shows. */
+    private fun visibleCollectionCells(cells: List<CollectionCell>): List<CollectionCell> =
+        MenuCollection.filterCells(cells, collectionCategory, ownedFilter)
+
+    /** Where the Collection tab's parts sit for [cells] (all of them) on the current screen size. */
     private fun collectionGeometry(cells: List<CollectionCell>): CollectionGeometry {
         val grid = gridGeometry(cells.size)
         return MenuLayout.collectionGeometry(
@@ -666,10 +700,33 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             screenHeight = height,
             lineHeight = font.lineHeight,
             showHint = MenuCollection.showEmptyHint(cells),
-            itemCount = cells.size,
+            pillLabels = collectionPillLabels(cells),
+            measure = { font.width(it) },
+            itemCount = visibleCollectionCells(cells).size,
             columns = grid.columns,
         )
     }
+
+    /**
+     * The Collection tab's pills as `key to label`, one wrapping block: the "All Dyes" chip, a chip
+     * per category of [cells] with its owned/total, then the All / Owned / Unowned pills with their
+     * counts. Every count is over all [cells], so a click never reflows the block.
+     */
+    private fun collectionPillLabels(cells: List<CollectionCell>): List<Pair<String, String>> =
+        listOf(ALL_PILL_KEY to categoryLabel(null)) +
+            MenuCollection.categoryCounts(cells).map { it.category to MenuCollection.categoryChipLabel(it) } +
+            OwnedFilter.entries.map { ownedFilterKey(it) to MenuCollection.ownedFilterLabel(it, cells) }
+
+    /** [collectionPillLabels] at [geometry]'s rects; the selected category's chip and owned filter's pill are selected. */
+    private fun collectionPills(cells: List<CollectionCell>, geometry: CollectionGeometry): List<MenuPill> {
+        val selectedKeys = setOf(collectionCategory ?: ALL_PILL_KEY, ownedFilterKey(ownedFilter))
+        return collectionPillLabels(cells).zip(geometry.pills) { (key, label), (_, rect) ->
+            MenuPill(key, label, rect, selected = key in selectedKeys)
+        }
+    }
+
+    /** [MenuPill.key] of [filter]'s pill, apart from the category chips' keys. */
+    private fun ownedFilterKey(filter: OwnedFilter): String = "$OWNED_FILTER_KEY_PREFIX${filter.name}"
 
     /** The loaded dyes, or none while loading or after a failure. */
     private fun loadedDyes(): List<DyeProgressEntry> = (state as? ViewState.Loaded)?.result?.dyes.orEmpty()
@@ -950,7 +1007,21 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 drawMessage(context, "$COLLECTION_FAILED_PREFIX${current.message}", UiTheme.Colors.STATUS_ERROR, messageArea)
             is CollectionState.Loaded -> {
                 val cells = MenuCollection.cells(loaded.result.dyes, current.owned)
-                CollectionTabView.draw(this, context, font, cells, collectionGeometry(cells), grid.columns, collectionScroll)
+                val geometry = collectionGeometry(cells)
+                CollectionTabView.draw(
+                    this,
+                    context,
+                    font,
+                    cells,
+                    visibleCollectionCells(cells),
+                    collectionPills(cells, geometry),
+                    ownedFilter,
+                    geometry,
+                    grid.columns,
+                    collectionScroll,
+                    mouseX,
+                    mouseY,
+                )
             }
         }
     }
@@ -1091,9 +1162,9 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
      * One pill, like the website's `Button`: white with black text when selected, else a card
      * fill and border whose border and text brighten on hover. [style] adds the Settings looks: a
      * toggle that is on takes the `success` Badge colors, a confirming action error-colored text,
-     * and an inactive pill muted text. The label is centred.
+     * and an inactive pill muted text; a complete Collection chip emerald text. The label is centred.
      */
-    private fun drawPill(
+    internal fun drawPill(
         context: GuiGraphicsExtractor,
         pill: MenuPill,
         hovered: Boolean,
@@ -1115,6 +1186,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             )
             PillStyle.CONFIRM -> Triple(UiTheme.Colors.CARD_BACKGROUND, hoverBorder, UiTheme.Colors.STATUS_ERROR)
             PillStyle.INACTIVE -> Triple(UiTheme.Colors.CARD_BACKGROUND, UiTheme.Colors.CARD_BORDER, UiTheme.Colors.TEXT_MUTED)
+            PillStyle.COMPLETE -> Triple(UiTheme.Colors.CARD_BACKGROUND, hoverBorder, UiTheme.Colors.OWNED_TEXT)
         }
         val rect = pill.rect
         UiDraw.filledBox(context, rect.x, rect.y, rect.width, rect.height, fill, border)
@@ -1142,7 +1214,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /** One line of [text], centred in [area]. */
-    private fun drawMessage(context: GuiGraphicsExtractor, text: String, argb: Int, area: Rect) {
+    internal fun drawMessage(context: GuiGraphicsExtractor, text: String, argb: Int, area: Rect) {
         UiDraw.drawText(
             context,
             font,
@@ -1412,7 +1484,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     internal fun scaledWidth(text: String, scale: Float): Int = (font.width(text) * scale).roundToInt()
 
     /** Height of one text line drawn at [scale]. */
-    internal fun scaledLineHeight(scale: Float): Int = (font.lineHeight * scale).roundToInt()
+    private fun scaledLineHeight(scale: Float): Int = (font.lineHeight * scale).roundToInt()
 
     companion object {
         private const val TITLE = "DyeTracker"
@@ -1431,6 +1503,9 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
         /** [MenuPill.key] of the "All Dyes" pill; every other category pill's key is its category id. */
         private const val ALL_PILL_KEY = "all"
+
+        /** Starts the [MenuPill.key] of a Collection owned-filter pill, then the [OwnedFilter] name. */
+        private const val OWNED_FILTER_KEY_PREFIX = "owned:"
 
         /** [MenuPill.key] of the sort pill. */
         private const val SORT_PILL_KEY = "sort"

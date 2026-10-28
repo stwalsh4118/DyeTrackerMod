@@ -8,14 +8,14 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** Unit coverage for the Collection tab's cells, summary, badge and empty hint (task 68-2). */
+/** Unit coverage for the Collection tab's cells, summary, badge and empty hint (68-2) and its filters (68-3). */
 class MenuCollectionTest {
 
-    private fun dye(dyeId: String) = DyeProgressEntry(
+    private fun dye(dyeId: String, category: String = "mob_drop") = DyeProgressEntry(
         dyeId = dyeId,
         name = "$dyeId Dye",
         color = "#7cb342",
-        category = "mob_drop",
+        category = category,
     )
 
     private fun owned(dyeId: String, count: Int = 1, obtainedAt: Long? = null) =
@@ -154,5 +154,109 @@ class MenuCollectionTest {
             "Link your account and open Vincent's Dye Guide to record your collection.",
             MenuCollection.EMPTY_HINT,
         )
+    }
+
+    /**
+     * Categories first appear as mob_drop, slayer, dungeon: neither the menu's category order nor
+     * alphabetical, and the first owned dye (b) is a slayer dye. Owned: b and d.
+     */
+    private val mixed = MenuCollection.cells(
+        listOf(
+            dye("a", "mob_drop"),
+            dye("b", "slayer"),
+            dye("c", "dungeon"),
+            dye("d", "mob_drop"),
+            dye("e", "slayer"),
+        ),
+        listOf(owned("d"), owned("b")),
+    )
+
+    private fun ids(cells: List<CollectionCell>) = cells.map { it.entry.dyeId }
+
+    @Test
+    fun `owned filter labels match the brief`() {
+        assertEquals(listOf("All", "Owned", "Unowned"), OwnedFilter.entries.map { it.label })
+    }
+
+    @Test
+    fun `filterCells with no category and ALL keeps every cell in order`() {
+        assertEquals(listOf("a", "b", "c", "d", "e"), ids(MenuCollection.filterCells(mixed, null, OwnedFilter.ALL)))
+    }
+
+    @Test
+    fun `filterCells by category keeps that category in order`() {
+        assertEquals(listOf("a", "d"), ids(MenuCollection.filterCells(mixed, "mob_drop", OwnedFilter.ALL)))
+    }
+
+    @Test
+    fun `filterCells OWNED keeps owned cells in order`() {
+        assertEquals(listOf("b", "d"), ids(MenuCollection.filterCells(mixed, null, OwnedFilter.OWNED)))
+    }
+
+    @Test
+    fun `filterCells UNOWNED keeps unowned cells in order`() {
+        assertEquals(listOf("a", "c", "e"), ids(MenuCollection.filterCells(mixed, null, OwnedFilter.UNOWNED)))
+    }
+
+    @Test
+    fun `filterCells combines category and owned filter`() {
+        assertEquals(listOf("e"), ids(MenuCollection.filterCells(mixed, "slayer", OwnedFilter.UNOWNED)))
+        assertEquals(listOf("d"), ids(MenuCollection.filterCells(mixed, "mob_drop", OwnedFilter.OWNED)))
+    }
+
+    @Test
+    fun `filterCells with a category no cell has is empty`() {
+        assertTrue(MenuCollection.filterCells(mixed, "kuudra", OwnedFilter.ALL).isEmpty())
+    }
+
+    @Test
+    fun `categoryCounts lists categories in first-appearance order`() {
+        assertEquals(listOf("mob_drop", "slayer", "dungeon"), MenuCollection.categoryCounts(mixed).map { it.category })
+    }
+
+    @Test
+    fun `categoryCounts counts every cell, owned or not`() {
+        assertEquals(
+            listOf(
+                CategoryCount("mob_drop", owned = 1, total = 2),
+                CategoryCount("slayer", owned = 1, total = 2),
+                CategoryCount("dungeon", owned = 0, total = 1),
+            ),
+            MenuCollection.categoryCounts(mixed),
+        )
+    }
+
+    @Test
+    fun `categoryCounts of no cells is empty`() {
+        assertTrue(MenuCollection.categoryCounts(emptyList()).isEmpty())
+    }
+
+    @Test
+    fun `categoryChipLabel is the category label and owned of total`() {
+        assertEquals("Mob Drop 3/19", MenuCollection.categoryChipLabel(CategoryCount("mob_drop", owned = 3, total = 19)))
+    }
+
+    @Test
+    fun `categoryChipLabel title-cases an unknown category`() {
+        assertEquals("New Thing 0/1", MenuCollection.categoryChipLabel(CategoryCount("new_thing", owned = 0, total = 1)))
+    }
+
+    @Test
+    fun `ownedFilterLabel counts the cells matching the filter`() {
+        assertEquals("Owned (2)", MenuCollection.ownedFilterLabel(OwnedFilter.OWNED, mixed))
+        assertEquals("Unowned (3)", MenuCollection.ownedFilterLabel(OwnedFilter.UNOWNED, mixed))
+        assertEquals("All (5)", MenuCollection.ownedFilterLabel(OwnedFilter.ALL, mixed))
+    }
+
+    @Test
+    fun `ownedFilterLabel of no cells is 0`() {
+        assertEquals("Owned (0)", MenuCollection.ownedFilterLabel(OwnedFilter.OWNED, emptyList()))
+    }
+
+    @Test
+    fun `empty filter messages match the website`() {
+        assertEquals("No dyes obtained yet", MenuCollection.emptyFilterMessage(OwnedFilter.OWNED))
+        assertEquals("All dyes obtained!", MenuCollection.emptyFilterMessage(OwnedFilter.UNOWNED))
+        assertEquals("No dyes found", MenuCollection.emptyFilterMessage(OwnedFilter.ALL))
     }
 }

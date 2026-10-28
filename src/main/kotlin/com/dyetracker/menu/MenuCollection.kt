@@ -10,10 +10,16 @@ import java.util.Locale
  */
 data class CollectionCell(val entry: DyeProgressEntry, val owned: Boolean, val count: Int, val obtainedAt: Long?)
 
+/** The Collection tab's All / Owned / Unowned filter, like the website's; [label] starts its pill's text. */
+enum class OwnedFilter(val label: String) { ALL("All"), OWNED("Owned"), UNOWNED("Unowned") }
+
+/** How many of the [total] dyes in [category] the player [owned]: one category chip. */
+data class CategoryCount(val category: String, val owned: Int, val total: Int)
+
 /**
  * Pure logic for the in-game menu's Collection tab, mirroring the website's Collection page: one
- * cell per dye of the Dyes tab's list, the owned/total summary, an owned card's badge, and when to
- * explain an empty collection.
+ * cell per dye of the Dyes tab's list, the owned/total summary, an owned card's badge, when to
+ * explain an empty collection, and the category chips and All / Owned / Unowned filter.
  */
 object MenuCollection {
     /** Shown when the player owns none of the dyes. */
@@ -26,6 +32,15 @@ object MenuCollection {
     private const val MULTIPLE_BADGE_PREFIX = "x"
 
     private const val PERCENT_FACTOR = 100.0
+
+    /** The grid's message when the Owned filter leaves no dyes. */
+    private const val NO_OWNED_MESSAGE = "No dyes obtained yet"
+
+    /** The grid's message when the Unowned filter leaves no dyes. */
+    private const val NO_UNOWNED_MESSAGE = "All dyes obtained!"
+
+    /** The grid's message when the filters leave no dyes otherwise. */
+    private const val NO_DYES_MESSAGE = "No dyes found"
 
     /** How many of the [total] dyes the player [owned]. */
     data class CollectionSummary(val owned: Int, val total: Int)
@@ -68,4 +83,39 @@ object MenuCollection {
 
     /** Whether to show [EMPTY_HINT]: none of [cells] is owned. */
     fun showEmptyHint(cells: List<CollectionCell>): Boolean = cells.none { it.owned }
+
+
+    /** The cells in [category] (`null`: every category) that [owned] keeps, in their order. */
+    fun filterCells(cells: List<CollectionCell>, category: String?, owned: OwnedFilter): List<CollectionCell> =
+        cells.filter { (category == null || it.entry.category == category) && matches(it, owned) }
+
+    /**
+     * One count per category of [cells], in the order each category first appears there (the
+     * website's order), over every cell whatever the filters.
+     */
+    fun categoryCounts(cells: List<CollectionCell>): List<CategoryCount> =
+        cells.groupBy { it.entry.category }.map { (category, inCategory) ->
+            CategoryCount(category, owned = inCategory.count { it.owned }, total = inCategory.size)
+        }
+
+    /** A category chip's text, e.g. `Mob Drop 3/19`. */
+    fun categoryChipLabel(c: CategoryCount): String = "${categoryLabel(c.category)} ${c.owned}/${c.total}"
+
+    /** An owned-filter pill's text with how many of [cells] it keeps, e.g. `Owned (2)`. */
+    fun ownedFilterLabel(filter: OwnedFilter, cells: List<CollectionCell>): String =
+        "${filter.label} (${cells.count { matches(it, filter) }})"
+
+    /** What the grid says when the filters leave no cells, like the website. */
+    fun emptyFilterMessage(filter: OwnedFilter): String = when (filter) {
+        OwnedFilter.OWNED -> NO_OWNED_MESSAGE
+        OwnedFilter.UNOWNED -> NO_UNOWNED_MESSAGE
+        OwnedFilter.ALL -> NO_DYES_MESSAGE
+    }
+
+    /** Whether [filter] keeps [cell]. */
+    private fun matches(cell: CollectionCell, filter: OwnedFilter): Boolean = when (filter) {
+        OwnedFilter.ALL -> true
+        OwnedFilter.OWNED -> cell.owned
+        OwnedFilter.UNOWNED -> !cell.owned
+    }
 }

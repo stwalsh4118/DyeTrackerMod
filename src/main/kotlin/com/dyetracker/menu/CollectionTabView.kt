@@ -13,9 +13,11 @@ import net.minecraft.util.Util
 /**
  * Draws the in-game menu's Collection tab once its dyes and collection are loaded, like the
  * website's Collection page: the `N of M Dyes` summary and its percent over an emerald progress
- * bar, the [MenuCollection.EMPTY_HINT] when nothing is owned, then a card per dye in the
- * [DyeTrackerMenuScreen]'s grid. An owned card has an emerald border and a `✓` / `xN` badge; a
- * card not owned is dimmed. Cards aren't clickable and have no hover state.
+ * bar, the [MenuCollection.EMPTY_HINT] when nothing is owned, the filter pills (category chips
+ * with owned/total, then All / Owned / Unowned), then a card per filtered dye in the
+ * [DyeTrackerMenuScreen]'s grid, or [MenuCollection.emptyFilterMessage] when the filters leave
+ * none. An owned card has an emerald border and a `✓` / `xN` badge; a card not owned is dimmed.
+ * Cards aren't clickable and have no hover state.
  */
 internal object CollectionTabView {
 
@@ -25,15 +27,25 @@ internal object CollectionTabView {
         UiTheme.Colors.OWNED_BORDER,
     )
 
-    /** [cells] laid out by [geometry] in [columns] columns, the grid scrolled up by [scroll]. */
+    /**
+     * The summary of all [cells], the [pills] (hover-styled under ([mouseX], [mouseY]); an
+     * unselected chip of a category whose dyes are all owned in emerald text), and the [visible]
+     * cards laid out by [geometry] in [columns] columns, the grid scrolled up by [scroll]; with no
+     * [visible] cards, [ownedFilter]'s empty message centred in the grid area.
+     */
     fun draw(
         screen: DyeTrackerMenuScreen,
         context: GuiGraphicsExtractor,
         font: Font,
         cells: List<CollectionCell>,
+        visible: List<CollectionCell>,
+        pills: List<MenuPill>,
+        ownedFilter: OwnedFilter,
         geometry: CollectionGeometry,
         columns: Int,
         scroll: Int,
+        mouseX: Int,
+        mouseY: Int,
     ) {
         val viewport = geometry.viewport
         val renderCtx = RenderContext(context, Util.getMillis(), false)
@@ -51,8 +63,37 @@ internal object CollectionTabView {
                 alignment = HorizontalAlignment.CENTER,
             )
         }
-        screen.drawCardGrid(context, cells.size, columns, viewport.x, viewport, geometry.contentHeight, scroll) { index, x, y ->
-            drawCard(screen, context, renderCtx, font, cells[index], x, y)
+        drawPills(screen, context, cells, pills, mouseX, mouseY)
+        if (visible.isEmpty()) {
+            screen.drawMessage(context, MenuCollection.emptyFilterMessage(ownedFilter), UiTheme.Colors.TEXT_SUBTLE, viewport)
+            return
+        }
+        screen.drawCardGrid(context, visible.size, columns, viewport.x, viewport, geometry.contentHeight, scroll) { index, x, y ->
+            drawCard(screen, context, renderCtx, font, visible[index], x, y)
+        }
+    }
+
+    /**
+     * [pills], the one under ([mouseX], [mouseY]) hover-styled. A selected pill takes the selected
+     * style; an unselected chip whose category of [cells] is all owned has emerald text.
+     */
+    private fun drawPills(
+        screen: DyeTrackerMenuScreen,
+        context: GuiGraphicsExtractor,
+        cells: List<CollectionCell>,
+        pills: List<MenuPill>,
+        mouseX: Int,
+        mouseY: Int,
+    ) {
+        val complete = MenuCollection.categoryCounts(cells).filter { it.owned == it.total }.map { it.category }.toSet()
+        val hovered = pillAt(pills, mouseX.toDouble(), mouseY.toDouble())
+        for (pill in pills) {
+            val style = when {
+                pill.selected -> DyeTrackerMenuScreen.PillStyle.SELECTED
+                pill.key in complete -> DyeTrackerMenuScreen.PillStyle.COMPLETE
+                else -> DyeTrackerMenuScreen.PillStyle.UNSELECTED
+            }
+            screen.drawPill(context, pill, hovered = pill == hovered, style)
         }
     }
 
