@@ -8,6 +8,7 @@ import com.dyetracker.data.PotionTier
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.dyeprogress.DyeProgressAdder
 import com.dyetracker.dyeprogress.DyeProgressPlacementEditor
+import com.dyetracker.menu.DyeTrackerMenuScreen
 import com.dyetracker.overlay.OverlayAddPipeline
 import com.dyetracker.rotation.DyeSprites
 import com.dyetracker.rotation.RotationPlacementEditor
@@ -308,6 +309,13 @@ object DyeTrackerCommands {
                             1
                         }
                 )
+                .then(
+                    ClientCommands.literal("menu")
+                        .executes { context ->
+                            handleMenuCommand(context.source)
+                            1
+                        }
+                )
                 .executes { context ->
                     showHelp(context.source)
                     1
@@ -393,6 +401,13 @@ object DyeTrackerCommands {
         // Brigadier client commands already execute on the render thread, so no marshal
         // needed. The screen IS the feedback; no chat output here.
         Minecraft.getInstance().showScreen(WidgetEditScreen())
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun handleMenuCommand(source: FabricClientCommandSource) {
+        // Same as handleGifEditCommand: client commands run on the render thread and the
+        // screen is the feedback.
+        Minecraft.getInstance().showScreen(DyeTrackerMenuScreen())
     }
 
     private fun handleRotationToggleCommand(source: FabricClientCommandSource) {
@@ -1111,6 +1126,14 @@ object DyeTrackerCommands {
                 .withStyle(ChatFormatting.YELLOW)
                 .append(
                     Component.literal(" - DVD-bounce your HUD widgets around the screen")
+                        .withStyle(ChatFormatting.GRAY)
+                )
+        )
+        source.sendFeedback(
+            Component.literal("  /dyetracker menu")
+                .withStyle(ChatFormatting.YELLOW)
+                .append(
+                    Component.literal(" - Open the DyeTracker menu")
                         .withStyle(ChatFormatting.GRAY)
                 )
         )

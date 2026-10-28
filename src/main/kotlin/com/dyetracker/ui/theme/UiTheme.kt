@@ -65,6 +65,30 @@ object UiTheme {
 
         /** Neutral (no-accent) icon-box tint, used when no dye accent color is available. */
         const val ICON_BOX_TINT: Int = 0x14_FF_FF_FF.toInt()
+
+        /** In-game menu backdrop; the website's `--color-background-dark` (`#000000`), slightly see-through. */
+        const val MENU_BACKGROUND: Int = 0xF0_00_00_00.toInt()
+
+        /** In-game menu header/surface fill; the website's `--color-surface-dark` (`#0a0a0a`). */
+        const val MENU_SURFACE: Int = 0xFF_0A_0A_0A.toInt()
+
+        /** In-game menu card fill; the website's `--color-card-dark` (`#111111`). */
+        const val CARD_BACKGROUND: Int = 0xFF_11_11_11.toInt()
+
+        /** In-game menu card border; the website Card's `border-white/10`. */
+        const val CARD_BORDER: Int = 0x1A_FF_FF_FF
+
+        /** Primary accent (title, active tab); the website's `--color-primary` (`#e225f4`). */
+        const val ACCENT_PRIMARY: Int = 0xFF_E2_25_F4.toInt()
+
+        /** Secondary accent; the website's `--color-secondary` (`#00f0ff`). */
+        const val ACCENT_SECONDARY: Int = 0xFF_00_F0_FF.toInt()
+
+        /** Subtle text (percentages, status messages); the website's `slate-400` (`#94a3b8`). */
+        const val TEXT_SUBTLE: Int = 0xFF_94_A3_B8.toInt()
+
+        /** Muted text; the website's `slate-500` (`#64748b`). */
+        const val TEXT_MUTED: Int = 0xFF_64_74_8B.toInt()
     }
 
     /** Spacing tokens in GUI pixels. */
