@@ -1,8 +1,22 @@
 package com.dyetracker.menu
 
 import com.dyetracker.ui.core.Rect
+import com.dyetracker.ui.theme.UiTheme
 import kotlin.math.floor
 import kotlin.math.max
+
+/**
+ * Where the Collection tab's parts sit below the profile strip: the summary line at [summaryY],
+ * the progress bar at [barY], the empty hint at [hintY] (`null` when it doesn't show), and the
+ * card grid's [viewport] with its [contentHeight]. The grid's unscrolled top is `viewport.y`.
+ */
+data class CollectionGeometry(
+    val summaryY: Int,
+    val barY: Int,
+    val hintY: Int?,
+    val viewport: Rect,
+    val contentHeight: Int,
+)
 
 /** Sizes (GUI pixels) and card-grid geometry for the in-game DyeTracker menu. */
 object MenuLayout {
@@ -98,6 +112,35 @@ object MenuLayout {
 
     /** How long a Settings row's message after a click (unlinked, synced, nothing to sync) shows, in ms. */
     const val SETTINGS_MESSAGE_MS = 4_000L
+
+    /**
+     * The Collection tab's layout from [top] down, [gridWidth] wide from [left]: the summary line
+     * ([lineHeight] tall), [TEXT_GAP] below it the progress bar, then when [showHint] the hint line
+     * [STRIP_GAP] below the bar, and [OUTER_MARGIN] below that the grid of [itemCount] cards in
+     * [columns] columns, down to [OUTER_MARGIN] above the [screenHeight].
+     */
+    fun collectionGeometry(
+        top: Int,
+        left: Int,
+        gridWidth: Int,
+        screenHeight: Int,
+        lineHeight: Int,
+        showHint: Boolean,
+        itemCount: Int,
+        columns: Int,
+    ): CollectionGeometry {
+        val barY = top + lineHeight + TEXT_GAP
+        val barBottom = barY + UiTheme.Sizing.PROGRESS_BAR_HEIGHT
+        val hintY = if (showHint) barBottom + STRIP_GAP else null
+        val gridTop = (hintY?.let { it + lineHeight } ?: barBottom) + OUTER_MARGIN
+        return CollectionGeometry(
+            summaryY = top,
+            barY = barY,
+            hintY = hintY,
+            viewport = Rect(left, gridTop, gridWidth, screenHeight - gridTop - OUTER_MARGIN),
+            contentHeight = contentHeight(itemCount, columns),
+        )
+    }
 
     /** Horizontal distance from one card's left edge to the next column's. */
     private const val COLUMN_PITCH = CARD_WIDTH + CARD_GAP

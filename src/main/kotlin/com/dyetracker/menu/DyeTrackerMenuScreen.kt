@@ -1,6 +1,7 @@
 package com.dyetracker.menu
 
 import com.dyetracker.api.ApiClient
+import com.dyetracker.api.CollectionEntry
 import com.dyetracker.api.DyeProgressEntry
 import com.dyetracker.api.ProfileSummary
 import com.dyetracker.auth.AccountVerification
@@ -67,16 +68,21 @@ import kotlin.math.roundToInt
  * ([pinDecision]); a short message at the bottom says what happened, and the hovered card hints
  * whether a click would pin it.
  *
- * The header's tab pills switch between the Dyes tab (all of the above) and the Settings tab: one
- * panel of rows (account, sync, the HUD widget toggles, bounce, the layout editor), each control
- * calling what its `/dyetracker` command calls. Settings state is read fresh every frame, so a
- * change made by a command meanwhile shows at once.
+ * The header's tab pills switch between the Dyes tab (all of the above), the Collection tab and
+ * the Settings tab. The Collection tab keeps the profile strip and shows which of the Dyes tab's
+ * dyes the player owns on that profile, like the website's Collection page ([CollectionTabView]);
+ * it fetches the collection on opening the tab and on each profile switch or Refresh while on it,
+ * dropping a result for another profile or one a newer request superseded ([collectionRequest]).
+ * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, the layout
+ * editor), each control calling what its `/dyetracker` command calls. Settings state is read fresh
+ * every frame, so a change made by a command meanwhile shows at once.
  */
 class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /** The menu's tabs, in header order; [label] is the tab pill's text. */
     private enum class MenuTab(val label: String) {
         DYES("Dyes"),
+        COLLECTION("Collection"),
         SETTINGS("Settings"),
     }
 
@@ -118,6 +124,15 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /** A message replacing row [key]'s detail line until [untilMs] ([Util.getMillis] time). */
     private data class RowMessage(val key: SettingsKey, val text: String, val argb: Int, val untilMs: Long)
+
+    /** The Collection tab's fetch for the profile [profileId]. */
+    private sealed class CollectionState {
+        abstract val profileId: String
+
+        data class Loading(override val profileId: String) : CollectionState()
+        data class Loaded(override val profileId: String, val owned: List<CollectionEntry>) : CollectionState()
+        data class Failed(override val profileId: String, val message: String) : CollectionState()
+    }
 
     /** What the content area shows. */
     private sealed class ViewState {
@@ -225,6 +240,25 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /** A load is running, in the background or behind Loading; Refresh is ignored meanwhile. */
     private val fetchRunning: Boolean get() = refreshing || state is ViewState.Loading
 
+    /** The Collection tab's last fetch; `null` until the tab first fetches. */
+    private var collection: CollectionState? = null
+
+    /** Bumped per collection fetch; a posted collection whose request is stale is dropped. */
+    private var collectionRequest = 0
+
+    /** The running collection fetch; cancelled when another starts. */
+    private var collectionJob: Job? = null
+
+    /** Pixels the Collection grid is scrolled up by; apart from the Dyes grid's [scroll]. */
+    private var collectionScroll = 0
+
+    /**
+     * Refresh is ignored: a dyes load runs, or on the Collection tab a collection fetch does. On
+     * the Dyes tab this is just [fetchRunning].
+     */
+    private val refreshBlocked: Boolean
+        get() = fetchRunning || (tab == MenuTab.COLLECTION && collection is CollectionState.Loading)
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun init() {
@@ -316,6 +350,40 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /**
+     * Fetches the collection of the profile the strip shows ([ApiClient.fetchCollection]) on
+     * [Dispatchers.IO] and posts it to the render thread, where it is dropped if the screen
+     * closed, a newer collection fetch started ([collectionRequest]) or the strip moved to another
+     * profile. Before the first load gives the strip a profile there is nothing to fetch;
+     * [applyResult] fetches once it lands. The Collection grid's scroll resets for another profile.
+     */
+    private fun fetchCollection() {
+        val target = strip ?: return
+        val profileId = target.profile.id
+        val myRequest = ++collectionRequest
+        collectionJob?.cancel()
+        if (collection?.profileId != profileId) collectionScroll = 0
+        collection = CollectionState.Loading(profileId)
+        collectionJob = scope.launch {
+            val result = try {
+                ApiClient.fetchCollection(target.username, profileId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                ApiClient.ApiResult.Error("$UNEXPECTED_ERROR_PREFIX${e.message ?: e.javaClass.simpleName}")
+            }
+            Minecraft.getInstance().execute {
+                if (closed || myRequest != collectionRequest) return@execute // closed or superseded
+                if (strip?.profile?.id != profileId) return@execute // the strip moved to another profile
+                collection = when (result) {
+                    is ApiClient.ApiResult.Success -> CollectionState.Loaded(profileId, result.data.dyes)
+                    is ApiClient.ApiResult.Error -> CollectionState.Failed(profileId, result.message)
+                }
+                clampCollectionScroll()
+            }
+        }
+    }
+
+    /**
      * Syncs [data] now and suspends until the sync is done, succeeded or not. A failed sync
      * re-arms the normal debounced sync, since `syncNow` cancelled its pending retry. [attachRearm]
      * hangs the re-arm on the sync's own future and hands back a separate stage to wait on, so
@@ -340,6 +408,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
      * resets when it is another profile than the strip showed (a background full load picked the
      * profile selected in-game). A failed [background] load (or one finding no profiles) keeps the
      * cached dyes on screen and shows "refresh failed"; any other failure replaces the grid area.
+     * On the Collection tab, a loaded profile without a collection fetch yet gets one.
      */
     private fun applyResult(result: MenuLoadResult, background: Boolean) {
         refreshing = false
@@ -353,6 +422,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 if (strip?.profile?.id != result.profile.id) scroll = 0
                 strip = StripState(result.username, result.profiles, result.profile)
                 clampScrollToContent() // a refresh can change how many dyes there are
+                // On the Collection tab, a first load or one landing on another profile needs that profile's collection.
+                if (tab == MenuTab.COLLECTION && collection?.profileId != result.profile.id) fetchCollection()
             }
             background -> refreshFailed = true
             else -> state = result.toViewState()
@@ -379,7 +450,9 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false
         val tabPill = pillAt(tabPills(), click.x(), click.y())
         if (tabPill != null) {
+            val previous = tab
             tab = MenuTab.valueOf(tabPill.key)
+            if (tab == MenuTab.COLLECTION && previous != MenuTab.COLLECTION) fetchCollection()
             return true
         }
         if (tab == MenuTab.SETTINGS) return clickSettings(click.x(), click.y(), doubled)
@@ -391,13 +464,18 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             // The profile pill also works while a switch loads or after it failed, so the player can switch again.
             if (currentStrip.canSwitch && layout.profilePill.rect.contains(click.x(), click.y())) {
                 switchProfile(currentStrip)
+                if (tab == MenuTab.COLLECTION) fetchCollection()
                 return true
             }
             if (layout.refreshPill?.rect?.contains(click.x(), click.y()) == true) {
-                if (!fetchRunning) fetchProfile(currentStrip)
+                if (!refreshBlocked) {
+                    fetchProfile(currentStrip)
+                    if (tab == MenuTab.COLLECTION) fetchCollection()
+                }
                 return true
             }
         }
+        if (tab == MenuTab.COLLECTION) return false // Collection cards aren't clickable
         val loaded = state as? ViewState.Loaded ?: return false // control pills and cards only show over loaded dyes
         val pill = pillAt(grid.pills, click.x(), click.y())
         if (pill != null) {
@@ -536,7 +614,16 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         ConfigManager.rotationPlacements.all().firstOrNull()?.visible ?: RotationWidgetConfig().visible
 
     override fun mouseScrolled(mouseX: Double, mouseY: Double, horizontal: Double, vertical: Double): Boolean {
-        if (tab == MenuTab.SETTINGS) return false // the hidden card grid keeps its scroll
+        if (tab == MenuTab.SETTINGS) return false // the hidden card grids keep their scroll
+        if (tab == MenuTab.COLLECTION) {
+            val geometry = collectionCells()?.let(::collectionGeometry) ?: return false // no grid shows
+            collectionScroll = MenuLayout.clampScroll(
+                collectionScroll - (vertical * MenuLayout.SCROLL_STEP).toInt(),
+                geometry.contentHeight,
+                geometry.viewport.height,
+            )
+            return true
+        }
         val grid = gridGeometry(visibleDyes().size)
         scroll = MenuLayout.clampScroll(
             scroll - (vertical * MenuLayout.SCROLL_STEP).toInt(),
@@ -549,6 +636,39 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     private fun clampScrollToContent() {
         val grid = gridGeometry(visibleDyes().size)
         scroll = MenuLayout.clampScroll(scroll, grid.contentHeight, grid.viewport.height)
+        clampCollectionScroll()
+    }
+
+    /** Keeps [collectionScroll] within the Collection grid; leaves it while no grid shows. */
+    private fun clampCollectionScroll() {
+        val geometry = collectionCells()?.let(::collectionGeometry) ?: return
+        collectionScroll = MenuLayout.clampScroll(collectionScroll, geometry.contentHeight, geometry.viewport.height)
+    }
+
+    /**
+     * The Collection tab's cards: every loaded dye, owned or not, once both the Dyes tab's dyes
+     * and the collection are loaded for the same profile; else `null`.
+     */
+    private fun collectionCells(): List<CollectionCell>? {
+        val loaded = state as? ViewState.Loaded ?: return null
+        val owned = collection as? CollectionState.Loaded ?: return null
+        if (owned.profileId != loaded.result.profile.id) return null
+        return MenuCollection.cells(loaded.result.dyes, owned.owned)
+    }
+
+    /** Where the Collection tab's parts sit for [cells] on the current screen size. */
+    private fun collectionGeometry(cells: List<CollectionCell>): CollectionGeometry {
+        val grid = gridGeometry(cells.size)
+        return MenuLayout.collectionGeometry(
+            top = grid.stripRow.bottom + MenuLayout.STRIP_GAP,
+            left = grid.left,
+            gridWidth = grid.stripRow.width,
+            screenHeight = height,
+            lineHeight = font.lineHeight,
+            showHint = MenuCollection.showEmptyHint(cells),
+            itemCount = cells.size,
+            columns = grid.columns,
+        )
     }
 
     /** The loaded dyes, or none while loading or after a failure. */
@@ -793,6 +913,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         drawHeader(context, mouseX, mouseY)
         when (tab) {
             MenuTab.DYES -> drawDyesTab(context, mouseX, mouseY)
+            MenuTab.COLLECTION -> drawCollectionTab(context, mouseX, mouseY)
             MenuTab.SETTINGS -> drawSettings(context, mouseX, mouseY)
         }
         drawPinMessage(context)
@@ -802,21 +923,57 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     private fun drawDyesTab(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
         val dyes = visibleDyes()
         val grid = gridGeometry(dyes.size)
-        val currentStrip = strip
-        // Messages go below the strip when it shows (a profile switch loading or failing), else below the header.
-        val messageArea = if (currentStrip == null) {
-            Rect(0, MenuLayout.HEADER_HEIGHT, width, height - MenuLayout.HEADER_HEIGHT)
-        } else {
-            drawStrip(context, currentStrip, grid.stripRow, mouseX, mouseY)
-            Rect(0, grid.stripRow.bottom, width, height - grid.stripRow.bottom)
-        }
+        val messageArea = drawStripArea(context, grid.stripRow, mouseX, mouseY)
         when (val current = state) {
-            ViewState.Loading -> drawMessage(context, LOADING_TEXT, UiTheme.Colors.TEXT_SUBTLE, messageArea)
-            is ViewState.NoProfiles ->
-                drawMessage(context, "$NO_PROFILES_PREFIX${current.username}.", UiTheme.Colors.TEXT_SUBTLE, messageArea)
-            is ViewState.Failed ->
-                drawMessage(context, "$FAILED_PREFIX${current.message}", UiTheme.Colors.STATUS_ERROR, messageArea)
             is ViewState.Loaded -> drawDyes(context, dyes, current.result.profile, grid, mouseX, mouseY)
+            else -> drawStateMessage(context, current, messageArea)
+        }
+    }
+
+    /**
+     * The Collection tab: the profile strip, then the collection ([CollectionTabView]) once the
+     * Dyes tab's dyes and the collection are loaded for the strip's profile. Until the dyes are,
+     * the Dyes tab's loading or failure message shows; then the collection's.
+     */
+    private fun drawCollectionTab(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
+        val grid = gridGeometry(loadedDyes().size)
+        val messageArea = drawStripArea(context, grid.stripRow, mouseX, mouseY)
+        val loaded = state as? ViewState.Loaded
+        if (loaded == null) {
+            drawStateMessage(context, state, messageArea)
+            return
+        }
+        when (val current = collection?.takeIf { it.profileId == loaded.result.profile.id }) {
+            null, is CollectionState.Loading ->
+                drawMessage(context, COLLECTION_LOADING_TEXT, UiTheme.Colors.TEXT_SUBTLE, messageArea)
+            is CollectionState.Failed ->
+                drawMessage(context, "$COLLECTION_FAILED_PREFIX${current.message}", UiTheme.Colors.STATUS_ERROR, messageArea)
+            is CollectionState.Loaded -> {
+                val cells = MenuCollection.cells(loaded.result.dyes, current.owned)
+                CollectionTabView.draw(this, context, font, cells, collectionGeometry(cells), grid.columns, collectionScroll)
+            }
+        }
+    }
+
+    /**
+     * The profile strip in [stripRow] when there is one; returns where a message goes: below the
+     * strip when it shows (a profile switch loading or failing), else below the header.
+     */
+    private fun drawStripArea(context: GuiGraphicsExtractor, stripRow: Rect, mouseX: Int, mouseY: Int): Rect {
+        val currentStrip = strip ?: return Rect(0, MenuLayout.HEADER_HEIGHT, width, height - MenuLayout.HEADER_HEIGHT)
+        drawStrip(context, currentStrip, stripRow, mouseX, mouseY)
+        return Rect(0, stripRow.bottom, width, height - stripRow.bottom)
+    }
+
+    /** What the content area says for a [current] Dyes state without loaded dyes, centred in [area]. */
+    private fun drawStateMessage(context: GuiGraphicsExtractor, current: ViewState, area: Rect) {
+        when (current) {
+            ViewState.Loading -> drawMessage(context, LOADING_TEXT, UiTheme.Colors.TEXT_SUBTLE, area)
+            is ViewState.NoProfiles ->
+                drawMessage(context, "$NO_PROFILES_PREFIX${current.username}.", UiTheme.Colors.TEXT_SUBTLE, area)
+            is ViewState.Failed ->
+                drawMessage(context, "$FAILED_PREFIX${current.message}", UiTheme.Colors.STATUS_ERROR, area)
+            is ViewState.Loaded -> Unit // the tab draws loaded dyes itself
         }
     }
 
@@ -894,7 +1051,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /**
      * The profile strip in [row], laid out by [stripLayout]: the username, the profile pill
      * (hover-styled only when it can cycle), the status text, the Refresh pill (hover-styled only
-     * while no load runs, as it is ignored meanwhile), and the totals of every loaded dye.
+     * while it isn't [refreshBlocked], as it is ignored meanwhile), and the totals of every loaded dye.
      */
     private fun drawStrip(context: GuiGraphicsExtractor, strip: StripState, row: Rect, mouseX: Int, mouseY: Int) {
         val textY = row.y + (row.height - font.lineHeight) / 2
@@ -903,7 +1060,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         val x = mouseX.toDouble()
         val y = mouseY.toDouble()
         drawPill(context, layout.profilePill, hovered = strip.canSwitch && layout.profilePill.rect.contains(x, y))
-        layout.refreshPill?.let { drawPill(context, it, hovered = !fetchRunning && it.rect.contains(x, y)) }
+        layout.refreshPill?.let { drawPill(context, it, hovered = !refreshBlocked && it.rect.contains(x, y)) }
         for (text in listOfNotNull(layout.status, layout.totals)) {
             UiDraw.drawText(context, font, text.text, text.x, textY, text.argb)
         }
@@ -999,10 +1156,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /**
-     * The dye cards laid out by [grid], clipped to its viewport and scrolled by [scroll]; only
-     * cards that intersect the viewport are drawn, the hovered one with its [pinHint] for
-     * [profile]. Nothing is drawn when the window leaves the viewport empty (26.2 rejects a
-     * zero-size scissor).
+     * The dye cards laid out by [grid] ([drawCardGrid], scrolled by [scroll]), the hovered one with
+     * its [pinHint] for [profile].
      */
     private fun drawGrid(
         context: GuiGraphicsExtractor,
@@ -1012,8 +1167,6 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         mouseX: Int,
         mouseY: Int,
     ) {
-        val viewport = grid.viewport
-        if (viewport.width <= 0 || viewport.height <= 0) return
         val hovered = MenuLayout.cardIndexAt(
             mouseX.toDouble(),
             mouseY.toDouble(),
@@ -1022,24 +1175,49 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             grid.left,
             grid.top,
             scroll,
-            viewport,
+            grid.viewport,
         )
         val hint = hovered?.let { pinHint(dyes[it], profile) }
         val renderCtx = RenderContext(context, Util.getMillis(), false)
-        context.enableScissor(viewport.x, viewport.y, viewport.right, viewport.bottom)
-        for ((index, entry) in dyes.withIndex()) {
-            val (x, y) = MenuLayout.cardOrigin(index, grid.columns, grid.left, grid.top - scroll)
-            if (y >= viewport.bottom) break // cards are row-ordered, so every later card is below too
-            if (y + MenuLayout.CARD_HEIGHT <= viewport.y) continue
+        drawCardGrid(context, dyes.size, grid.columns, grid.left, grid.viewport, grid.contentHeight, scroll) { index, x, y ->
             val isHovered = index == hovered
-            drawCard(context, renderCtx, entry, x, y, hovered = isHovered, hint = if (isHovered) hint else null)
+            drawCard(context, renderCtx, dyes[index], x, y, hovered = isHovered, hint = if (isHovered) hint else null)
         }
-        context.disableScissor()
-        drawScrollbar(context, viewport, grid.contentHeight)
     }
 
-    /** A thin track right of the grid with a thumb sized and placed by the scroll; only when content overflows. */
-    private fun drawScrollbar(context: GuiGraphicsExtractor, viewport: Rect, contentHeight: Int) {
+    /**
+     * [itemCount] cards in a [columns]-wide grid from ([left], `viewport.y`), clipped to
+     * [viewport] and scrolled up by [scroll], then the scrollbar for [contentHeight]. Only cards
+     * that intersect the viewport are drawn, each by [drawItem] with its index and top-left.
+     * Nothing is drawn when the window leaves the viewport empty (26.2 rejects a zero-size scissor).
+     */
+    internal fun drawCardGrid(
+        context: GuiGraphicsExtractor,
+        itemCount: Int,
+        columns: Int,
+        left: Int,
+        viewport: Rect,
+        contentHeight: Int,
+        scroll: Int,
+        drawItem: (index: Int, x: Int, y: Int) -> Unit,
+    ) {
+        if (viewport.width <= 0 || viewport.height <= 0) return
+        context.enableScissor(viewport.x, viewport.y, viewport.right, viewport.bottom)
+        for (index in 0 until itemCount) {
+            val (x, y) = MenuLayout.cardOrigin(index, columns, left, viewport.y - scroll)
+            if (y >= viewport.bottom) break // cards are row-ordered, so every later card is below too
+            if (y + MenuLayout.CARD_HEIGHT <= viewport.y) continue
+            drawItem(index, x, y)
+        }
+        context.disableScissor()
+        drawScrollbar(context, viewport, contentHeight, scroll)
+    }
+
+    /**
+     * A thin track right of the grid with a thumb sized and placed by [scroll]; only when content
+     * overflows.
+     */
+    private fun drawScrollbar(context: GuiGraphicsExtractor, viewport: Rect, contentHeight: Int, scroll: Int) {
         val maxScroll = contentHeight - viewport.height
         if (maxScroll <= 0) return
         val trackX = viewport.right + MenuLayout.SCROLLBAR_GAP
@@ -1157,7 +1335,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /** The black icon box at ([x], [y]) with the dye's sprite centred in it, when the sprite is loaded. */
-    private fun drawIconBox(context: GuiGraphicsExtractor, renderCtx: RenderContext, dyeId: String, x: Int, y: Int) {
+    internal fun drawIconBox(context: GuiGraphicsExtractor, renderCtx: RenderContext, dyeId: String, x: Int, y: Int) {
         UiDraw.filledBox(
             context,
             x,
@@ -1187,17 +1365,20 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /** Draws [badge] right-aligned to [right] with its top at [top]; returns the badge's left edge. */
-    private fun drawBadge(context: GuiGraphicsExtractor, badge: CardBadge, right: Int, top: Int): Int {
+    private fun drawBadge(context: GuiGraphicsExtractor, badge: CardBadge, right: Int, top: Int): Int =
+        drawBadge(context, badge.label, badgeColors(badge), right, top)
+
+    /** Draws a badge reading [label] in [colors], right-aligned to [right] with its top at [top]; returns its left edge. */
+    internal fun drawBadge(context: GuiGraphicsExtractor, label: String, colors: BadgeColors, right: Int, top: Int): Int {
         val pad = MenuLayout.BADGE_PADDING
-        val boxWidth = scaledWidth(badge.label, MenuLayout.BADGE_SCALE) + 2 * pad
+        val boxWidth = scaledWidth(label, MenuLayout.BADGE_SCALE) + 2 * pad
         val boxHeight = scaledLineHeight(MenuLayout.BADGE_SCALE) + 2 * pad
         val left = right - boxWidth
-        val colors = badgeColors(badge)
         UiDraw.filledBox(context, left, top, boxWidth, boxHeight, colors.background, colors.border)
         UiDraw.drawText(
             context,
             font,
-            badge.label,
+            label,
             left + pad,
             top + pad,
             colors.text,
@@ -1206,7 +1387,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         return left
     }
 
-    private data class BadgeColors(val text: Int, val background: Int, val border: Int)
+    /** A card badge's label [text] color, its [background] fill and its [border]. */
+    internal data class BadgeColors(val text: Int, val background: Int, val border: Int)
 
     private fun badgeColors(badge: CardBadge): BadgeColors = when (badge) {
         CardBadge.MOD -> BadgeColors(
@@ -1227,10 +1409,10 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /** Width of [text] drawn at [scale], rounded the way [UiDraw.drawText] rounds it. */
-    private fun scaledWidth(text: String, scale: Float): Int = (font.width(text) * scale).roundToInt()
+    internal fun scaledWidth(text: String, scale: Float): Int = (font.width(text) * scale).roundToInt()
 
     /** Height of one text line drawn at [scale]. */
-    private fun scaledLineHeight(scale: Float): Int = (font.lineHeight * scale).roundToInt()
+    internal fun scaledLineHeight(scale: Float): Int = (font.lineHeight * scale).roundToInt()
 
     companion object {
         private const val TITLE = "DyeTracker"
@@ -1239,6 +1421,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         private const val FAILED_PREFIX = "Couldn't load your dyes: "
         private const val UNEXPECTED_ERROR_PREFIX = "Unexpected error: "
         private const val EMPTY_FILTER_TEXT = "No dyes in this category."
+        private const val COLLECTION_LOADING_TEXT = "Loading your collection…"
+        private const val COLLECTION_FAILED_PREFIX = "Couldn't load your collection: "
         private const val SORT_LABEL_PREFIX = "Sort: "
         private const val PROFILE_LABEL_PREFIX = "Profile: "
 
