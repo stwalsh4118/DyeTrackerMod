@@ -61,9 +61,11 @@ New features ship for Minecraft **26.1.2** and **26.2**. The **1.21.10** and **1
 | `/dyetracker link <code>` | Link your account using a code from the website |
 | `/dyetracker status` | Check your current link status |
 | `/dyetracker unlink` | Unlink your account |
-| `/dyetracker menu` | Open the in-game DyeTracker menu |
+| `/dyetracker menu` | Open the in-game DyeTracker menu (Minecraft 26.1.2 and 26.2 only) |
 
 ### In-game menu
+
+The menu is in the Minecraft **26.1.2** and **26.2** builds only.
 
 Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu** in **Controls → DyeTracker** (it has no key until you set one).
 
