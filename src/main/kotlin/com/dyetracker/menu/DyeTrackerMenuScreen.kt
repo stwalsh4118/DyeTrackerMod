@@ -4,8 +4,11 @@ import com.dyetracker.api.ApiClient
 import com.dyetracker.api.DyeProgressEntry
 import com.dyetracker.api.ProfileSummary
 import com.dyetracker.client.showScreen
+import com.dyetracker.config.ConfigManager
+import com.dyetracker.data.RngDataStore
 import com.dyetracker.dyeprogress.DyeProgressWidgetView
 import com.dyetracker.rotation.DyeSprites
+import com.dyetracker.sync.SyncManager
 import com.dyetracker.ui.components.ProgressBarWidget
 import com.dyetracker.ui.core.HorizontalAlignment
 import com.dyetracker.ui.core.Rect
@@ -16,8 +19,10 @@ import com.dyetracker.ui.theme.UiTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
@@ -32,14 +37,18 @@ import kotlin.math.roundToInt
 /**
  * The in-game DyeTracker menu (`/dyetracker menu`), styled after the website: a header bar with
  * the title and a tab bar, a profile strip (the player's name, a profile pill that cycles their
- * SkyBlock profiles, and totals), category filter pills and a sort pill (like the website's
- * `CategoryFilters`), over a scrolling grid of the player's own dye cards (styled like the
- * website's `DyeCard`), first for the profile selected in-game. Always loads by the in-game name,
- * linked or not. The filter and sort last while the screen is open, across profile switches.
+ * SkyBlock profiles, how old the data is, a Refresh pill, and totals), category filter pills and
+ * a sort pill (like the website's `CategoryFilters`), over a scrolling grid of the player's own
+ * dye cards (styled like the website's `DyeCard`), first for the profile selected in-game.
+ * Always loads by the in-game name, linked or not. The filter and sort last while the screen is
+ * open, across profile switches.
  *
- * The data loads once per screen via [MenuData.load], and per profile switch via
- * [MenuData.loadProfile], on [Dispatchers.IO]; each result is posted back to the render thread
- * and dropped if the screen was closed or another load started meanwhile ([epoch] guard).
+ * Every loaded profile goes into [MENU_CACHE] for the game session. The first open shows the
+ * player's last viewed profile from it at once and refreshes it in the background, else loads via
+ * [MenuData.load]; a profile switch or Refresh does the same for that profile via
+ * [MenuData.loadProfile]. A linked player's pending mod data is synced first ([shouldSyncFirst]).
+ * Loads run on [Dispatchers.IO]; each result is posted back to the render thread and dropped if
+ * the screen was closed or another load started meanwhile ([epoch] guard).
  */
 class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
@@ -63,6 +72,21 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         /** Whether the profile pill cycles: only with more than one profile. */
         val canSwitch: Boolean get() = profiles.size > 1
     }
+
+    /** One piece of text in the profile strip, drawn at [x] in [argb]. */
+    private data class StripText(val text: String, val x: Int, val argb: Int)
+
+    /**
+     * Where the profile strip's parts sit: the profile pill, then right-aligned the status text
+     * (age, refreshing or refresh failed), the Refresh pill and the totals. An optional part is
+     * `null` when it doesn't apply or doesn't fit.
+     */
+    private data class StripLayout(
+        val profilePill: MenuPill,
+        val status: StripText?,
+        val refreshPill: MenuPill?,
+        val totals: StripText?,
+    )
 
     /**
      * Where the profile strip's row, the control pills below it and the card grid below them sit
@@ -98,6 +122,21 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /** Bumped per load and on [removed]; a posted result whose epoch is stale is dropped. */
     private var epoch = 0
 
+    /** The running load; cancelled when another starts, so a superseded sync-then-fetch stops early. */
+    private var loadJob: Job? = null
+
+    /** When the shown dyes were fetched (epoch ms); meaningful while [state] is Loaded. */
+    private var fetchedAtMs = 0L
+
+    /** A background fetch is running while cached dyes show. */
+    private var refreshing = false
+
+    /** The last background fetch failed; cleared by the next successful load. */
+    private var refreshFailed = false
+
+    /** A load is running, in the background or behind Loading; Refresh is ignored meanwhile. */
+    private val fetchRunning: Boolean get() = refreshing || state is ViewState.Loading
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun init() {
@@ -108,30 +147,64 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         startLoad()
     }
 
+    /** Shows the player's last viewed profile from [MENU_CACHE] and refreshes it, else loads from scratch. */
     private fun startLoad() {
         val username = Minecraft.getInstance().user.name
-        launchLoad { MenuData.load(username, ApiClient::fetchProfiles, ApiClient::fetchDyeProgress) }
+        val cached = MENU_CACHE.lastFor(username)
+        if (cached == null) {
+            launchLoad(background = false) {
+                MenuData.load(username, ApiClient::fetchProfiles, ApiClient::fetchDyeProgress)
+            }
+            return
+        }
+        fetchProfile(StripState(cached.result.username, cached.result.profiles, cached.result.profile))
     }
 
     /**
-     * Cycles the strip to the profile after [current]'s and loads its dyes. The strip shows the
-     * new profile at once while the grid area shows Loading; the filter and sort are kept.
+     * Cycles the strip to the profile after [current]'s and loads its dyes ([fetchProfile]); the
+     * filter and sort are kept.
      */
     private fun switchProfile(current: StripState) {
-        val next = current.copy(profile = MenuData.nextProfile(current.profiles, current.profile))
-        strip = next
         scroll = 0
-        launchLoad { MenuData.loadProfile(next.username, next.profiles, next.profile, ApiClient::fetchDyeProgress) }
+        fetchProfile(current.copy(profile = MenuData.nextProfile(current.profiles, current.profile)))
     }
 
     /**
-     * Shows Loading and runs [load] on [Dispatchers.IO], then posts its result to the render
-     * thread. A newer load or [removed] bumps [epoch] first, so a stale result is dropped.
+     * Shows [target] in the strip and fetches its profile's dyes. A profile in [MENU_CACHE] shows
+     * at once and refreshes in the background; else the grid area shows Loading.
      */
-    private fun launchLoad(load: () -> MenuLoadResult) {
+    private fun fetchProfile(target: StripState) {
+        strip = target
+        val cached = MENU_CACHE.get(target.username, target.profile.id)
+        if (cached != null) {
+            state = ViewState.Loaded(cached.result)
+            fetchedAtMs = cached.fetchedAtMs
+        }
+        launchLoad(background = cached != null) {
+            MenuData.loadProfile(target.username, target.profiles, target.profile, ApiClient::fetchDyeProgress)
+        }
+    }
+
+    /**
+     * Runs [load] on [Dispatchers.IO], after syncing the player's pending mod data when
+     * [shouldSyncFirst], then posts its result to the render thread. A [background] load keeps
+     * the shown dyes (and shows "refreshing…"); otherwise the grid area shows Loading. A newer
+     * load cancels this one and, like [removed], bumps [epoch] first, so a stale result is
+     * dropped even when its blocking call was already in flight.
+     */
+    private fun launchLoad(background: Boolean, load: () -> MenuLoadResult) {
         val myEpoch = ++epoch
-        state = ViewState.Loading
-        scope.launch {
+        loadJob?.cancel()
+        refreshing = background
+        if (!background) state = ViewState.Loading
+        val modData = RngDataStore.getData()
+        val syncFirst = shouldSyncFirst(ConfigManager.config.isLinked(), SyncManager.isSyncPending(), modData.hasData())
+        loadJob = scope.launch {
+            if (syncFirst) {
+                // Fetch once the sync is done, whether it succeeded or not; handle() swallows a failure.
+                SyncManager.syncNow(modData).handle { _, _ -> }.join()
+                ensureActive() // superseded or closed while syncing: skip the fetch
+            }
             val result = try {
                 load()
             } catch (e: CancellationException) {
@@ -141,14 +214,31 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             }
             Minecraft.getInstance().execute {
                 if (myEpoch != epoch) return@execute // stale — screen closed or another load started
-                applyResult(result)
+                applyResult(result, background)
             }
         }
     }
 
-    private fun applyResult(result: MenuLoadResult) {
-        state = result.toViewState()
-        if (result is MenuLoadResult.Loaded) strip = StripState(result.username, result.profiles, result.profile)
+    /**
+     * A loaded result replaces the shown dyes and strip and goes into [MENU_CACHE]. A failed
+     * [background] load keeps the cached dyes on screen and shows "refresh failed"; any other
+     * failure replaces the grid area.
+     */
+    private fun applyResult(result: MenuLoadResult, background: Boolean) {
+        refreshing = false
+        when {
+            result is MenuLoadResult.Loaded -> {
+                val now = System.currentTimeMillis()
+                MENU_CACHE.put(result, now)
+                fetchedAtMs = now
+                refreshFailed = false
+                state = ViewState.Loaded(result)
+                strip = StripState(result.username, result.profiles, result.profile)
+                clampScrollToContent() // a refresh can change how many dyes there are
+            }
+            background -> refreshFailed = true
+            else -> state = result.toViewState()
+        }
     }
 
     private fun MenuLoadResult.toViewState(): ViewState = when (this) {
@@ -170,12 +260,17 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false
         val grid = gridGeometry(visibleDyes().size)
         val currentStrip = strip
-        // The profile pill also works while a switch loads or after it failed, so the player can switch again.
-        if (currentStrip != null && currentStrip.canSwitch &&
-            profilePill(currentStrip, grid.stripRow).rect.contains(click.x(), click.y())
-        ) {
-            switchProfile(currentStrip)
-            return true
+        if (currentStrip != null) {
+            val layout = stripLayout(currentStrip, grid.stripRow)
+            // The profile pill also works while a switch loads or after it failed, so the player can switch again.
+            if (currentStrip.canSwitch && layout.profilePill.rect.contains(click.x(), click.y())) {
+                switchProfile(currentStrip)
+                return true
+            }
+            if (layout.refreshPill?.rect?.contains(click.x(), click.y()) == true) {
+                if (!fetchRunning) fetchProfile(currentStrip)
+                return true
+            }
         }
         if (state !is ViewState.Loaded) return false // control pills are only shown over loaded dyes
         val pill = pillAt(grid.pills, click.x(), click.y()) ?: return false
@@ -226,21 +321,65 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /**
-     * The strip's profile pill, after the username in [row] and centred in it: `Profile: <name> ▸`
-     * when [strip] can cycle, else without the arrow. Never selected-styled.
+     * The strip's parts in [row], vertically centred, [MenuLayout.STRIP_ITEM_GAP] apart.
+     *
+     * After the username, the profile pill: `Profile: <name> ▸` when [strip] can cycle, else
+     * without the arrow, its name shortened with `…` so it ends before the Refresh pill (or the
+     * row's end). Right-aligned: the status text, the Refresh pill, then the totals. The Refresh
+     * pill always shows unless not even `Profile:  ▸` fits beside it; the status and totals show
+     * only over loaded dyes, and when space is short the totals go first, then the status text.
+     * No pill is selected-styled.
      */
-    private fun profilePill(strip: StripState, row: Rect): MenuPill {
-        val label = buildString {
-            append(PROFILE_LABEL_PREFIX).append(strip.profile.cuteName)
+    private fun stripLayout(strip: StripState, row: Rect): StripLayout {
+        val measure: (String) -> Int = { font.width(it) }
+        val gap = MenuLayout.STRIP_ITEM_GAP
+        val pillY = row.y + (row.height - MenuLayout.PILL_HEIGHT) / 2
+        val profileX = row.x + font.width(strip.username) + gap
+        val profileFrame = PROFILE_LABEL_PREFIX + if (strip.canSwitch) PROFILE_CYCLE_SUFFIX else ""
+        val frameWidth = pillWidth(profileFrame, measure) // the profile pill with an empty name
+        val refreshWidth = pillWidth(REFRESH_LABEL, measure)
+        val showRefresh = profileX + frameWidth + gap + refreshWidth <= row.right
+        val profileMaxRight = if (showRefresh) row.right - refreshWidth - gap else row.right
+        val name = MenuCards.fitText(strip.profile.cuteName, profileMaxRight - profileX - frameWidth, measure)
+        val profileLabel = buildString {
+            append(PROFILE_LABEL_PREFIX).append(name)
             if (strip.canSwitch) append(PROFILE_CYCLE_SUFFIX)
         }
-        val rect = Rect(
-            row.x + font.width(strip.username) + MenuLayout.STRIP_ITEM_GAP,
-            row.y + (row.height - MenuLayout.PILL_HEIGHT) / 2,
-            pillWidth(label) { font.width(it) },
-            MenuLayout.PILL_HEIGHT,
+        val profilePill = MenuPill(
+            PROFILE_PILL_KEY,
+            profileLabel,
+            Rect(profileX, pillY, pillWidth(profileLabel, measure), MenuLayout.PILL_HEIGHT),
+            selected = false,
         )
-        return MenuPill(PROFILE_PILL_KEY, label, rect, selected = false)
+        if (!showRefresh) return StripLayout(profilePill, status = null, refreshPill = null, totals = null)
+
+        val loaded = state as? ViewState.Loaded
+        var spare = row.right - (profilePill.rect.right + gap + refreshWidth)
+        val status = loaded?.let { statusText() }?.takeIf { (text, _) -> font.width(text) + gap <= spare }
+        if (status != null) spare -= font.width(status.first) + gap
+        val totals = loaded?.let { MenuData.totalsText(MenuData.totals(it.result.dyes)) }
+            ?.takeIf { font.width(it) + gap <= spare }
+
+        var right = row.right
+        val totalsText = totals?.let { StripText(it, right - font.width(it), UiTheme.Colors.TEXT_SUBTLE) }
+        if (totalsText != null) right = totalsText.x - gap
+        val refreshPill = MenuPill(
+            REFRESH_PILL_KEY,
+            REFRESH_LABEL,
+            Rect(right - refreshWidth, pillY, refreshWidth, MenuLayout.PILL_HEIGHT),
+            selected = false,
+        )
+        val statusText = status?.let { (text, argb) ->
+            StripText(text, refreshPill.rect.x - gap - font.width(text), argb)
+        }
+        return StripLayout(profilePill, statusText, refreshPill, totalsText)
+    }
+
+    /** The strip's status text and its color: "refreshing…", else "refresh failed", else the data's age. */
+    private fun statusText(): Pair<String, Int> = when {
+        refreshing -> REFRESHING_TEXT to UiTheme.Colors.TEXT_MUTED
+        refreshFailed -> REFRESH_FAILED_TEXT to UiTheme.Colors.STATUS_ERROR
+        else -> formatAge(System.currentTimeMillis(), fetchedAtMs) to UiTheme.Colors.TEXT_MUTED
     }
 
     /**
@@ -308,28 +447,21 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /**
-     * The profile strip in [row]: the username, the profile pill (hover-styled only when it can
-     * cycle), and the totals of every loaded dye right-aligned. Totals show only over loaded dyes
-     * (not while a switch loads or after it failed) and only when they fit beside the pill.
+     * The profile strip in [row], laid out by [stripLayout]: the username, the profile pill
+     * (hover-styled only when it can cycle), the status text, the Refresh pill (hover-styled only
+     * while no load runs, as it is ignored meanwhile), and the totals of every loaded dye.
      */
     private fun drawStrip(context: GuiGraphicsExtractor, strip: StripState, row: Rect, mouseX: Int, mouseY: Int) {
         val textY = row.y + (row.height - font.lineHeight) / 2
         UiDraw.drawText(context, font, strip.username, row.x, textY, UiTheme.Colors.TEXT_PRIMARY)
-        val pill = profilePill(strip, row)
-        drawPill(context, pill, hovered = strip.canSwitch && pill.rect.contains(mouseX.toDouble(), mouseY.toDouble()))
-        val loaded = state as? ViewState.Loaded ?: return
-        val totals = MenuData.totalsText(MenuData.totals(loaded.result.dyes))
-        if (row.right - font.width(totals) < pill.rect.right + MenuLayout.STRIP_ITEM_GAP) return
-        UiDraw.drawText(
-            context,
-            font,
-            totals,
-            row.x,
-            textY,
-            UiTheme.Colors.TEXT_SUBTLE,
-            availableWidth = row.width,
-            alignment = HorizontalAlignment.END,
-        )
+        val layout = stripLayout(strip, row)
+        val x = mouseX.toDouble()
+        val y = mouseY.toDouble()
+        drawPill(context, layout.profilePill, hovered = strip.canSwitch && layout.profilePill.rect.contains(x, y))
+        layout.refreshPill?.let { drawPill(context, it, hovered = !fetchRunning && it.rect.contains(x, y)) }
+        for (text in listOfNotNull(layout.status, layout.totals)) {
+            UiDraw.drawText(context, font, text.text, text.x, textY, text.argb)
+        }
     }
 
     /** The control pills, then [dyes] in the grid laid out by [grid], or a note when the filter leaves no dyes. */
@@ -637,5 +769,16 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
         /** [MenuPill.key] of the strip's profile pill. */
         private const val PROFILE_PILL_KEY = "profile"
+
+        /** [MenuPill.key] of the strip's Refresh pill. */
+        private const val REFRESH_PILL_KEY = "refresh"
+
+        private const val REFRESH_LABEL = "Refresh"
+
+        /** The strip's status text while a background fetch runs. */
+        private const val REFRESHING_TEXT = "refreshing…"
+
+        /** The strip's status text after a background fetch failed, until the next success. */
+        private const val REFRESH_FAILED_TEXT = "refresh failed"
     }
 }
