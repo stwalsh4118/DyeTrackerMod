@@ -2,6 +2,7 @@ package com.dyetracker.menu
 
 import com.dyetracker.api.ApiClient
 import com.dyetracker.api.DyeProgressEntry
+import com.dyetracker.api.ProfileSummary
 import com.dyetracker.client.showScreen
 import com.dyetracker.dyeprogress.DyeProgressWidgetView
 import com.dyetracker.rotation.DyeSprites
@@ -30,13 +31,15 @@ import kotlin.math.roundToInt
 
 /**
  * The in-game DyeTracker menu (`/dyetracker menu`), styled after the website: a header bar with
- * the title and a tab bar, category filter pills and a sort pill (like the website's
+ * the title and a tab bar, a profile strip (the player's name, a profile pill that cycles their
+ * SkyBlock profiles, and totals), category filter pills and a sort pill (like the website's
  * `CategoryFilters`), over a scrolling grid of the player's own dye cards (styled like the
- * website's `DyeCard`) for the profile selected in-game. Always loads by the in-game name,
- * linked or not. The filter and sort last while the screen is open.
+ * website's `DyeCard`), first for the profile selected in-game. Always loads by the in-game name,
+ * linked or not. The filter and sort last while the screen is open, across profile switches.
  *
- * The data loads once per screen via [MenuData.load] on [Dispatchers.IO]; the result is posted
- * back to the render thread and dropped if the screen was closed meanwhile ([epoch] guard).
+ * The data loads once per screen via [MenuData.load], and per profile switch via
+ * [MenuData.loadProfile], on [Dispatchers.IO]; each result is posted back to the render thread
+ * and dropped if the screen was closed or another load started meanwhile ([epoch] guard).
  */
 class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
@@ -49,10 +52,24 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /**
-     * Where the control pills and the card grid below them sit for the current screen size, and
-     * how tall the grid's content is.
+     * What the profile strip shows: kept apart from [ViewState] so the strip stays up, showing the
+     * profile being switched to, while the grid area shows a profile switch's Loading or failure.
+     */
+    private data class StripState(
+        val username: String,
+        val profiles: List<ProfileSummary>,
+        val profile: ProfileSummary,
+    ) {
+        /** Whether the profile pill cycles: only with more than one profile. */
+        val canSwitch: Boolean get() = profiles.size > 1
+    }
+
+    /**
+     * Where the profile strip's row, the control pills below it and the card grid below them sit
+     * for the current screen size, and how tall the grid's content is.
      */
     private data class GridGeometry(
+        val stripRow: Rect,
         val pills: List<MenuPill>,
         val columns: Int,
         val left: Int,
@@ -62,6 +79,9 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     )
 
     private var state: ViewState = ViewState.Loading
+
+    /** The profile strip; `null` until the first load succeeds (then never cleared). */
+    private var strip: StripState? = null
 
     /** Pixels the card grid is scrolled up by, kept within [MenuLayout.clampScroll]. */
     private var scroll = 0
@@ -89,22 +109,46 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     private fun startLoad() {
+        val username = Minecraft.getInstance().user.name
+        launchLoad { MenuData.load(username, ApiClient::fetchProfiles, ApiClient::fetchDyeProgress) }
+    }
+
+    /**
+     * Cycles the strip to the profile after [current]'s and loads its dyes. The strip shows the
+     * new profile at once while the grid area shows Loading; the filter and sort are kept.
+     */
+    private fun switchProfile(current: StripState) {
+        val next = current.copy(profile = MenuData.nextProfile(current.profiles, current.profile))
+        strip = next
+        scroll = 0
+        launchLoad { MenuData.loadProfile(next.username, next.profiles, next.profile, ApiClient::fetchDyeProgress) }
+    }
+
+    /**
+     * Shows Loading and runs [load] on [Dispatchers.IO], then posts its result to the render
+     * thread. A newer load or [removed] bumps [epoch] first, so a stale result is dropped.
+     */
+    private fun launchLoad(load: () -> MenuLoadResult) {
         val myEpoch = ++epoch
         state = ViewState.Loading
-        val username = Minecraft.getInstance().user.name
         scope.launch {
             val result = try {
-                MenuData.load(username, ApiClient::fetchProfiles, ApiClient::fetchDyeProgress)
+                load()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 MenuLoadResult.Failed("$UNEXPECTED_ERROR_PREFIX${e.message ?: e.javaClass.simpleName}")
             }
             Minecraft.getInstance().execute {
-                if (myEpoch != epoch) return@execute // stale — screen closed or reloaded
-                state = result.toViewState()
+                if (myEpoch != epoch) return@execute // stale — screen closed or another load started
+                applyResult(result)
             }
         }
+    }
+
+    private fun applyResult(result: MenuLoadResult) {
+        state = result.toViewState()
+        if (result is MenuLoadResult.Loaded) strip = StripState(result.username, result.profiles, result.profile)
     }
 
     private fun MenuLoadResult.toViewState(): ViewState = when (this) {
@@ -124,8 +168,17 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     override fun mouseClicked(click: MouseButtonEvent, doubled: Boolean): Boolean {
         if (super.mouseClicked(click, doubled)) return true
         if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false
-        if (state !is ViewState.Loaded) return false // pills are only shown over loaded dyes
-        val pill = pillAt(gridGeometry(visibleDyes().size).pills, click.x(), click.y()) ?: return false
+        val grid = gridGeometry(visibleDyes().size)
+        val currentStrip = strip
+        // The profile pill also works while a switch loads or after it failed, so the player can switch again.
+        if (currentStrip != null && currentStrip.canSwitch &&
+            profilePill(currentStrip, grid.stripRow).rect.contains(click.x(), click.y())
+        ) {
+            switchProfile(currentStrip)
+            return true
+        }
+        if (state !is ViewState.Loaded) return false // control pills are only shown over loaded dyes
+        val pill = pillAt(grid.pills, click.x(), click.y()) ?: return false
         when (pill.key) {
             SORT_PILL_KEY -> sort = sort.next()
             ALL_PILL_KEY -> category = null
@@ -157,26 +210,46 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     private fun visibleDyes(): List<DyeProgressEntry> = applyFilters(loadedDyes(), category, sort)
 
     /**
-     * The control pills below the header and the grid for [itemCount] cards below them, both
-     * centred horizontally and as wide as the grid.
+     * The profile strip's row below the header, the control pills below it and the grid for
+     * [itemCount] cards below them, all centred horizontally and as wide as the grid.
      */
     private fun gridGeometry(itemCount: Int): GridGeometry {
         val columns = MenuLayout.columns(width - 2 * MenuLayout.OUTER_MARGIN)
         val gridWidth = MenuLayout.gridWidth(columns)
         val left = (width - gridWidth) / 2
-        val pills = controlPills(left, gridWidth)
+        val stripTop = MenuLayout.HEADER_HEIGHT + MenuLayout.OUTER_MARGIN
+        val stripRow = Rect(left, stripTop, gridWidth, MenuLayout.STRIP_HEIGHT)
+        val pills = controlPills(left, gridWidth, stripRow.bottom + MenuLayout.STRIP_GAP)
         val top = pills.maxOf { it.rect.bottom } + MenuLayout.OUTER_MARGIN
         val viewport = Rect(left, top, gridWidth, height - top - MenuLayout.OUTER_MARGIN)
-        return GridGeometry(pills, columns, left, top, viewport, MenuLayout.contentHeight(itemCount, columns))
+        return GridGeometry(stripRow, pills, columns, left, top, viewport, MenuLayout.contentHeight(itemCount, columns))
     }
 
     /**
-     * The category pills ("All Dyes" first), wrapping within [gridWidth] from [left], and the sort
-     * pill right-aligned on the first row. The first category row leaves room for the widest sort
-     * label, so cycling the sort never reflows the pills; later rows use the full grid width.
+     * The strip's profile pill, after the username in [row] and centred in it: `Profile: <name> ▸`
+     * when [strip] can cycle, else without the arrow. Never selected-styled.
      */
-    private fun controlPills(left: Int, gridWidth: Int): List<MenuPill> {
-        val top = MenuLayout.HEADER_HEIGHT + MenuLayout.OUTER_MARGIN
+    private fun profilePill(strip: StripState, row: Rect): MenuPill {
+        val label = buildString {
+            append(PROFILE_LABEL_PREFIX).append(strip.profile.cuteName)
+            if (strip.canSwitch) append(PROFILE_CYCLE_SUFFIX)
+        }
+        val rect = Rect(
+            row.x + font.width(strip.username) + MenuLayout.STRIP_ITEM_GAP,
+            row.y + (row.height - MenuLayout.PILL_HEIGHT) / 2,
+            pillWidth(label) { font.width(it) },
+            MenuLayout.PILL_HEIGHT,
+        )
+        return MenuPill(PROFILE_PILL_KEY, label, rect, selected = false)
+    }
+
+    /**
+     * The category pills ("All Dyes" first), wrapping within [gridWidth] from ([left], [top]), and
+     * the sort pill right-aligned on the first row. The first category row leaves room for the
+     * widest sort label, so cycling the sort never reflows the pills; later rows use the full grid
+     * width.
+     */
+    private fun controlPills(left: Int, gridWidth: Int, top: Int): List<MenuPill> {
         val measure: (String) -> Int = { font.width(it) }
         val categoryLabels = (listOf<String?>(null) + MENU_CATEGORIES)
             .map { (it ?: ALL_PILL_KEY) to categoryLabel(it) }
@@ -214,20 +287,59 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     override fun extractRenderState(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
         super.extractRenderState(context, mouseX, mouseY, delta)
         drawHeader(context)
+        val dyes = visibleDyes()
+        val grid = gridGeometry(dyes.size)
+        val currentStrip = strip
+        // Messages go below the strip when it shows (a profile switch loading or failing), else below the header.
+        val messageArea = if (currentStrip == null) {
+            Rect(0, MenuLayout.HEADER_HEIGHT, width, height - MenuLayout.HEADER_HEIGHT)
+        } else {
+            drawStrip(context, currentStrip, grid.stripRow, mouseX, mouseY)
+            Rect(0, grid.stripRow.bottom, width, height - grid.stripRow.bottom)
+        }
         when (val current = state) {
-            ViewState.Loading -> drawMessage(context, LOADING_TEXT, UiTheme.Colors.TEXT_SUBTLE)
+            ViewState.Loading -> drawMessage(context, LOADING_TEXT, UiTheme.Colors.TEXT_SUBTLE, messageArea)
             is ViewState.NoProfiles ->
-                drawMessage(context, "$NO_PROFILES_PREFIX${current.username}.", UiTheme.Colors.TEXT_SUBTLE)
+                drawMessage(context, "$NO_PROFILES_PREFIX${current.username}.", UiTheme.Colors.TEXT_SUBTLE, messageArea)
             is ViewState.Failed ->
-                drawMessage(context, "$FAILED_PREFIX${current.message}", UiTheme.Colors.STATUS_ERROR)
-            is ViewState.Loaded -> drawDyes(context, mouseX, mouseY)
+                drawMessage(context, "$FAILED_PREFIX${current.message}", UiTheme.Colors.STATUS_ERROR, messageArea)
+            is ViewState.Loaded -> drawDyes(context, dyes, grid, mouseX, mouseY)
         }
     }
 
-    /** The control pills, then the filtered grid, or a note when the filter leaves no dyes. */
-    private fun drawDyes(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
-        val dyes = visibleDyes()
-        val grid = gridGeometry(dyes.size)
+    /**
+     * The profile strip in [row]: the username, the profile pill (hover-styled only when it can
+     * cycle), and the totals of every loaded dye right-aligned. Totals show only over loaded dyes
+     * (not while a switch loads or after it failed) and only when they fit beside the pill.
+     */
+    private fun drawStrip(context: GuiGraphicsExtractor, strip: StripState, row: Rect, mouseX: Int, mouseY: Int) {
+        val textY = row.y + (row.height - font.lineHeight) / 2
+        UiDraw.drawText(context, font, strip.username, row.x, textY, UiTheme.Colors.TEXT_PRIMARY)
+        val pill = profilePill(strip, row)
+        drawPill(context, pill, hovered = strip.canSwitch && pill.rect.contains(mouseX.toDouble(), mouseY.toDouble()))
+        val loaded = state as? ViewState.Loaded ?: return
+        val totals = MenuData.totalsText(MenuData.totals(loaded.result.dyes))
+        if (row.right - font.width(totals) < pill.rect.right + MenuLayout.STRIP_ITEM_GAP) return
+        UiDraw.drawText(
+            context,
+            font,
+            totals,
+            row.x,
+            textY,
+            UiTheme.Colors.TEXT_SUBTLE,
+            availableWidth = row.width,
+            alignment = HorizontalAlignment.END,
+        )
+    }
+
+    /** The control pills, then [dyes] in the grid laid out by [grid], or a note when the filter leaves no dyes. */
+    private fun drawDyes(
+        context: GuiGraphicsExtractor,
+        dyes: List<DyeProgressEntry>,
+        grid: GridGeometry,
+        mouseX: Int,
+        mouseY: Int,
+    ) {
         val hoveredPill = pillAt(grid.pills, mouseX.toDouble(), mouseY.toDouble())
         for (pill in grid.pills) drawPill(context, pill, hovered = pill == hoveredPill)
         if (dyes.isEmpty()) {
@@ -281,13 +393,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         )
     }
 
-    /** One line of [text], centred in [area] (by default the content area below the header). */
-    private fun drawMessage(
-        context: GuiGraphicsExtractor,
-        text: String,
-        argb: Int,
-        area: Rect = Rect(0, MenuLayout.HEADER_HEIGHT, width, height - MenuLayout.HEADER_HEIGHT),
-    ) {
+    /** One line of [text], centred in [area]. */
+    private fun drawMessage(context: GuiGraphicsExtractor, text: String, argb: Int, area: Rect) {
         UiDraw.drawText(
             context,
             font,
@@ -517,11 +624,18 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         private const val UNEXPECTED_ERROR_PREFIX = "Unexpected error: "
         private const val EMPTY_FILTER_TEXT = "No dyes in this category."
         private const val SORT_LABEL_PREFIX = "Sort: "
+        private const val PROFILE_LABEL_PREFIX = "Profile: "
+
+        /** Ends the profile pill's label when it cycles (2+ profiles). */
+        private const val PROFILE_CYCLE_SUFFIX = " ▸"
 
         /** [MenuPill.key] of the "All Dyes" pill; every other category pill's key is its category id. */
         private const val ALL_PILL_KEY = "all"
 
         /** [MenuPill.key] of the sort pill. */
         private const val SORT_PILL_KEY = "sort"
+
+        /** [MenuPill.key] of the strip's profile pill. */
+        private const val PROFILE_PILL_KEY = "profile"
     }
 }

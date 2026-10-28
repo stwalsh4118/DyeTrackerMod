@@ -78,6 +78,15 @@ object MenuLayout {
     /** Gap between neighbouring pills, both axes. */
     const val PILL_GAP = 4
 
+    /** Height of the profile strip (name, profile pill, totals) between the header and the control pills. */
+    const val STRIP_HEIGHT = 20
+
+    /** Gap between the profile strip and the control pills below it. */
+    const val STRIP_GAP = 8
+
+    /** Horizontal gap between the strip's name and its profile pill, and the least before its totals. */
+    const val STRIP_ITEM_GAP = TEXT_GAP * 2
+
     /** Horizontal distance from one card's left edge to the next column's. */
     private const val COLUMN_PITCH = CARD_WIDTH + CARD_GAP
 
