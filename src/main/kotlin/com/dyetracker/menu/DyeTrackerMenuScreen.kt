@@ -21,16 +21,19 @@ import kotlinx.coroutines.launch
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.screens.Screen
+import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
 import net.minecraft.util.Util
+import org.lwjgl.glfw.GLFW
 import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
  * The in-game DyeTracker menu (`/dyetracker menu`), styled after the website: a header bar with
- * the title and a tab bar, over a scrolling grid of the player's own dye cards (styled like the
+ * the title and a tab bar, category filter pills and a sort pill (like the website's
+ * `CategoryFilters`), over a scrolling grid of the player's own dye cards (styled like the
  * website's `DyeCard`) for the profile selected in-game. Always loads by the in-game name,
- * linked or not.
+ * linked or not. The filter and sort last while the screen is open.
  *
  * The data loads once per screen via [MenuData.load] on [Dispatchers.IO]; the result is posted
  * back to the render thread and dropped if the screen was closed meanwhile ([epoch] guard).
@@ -45,8 +48,12 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         data class Failed(val message: String) : ViewState()
     }
 
-    /** Where the card grid sits for the current screen size, and how tall its content is. */
+    /**
+     * Where the control pills and the card grid below them sit for the current screen size, and
+     * how tall the grid's content is.
+     */
     private data class GridGeometry(
+        val pills: List<MenuPill>,
         val columns: Int,
         val left: Int,
         val top: Int,
@@ -58,6 +65,12 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /** Pixels the card grid is scrolled up by, kept within [MenuLayout.clampScroll]. */
     private var scroll = 0
+
+    /** Category the grid is filtered to; `null` shows every dye. */
+    private var category: String? = null
+
+    /** Order of the grid's cards; the sort pill cycles it. */
+    private var sort = MenuSort.DEFAULT
 
     /** Set on the first [init]; resize re-inits must not reload. */
     private var started = false
@@ -108,8 +121,22 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     override fun isPauseScreen(): Boolean = false
 
+    override fun mouseClicked(click: MouseButtonEvent, doubled: Boolean): Boolean {
+        if (super.mouseClicked(click, doubled)) return true
+        if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false
+        if (state !is ViewState.Loaded) return false // pills are only shown over loaded dyes
+        val pill = pillAt(gridGeometry(visibleDyes().size).pills, click.x(), click.y()) ?: return false
+        when (pill.key) {
+            SORT_PILL_KEY -> sort = sort.next()
+            ALL_PILL_KEY -> category = null
+            else -> category = pill.key
+        }
+        scroll = 0
+        return true
+    }
+
     override fun mouseScrolled(mouseX: Double, mouseY: Double, horizontal: Double, vertical: Double): Boolean {
-        val grid = gridGeometry(loadedDyes().size)
+        val grid = gridGeometry(visibleDyes().size)
         scroll = MenuLayout.clampScroll(
             scroll - (vertical * MenuLayout.SCROLL_STEP).toInt(),
             grid.contentHeight,
@@ -119,22 +146,54 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     private fun clampScrollToContent() {
-        val grid = gridGeometry(loadedDyes().size)
+        val grid = gridGeometry(visibleDyes().size)
         scroll = MenuLayout.clampScroll(scroll, grid.contentHeight, grid.viewport.height)
     }
 
     /** The loaded dyes, or none while loading or after a failure. */
     private fun loadedDyes(): List<DyeProgressEntry> = (state as? ViewState.Loaded)?.result?.dyes.orEmpty()
 
-    /** The card grid for [itemCount] cards, centred horizontally below the header. */
+    /** The loaded dyes in the selected [category], ordered by [sort]: what the grid shows. */
+    private fun visibleDyes(): List<DyeProgressEntry> = applyFilters(loadedDyes(), category, sort)
+
+    /**
+     * The control pills below the header and the grid for [itemCount] cards below them, both
+     * centred horizontally and as wide as the grid.
+     */
     private fun gridGeometry(itemCount: Int): GridGeometry {
         val columns = MenuLayout.columns(width - 2 * MenuLayout.OUTER_MARGIN)
         val gridWidth = MenuLayout.gridWidth(columns)
         val left = (width - gridWidth) / 2
-        val top = MenuLayout.HEADER_HEIGHT + MenuLayout.OUTER_MARGIN
+        val pills = controlPills(left, gridWidth)
+        val top = pills.maxOf { it.rect.bottom } + MenuLayout.OUTER_MARGIN
         val viewport = Rect(left, top, gridWidth, height - top - MenuLayout.OUTER_MARGIN)
-        return GridGeometry(columns, left, top, viewport, MenuLayout.contentHeight(itemCount, columns))
+        return GridGeometry(pills, columns, left, top, viewport, MenuLayout.contentHeight(itemCount, columns))
     }
+
+    /**
+     * The category pills ("All Dyes" first), wrapping within [gridWidth] from [left], and the sort
+     * pill right-aligned on the first row. The category rows leave room for the widest sort label,
+     * so cycling the sort never reflows them.
+     */
+    private fun controlPills(left: Int, gridWidth: Int): List<MenuPill> {
+        val top = MenuLayout.HEADER_HEIGHT + MenuLayout.OUTER_MARGIN
+        val measure: (String) -> Int = { font.width(it) }
+        val categoryLabels = (listOf<String?>(null) + MENU_CATEGORIES)
+            .map { (it ?: ALL_PILL_KEY) to categoryLabel(it) }
+        val sortReserve = MenuSort.entries.maxOf { pillWidth(sortLabel(it), measure) } + MenuLayout.PILL_GAP
+        val selectedKey = category ?: ALL_PILL_KEY
+        val placed = layoutPills(categoryLabels, measure, left, top, gridWidth - sortReserve)
+        val categoryPills = categoryLabels.zip(placed) { (key, label), (_, rect) ->
+            MenuPill(key, label, rect, selected = key == selectedKey)
+        }
+        val sortText = sortLabel(sort)
+        val sortWidth = pillWidth(sortText, measure)
+        val sortRect = Rect(left + gridWidth - sortWidth, top, sortWidth, MenuLayout.PILL_HEIGHT)
+        return categoryPills + MenuPill(SORT_PILL_KEY, sortText, sortRect, selected = false)
+    }
+
+    /** The sort pill's text for [option], e.g. `Sort: Default`. */
+    private fun sortLabel(option: MenuSort): String = "$SORT_LABEL_PREFIX${option.label}"
 
     override fun onClose() {
         Minecraft.getInstance().showScreen(null)
@@ -154,8 +213,47 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 drawMessage(context, "$NO_PROFILES_PREFIX${current.username}.", UiTheme.Colors.TEXT_SUBTLE)
             is ViewState.Failed ->
                 drawMessage(context, "$FAILED_PREFIX${current.message}", UiTheme.Colors.STATUS_ERROR)
-            is ViewState.Loaded -> drawGrid(context, current.result.dyes, mouseX, mouseY)
+            is ViewState.Loaded -> drawDyes(context, mouseX, mouseY)
         }
+    }
+
+    /** The control pills, then the filtered grid, or a note when the filter leaves no dyes. */
+    private fun drawDyes(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
+        val dyes = visibleDyes()
+        val grid = gridGeometry(dyes.size)
+        val hoveredPill = pillAt(grid.pills, mouseX.toDouble(), mouseY.toDouble())
+        for (pill in grid.pills) drawPill(context, pill, hovered = pill == hoveredPill)
+        if (dyes.isEmpty()) {
+            drawMessage(context, EMPTY_FILTER_TEXT, UiTheme.Colors.TEXT_SUBTLE, grid.viewport)
+            return
+        }
+        drawGrid(context, dyes, grid, mouseX, mouseY)
+    }
+
+    /**
+     * One pill, like the website's `Button`: white with black text when selected, else a card
+     * fill and border whose border and text brighten on hover. The label is centred.
+     */
+    private fun drawPill(context: GuiGraphicsExtractor, pill: MenuPill, hovered: Boolean) {
+        val (fill, border, text) = when {
+            pill.selected ->
+                Triple(UiTheme.Colors.PILL_SELECTED_BG, UiTheme.Colors.PILL_SELECTED_BG, UiTheme.Colors.PILL_SELECTED_TEXT)
+            hovered -> Triple(UiTheme.Colors.CARD_BACKGROUND, UiTheme.Colors.PILL_HOVER_BORDER, UiTheme.Colors.TEXT_PRIMARY)
+            else -> Triple(UiTheme.Colors.CARD_BACKGROUND, UiTheme.Colors.CARD_BORDER, UiTheme.Colors.TEXT_SUBTLE)
+        }
+        val rect = pill.rect
+        UiDraw.filledBox(context, rect.x, rect.y, rect.width, rect.height, fill, border)
+        UiDraw.drawText(
+            context,
+            font,
+            pill.label,
+            rect.x,
+            rect.y + (rect.height - font.lineHeight) / 2,
+            text,
+            shadow = !pill.selected, // a shadow under black text on white only smudges it
+            availableWidth = rect.width,
+            alignment = HorizontalAlignment.CENTER,
+        )
     }
 
     /** Header bar: the title, then the tab bar (one active tab, underlined, for now). */
@@ -176,29 +274,37 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         )
     }
 
-    /** One line of [text], centred in the content area below the header. */
-    private fun drawMessage(context: GuiGraphicsExtractor, text: String, argb: Int) {
-        val contentHeight = height - MenuLayout.HEADER_HEIGHT
-        val y = MenuLayout.HEADER_HEIGHT + (contentHeight - font.lineHeight) / 2
+    /** One line of [text], centred in [area] (by default the content area below the header). */
+    private fun drawMessage(
+        context: GuiGraphicsExtractor,
+        text: String,
+        argb: Int,
+        area: Rect = Rect(0, MenuLayout.HEADER_HEIGHT, width, height - MenuLayout.HEADER_HEIGHT),
+    ) {
         UiDraw.drawText(
             context,
             font,
             text,
-            0,
-            y,
+            area.x,
+            area.y + (area.height - font.lineHeight) / 2,
             argb,
-            availableWidth = width,
+            availableWidth = area.width,
             alignment = HorizontalAlignment.CENTER,
         )
     }
 
     /**
-     * The dye cards, clipped to the grid viewport and scrolled by [scroll]; only cards that
-     * intersect the viewport are drawn. Nothing is drawn when the window leaves the viewport empty
-     * (26.2 rejects a zero-size scissor).
+     * The dye cards laid out by [grid], clipped to its viewport and scrolled by [scroll]; only
+     * cards that intersect the viewport are drawn. Nothing is drawn when the window leaves the
+     * viewport empty (26.2 rejects a zero-size scissor).
      */
-    private fun drawGrid(context: GuiGraphicsExtractor, dyes: List<DyeProgressEntry>, mouseX: Int, mouseY: Int) {
-        val grid = gridGeometry(dyes.size)
+    private fun drawGrid(
+        context: GuiGraphicsExtractor,
+        dyes: List<DyeProgressEntry>,
+        grid: GridGeometry,
+        mouseX: Int,
+        mouseY: Int,
+    ) {
         val viewport = grid.viewport
         if (viewport.width <= 0 || viewport.height <= 0) return
         val hovered = MenuLayout.cardIndexAt(
@@ -402,5 +508,13 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         private const val NO_PROFILES_PREFIX = "No SkyBlock profiles found for "
         private const val FAILED_PREFIX = "Couldn't load your dyes: "
         private const val UNEXPECTED_ERROR_PREFIX = "Unexpected error: "
+        private const val EMPTY_FILTER_TEXT = "No dyes in this category."
+        private const val SORT_LABEL_PREFIX = "Sort: "
+
+        /** [MenuPill.key] of the "All Dyes" pill; every other category pill's key is its category id. */
+        private const val ALL_PILL_KEY = "all"
+
+        /** [MenuPill.key] of the sort pill. */
+        private const val SORT_PILL_KEY = "sort"
     }
 }
