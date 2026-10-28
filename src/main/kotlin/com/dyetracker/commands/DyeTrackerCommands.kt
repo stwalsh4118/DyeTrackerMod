@@ -8,7 +8,7 @@ import com.dyetracker.data.PotionTier
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.dyeprogress.DyeProgressAdder
 import com.dyetracker.dyeprogress.DyeProgressPlacementEditor
-import com.dyetracker.menu.DyeTrackerMenuScreen
+import com.dyetracker.menu.MenuKeybind
 import com.dyetracker.overlay.OverlayAddPipeline
 import com.dyetracker.rotation.DyeSprites
 import com.dyetracker.rotation.RotationPlacementEditor
@@ -405,9 +405,9 @@ object DyeTrackerCommands {
 
     @Suppress("UNUSED_PARAMETER")
     private fun handleMenuCommand(source: FabricClientCommandSource) {
-        // Same as handleGifEditCommand: client commands run on the render thread and the
-        // screen is the feedback.
-        Minecraft.getInstance().showScreen(DyeTrackerMenuScreen())
+        // Opening it here would be undone at once: the chat screen closes itself after the
+        // command runs. MenuKeybind opens it on the next tick instead. The screen is the feedback.
+        MenuKeybind.requestOpen()
     }
 
     private fun handleRotationToggleCommand(source: FabricClientCommandSource) {

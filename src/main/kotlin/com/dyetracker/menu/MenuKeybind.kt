@@ -17,7 +17,8 @@ import net.minecraft.network.chat.Component
 /**
  * Registers the "Open DyeTracker Menu" keybind, unbound by default so it never clashes with
  * another key; players bind it in Controls → DyeTracker. Also prints a one-time chat hint on
- * the first join, so players find the menu (`/dyetracker menu`) and the key.
+ * the first join, so players find the menu (`/dyetracker menu`) and the key. The command opens
+ * the menu through [requestOpen], on the next tick.
  */
 object MenuKeybind {
 
@@ -26,8 +27,14 @@ object MenuKeybind {
     private const val HINT_TEXT = " Open your dyes with /dyetracker menu, or bind a key in Controls → DyeTracker."
 
     private lateinit var menuKey: KeyMapping
+    private val openRequest = MenuOpenRequest()
 
-    /** Register the keybind, the tick listener that opens the menu on a press, and the join hint. */
+    /** Open the menu on the next client tick, after the chat screen that ran the command has closed. */
+    fun requestOpen() {
+        openRequest.request()
+    }
+
+    /** Register the keybind, the tick listener that opens the menu on a press or a request, and the join hint. */
     fun register() {
         menuKey = KeyMapping(
             TRANSLATION_KEY,
@@ -37,8 +44,11 @@ object MenuKeybind {
         )
         KeyMappingHelper.registerKeyMapping(menuKey)
 
-        // Drain the press-counter every tick so a single press only opens the menu once.
         ClientTickEvents.END_CLIENT_TICK.register { client ->
+            // A requested open doesn't wait for "no screen": it replaces whatever is open. It runs
+            // before the key so a press on the same tick sees the menu open and does nothing.
+            if (openRequest.consume()) client.showScreen(DyeTrackerMenuScreen())
+            // Drain the press-counter every tick so a single press only opens the menu once.
             while (menuKey.consumeClick()) {
                 if (client.currentScreen() == null) client.showScreen(DyeTrackerMenuScreen())
             }
