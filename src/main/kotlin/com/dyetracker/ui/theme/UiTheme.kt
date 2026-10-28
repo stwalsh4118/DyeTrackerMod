@@ -119,6 +119,15 @@ object UiTheme {
 
         /** Menu card icon box fill; the website DyeCard icon box's `bg-black` (`#000000`). */
         const val ICON_BOX_BACKGROUND: Int = 0xFF_00_00_00.toInt()
+
+        /** Selected menu pill fill and border; the website primary Button's `bg-white`. */
+        const val PILL_SELECTED_BG: Int = 0xFF_FF_FF_FF.toInt()
+
+        /** Selected menu pill label; the website primary Button's `text-black`. */
+        const val PILL_SELECTED_TEXT: Int = 0xFF_00_00_00.toInt()
+
+        /** Hovered unselected menu pill border; the website secondary Button's `hover:border-white/30`. */
+        const val PILL_HOVER_BORDER: Int = 0x4D_FF_FF_FF
     }
 
     /** Spacing tokens in GUI pixels. */

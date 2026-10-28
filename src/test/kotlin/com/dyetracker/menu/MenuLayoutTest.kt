@@ -155,6 +155,25 @@ class MenuLayoutTest {
     }
 
     @Test
+    fun `the viewport bottom edge is outside the viewport`() {
+        // Scrolled by 10, card 6 (row 2) spans y 166..236, so it covers the viewport bottom (168).
+        val (x, _) = centreOf(6)
+        val bottom = viewport.bottom.toDouble()
+        assertEquals(6, hit(x, bottom - 0.5, scroll = 10))
+        assertNull(hit(x, bottom, scroll = 10))
+    }
+
+    @Test
+    fun `the viewport right edge is outside the viewport`() {
+        // A viewport narrower than card 0, so its right edge (110) falls inside the card.
+        val narrow = Rect(gridLeft, gridTop, 100, 2 * 70 + 8)
+        val (_, y) = centreOf(0)
+        val right = narrow.right.toDouble()
+        assertEquals(0, MenuLayout.cardIndexAt(right - 0.5, y, 7, 3, gridLeft, gridTop, 0, narrow))
+        assertNull(MenuLayout.cardIndexAt(right, y, 7, 3, gridLeft, gridTop, 0, narrow))
+    }
+
+    @Test
     fun `no items hits nothing`() {
         val (x, y) = centreOf(0)
         assertNull(hit(x, y, itemCount = 0))

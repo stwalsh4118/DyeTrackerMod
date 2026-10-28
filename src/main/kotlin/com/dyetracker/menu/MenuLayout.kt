@@ -60,7 +60,7 @@ object MenuLayout {
     /** Pixels scrolled per mouse-wheel notch. */
     const val SCROLL_STEP = 20
 
-    /** Width of the scrollbar track on the viewport's right edge. */
+    /** Width of the scrollbar track, drawn [SCROLLBAR_GAP] to the right of the card grid. */
     const val SCROLLBAR_WIDTH = 2
 
     /** Gap between the card grid's right edge and the scrollbar. */
@@ -68,6 +68,15 @@ object MenuLayout {
 
     /** Shortest the scrollbar thumb gets, however long the content. */
     const val SCROLLBAR_MIN_THUMB = 12
+
+    /** Height of a menu pill (category filter, sort). */
+    const val PILL_HEIGHT = 16
+
+    /** Padding on each side of a pill's label. */
+    const val PILL_PADDING_X = 8
+
+    /** Gap between neighbouring pills, both axes. */
+    const val PILL_GAP = 4
 
     /** Horizontal distance from one card's left edge to the next column's. */
     private const val COLUMN_PITCH = CARD_WIDTH + CARD_GAP
@@ -103,7 +112,8 @@ object MenuLayout {
      * Index of the card under ([mouseX], [mouseY]) in a [columns]-wide grid of [itemCount] cards
      * whose unscrolled top-left is ([gridLeft], [gridTop]), scrolled up by [scroll]; `null` outside
      * [viewport], in a gap, or past the last card. Card bounds are half-open (`[x, x + CARD_WIDTH)`,
-     * `[y, y + CARD_HEIGHT)`), so a point on a card's right or bottom edge belongs to the gap.
+     * `[y, y + CARD_HEIGHT)`), so a point on a card's right or bottom edge belongs to the gap; the
+     * viewport is half-open too, so a point on its right or bottom edge misses a clipped card.
      */
     fun cardIndexAt(
         mouseX: Double,
@@ -115,7 +125,9 @@ object MenuLayout {
         scroll: Int,
         viewport: Rect,
     ): Int? {
-        if (!viewport.contains(mouseX, mouseY)) return null
+        val inViewport = mouseX >= viewport.x && mouseX < viewport.right &&
+            mouseY >= viewport.y && mouseY < viewport.bottom
+        if (!inViewport) return null
         val localX = mouseX - gridLeft
         val localY = mouseY - (gridTop - scroll)
         if (localX < 0 || localY < 0) return null
