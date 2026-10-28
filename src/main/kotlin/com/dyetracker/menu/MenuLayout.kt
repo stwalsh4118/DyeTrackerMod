@@ -1,5 +1,9 @@
 package com.dyetracker.menu
 
+import com.dyetracker.ui.core.Rect
+import kotlin.math.floor
+import kotlin.math.max
+
 /** Sizes (GUI pixels) and card-grid geometry for the in-game DyeTracker menu. */
 object MenuLayout {
     /** Gap between the screen edges / header and the content. */
@@ -29,16 +33,92 @@ object MenuLayout {
     /** Thickness of the underline marking the active tab. */
     const val TAB_UNDERLINE_HEIGHT = 1
 
+    /** Side of the black icon box in a card's top-left corner. */
+    const val ICON_BOX = 28
+
+    /** Side of the dye sprite, centred in the icon box. */
+    const val ICON_SPRITE = 24
+
+    /** Text scale of a card's status badge label. */
+    const val BADGE_SCALE = 0.75f
+
+    /** Text scale of a card's small text (category, status label, value). */
+    const val SMALL_TEXT_SCALE = 0.75f
+
+    /** Padding between a badge's border and its scaled label. */
+    const val BADGE_PADDING = 2
+
+    /** Gap between neighbouring card texts (icon to name, name to badge, value line to bar). */
+    const val TEXT_GAP = 4
+
+    /** Offset of a card's name below the icon box's top edge. */
+    const val NAME_TOP_OFFSET = 2
+
+    /** Pixels scrolled per mouse-wheel notch. */
+    const val SCROLL_STEP = 20
+
+    /** Width of the scrollbar track on the viewport's right edge. */
+    const val SCROLLBAR_WIDTH = 2
+
+    /** Shortest the scrollbar thumb gets, however long the content. */
+    const val SCROLLBAR_MIN_THUMB = 12
+
+    /** Horizontal distance from one card's left edge to the next column's. */
+    private const val COLUMN_PITCH = CARD_WIDTH + CARD_GAP
+
+    /** Vertical distance from one card's top edge to the next row's. */
+    private const val ROW_PITCH = CARD_HEIGHT + CARD_GAP
+
     /** Card columns that fit in [availableWidth], from 1 to [MAX_COLUMNS]. */
     fun columns(availableWidth: Int): Int =
-        ((availableWidth + CARD_GAP) / (CARD_WIDTH + CARD_GAP)).coerceIn(1, MAX_COLUMNS)
+        ((availableWidth + CARD_GAP) / COLUMN_PITCH).coerceIn(1, MAX_COLUMNS)
 
     /** Width of a grid of [columns] cards, gaps included. */
     fun gridWidth(columns: Int): Int = columns * CARD_WIDTH + (columns - 1) * CARD_GAP
 
     /** Top-left of card [index] in a [columns]-wide grid whose top-left is ([gridLeft], [gridTop]). */
     fun cardOrigin(index: Int, columns: Int, gridLeft: Int, gridTop: Int): Pair<Int, Int> = Pair(
-        gridLeft + (index % columns) * (CARD_WIDTH + CARD_GAP),
-        gridTop + (index / columns) * (CARD_HEIGHT + CARD_GAP),
+        gridLeft + (index % columns) * COLUMN_PITCH,
+        gridTop + (index / columns) * ROW_PITCH,
     )
+
+    /** Height of [itemCount] cards in a [columns]-wide grid, row gaps included; `0` for no items. */
+    fun contentHeight(itemCount: Int, columns: Int): Int {
+        if (itemCount <= 0) return 0
+        val rows = (itemCount + columns - 1) / columns
+        return rows * CARD_HEIGHT + (rows - 1) * CARD_GAP
+    }
+
+    /** [scroll] limited to `0..(contentHeight - viewportHeight)`; `0` when the content fits. */
+    fun clampScroll(scroll: Int, contentHeight: Int, viewportHeight: Int): Int =
+        scroll.coerceIn(0, max(0, contentHeight - viewportHeight))
+
+    /**
+     * Index of the card under ([mouseX], [mouseY]) in a [columns]-wide grid of [itemCount] cards
+     * whose unscrolled top-left is ([gridLeft], [gridTop]), scrolled up by [scroll]; `null` outside
+     * [viewport], in a gap, or past the last card. Card bounds are half-open (`[x, x + CARD_WIDTH)`,
+     * `[y, y + CARD_HEIGHT)`), so a point on a card's right or bottom edge belongs to the gap.
+     */
+    fun cardIndexAt(
+        mouseX: Double,
+        mouseY: Double,
+        itemCount: Int,
+        columns: Int,
+        gridLeft: Int,
+        gridTop: Int,
+        scroll: Int,
+        viewport: Rect,
+    ): Int? {
+        if (!viewport.contains(mouseX, mouseY)) return null
+        val localX = mouseX - gridLeft
+        val localY = mouseY - (gridTop - scroll)
+        if (localX < 0 || localY < 0) return null
+        val column = floor(localX / COLUMN_PITCH).toInt()
+        val row = floor(localY / ROW_PITCH).toInt()
+        if (column >= columns) return null
+        if (localX - column * COLUMN_PITCH >= CARD_WIDTH) return null
+        if (localY - row * ROW_PITCH >= CARD_HEIGHT) return null
+        val index = row * columns + column
+        return if (index < itemCount) index else null
+    }
 }

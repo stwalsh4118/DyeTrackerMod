@@ -89,6 +89,36 @@ object UiTheme {
 
         /** Muted text; the website's `slate-500` (`#64748b`). */
         const val TEXT_MUTED: Int = 0xFF_64_74_8B.toInt()
+
+        /** Menu card `MOD` (verified) badge text; the website Badge `verified` variant's `text-primary` (`#e225f4`). */
+        const val BADGE_MOD_TEXT: Int = 0xFF_E2_25_F4.toInt()
+
+        /** Menu card `MOD` badge fill; the website Badge `verified` variant's `bg-primary/10`. */
+        const val BADGE_MOD_BG: Int = 0x1A_E2_25_F4
+
+        /** Menu card `MOD` badge border; the website Badge `verified` variant's `border-primary/30`. */
+        const val BADGE_MOD_BORDER: Int = 0x4D_E2_25_F4
+
+        /** Menu card `ESTIMATED` badge text; the website Badge `estimated` variant's `text-amber-400` (`#fbbf24`). */
+        const val BADGE_ESTIMATED_TEXT: Int = 0xFF_FB_BF_24.toInt()
+
+        /** Menu card `ESTIMATED` badge fill; the website Badge `estimated` variant's `bg-amber-500/10` (`#f59e0b`). */
+        const val BADGE_ESTIMATED_BG: Int = 0x1A_F5_9E_0B
+
+        /** Menu card `ESTIMATED` badge border; the website Badge `estimated` variant's `border-amber-500/20` (`#f59e0b`). */
+        const val BADGE_ESTIMATED_BORDER: Int = 0x33_F5_9E_0B
+
+        /** Menu card `MOD ONLY` / `NOT TRACKABLE` badge text; the website Badge `muted` variant's `text-slate-500` (`#64748b`). */
+        const val BADGE_MUTED_TEXT: Int = 0xFF_64_74_8B.toInt()
+
+        /** Menu card muted badge fill; the website Badge `muted` variant's `bg-white/5`. */
+        const val BADGE_MUTED_BG: Int = 0x0D_FF_FF_FF
+
+        /** Menu card muted badge border; the website Badge `muted` variant's `border-white/5`. */
+        const val BADGE_MUTED_BORDER: Int = 0x0D_FF_FF_FF
+
+        /** Menu card icon box fill; the website DyeCard icon box's `bg-black` (`#000000`). */
+        const val ICON_BOX_BACKGROUND: Int = 0xFF_00_00_00.toInt()
     }
 
     /** Spacing tokens in GUI pixels. */
