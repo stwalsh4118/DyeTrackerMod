@@ -4,6 +4,7 @@ import com.dyetracker.DyeTrackerMod
 import com.dyetracker.config.ConfigManager
 import com.dyetracker.dyeprogress.DyeProgressHudFeature
 import com.dyetracker.dyeprogress.DyeProgressPoller
+import com.dyetracker.menu.MenuKeybind
 import com.dyetracker.overlay.GifOverlayConfig
 import com.dyetracker.overlay.GifHudFeature
 import com.dyetracker.overlay.OverlayDecoder
@@ -50,6 +51,7 @@ class DyeTrackerModClient : ClientModInitializer {
         RotationHudFeature.register()
         DyeProgressHudFeature.register()
         EditModeKeybind.register()
+        MenuKeybind.register()
         DyeProgressPoller.start()
 
         // Resume DVD-bounce mode in its persisted state before the first frame (PBI 38). Config is

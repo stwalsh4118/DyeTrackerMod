@@ -68,7 +68,14 @@ data class ModConfig(
      * every widget to its saved placement. Defaults to false so existing config files load
      * unchanged. See PBI-38.
      */
-    val bounceEnabled: Boolean = false
+    val bounceEnabled: Boolean = false,
+
+    /**
+     * Set once the one-time menu hint has been printed in chat on joining a world or server, so
+     * it never prints again. Defaults to false so existing config files load unchanged and their
+     * players get the hint once. See PBI-67.
+     */
+    val menuHintShown: Boolean = false
 ) {
     companion object {
         const val DEFAULT_API_URL = "https://dye-tracker-api.seanwalsh4118-7a3.workers.dev"
