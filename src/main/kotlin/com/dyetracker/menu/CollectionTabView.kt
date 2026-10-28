@@ -3,12 +3,15 @@ package com.dyetracker.menu
 import com.dyetracker.dyeprogress.DyeProgressWidgetView
 import com.dyetracker.ui.components.ProgressBarWidget
 import com.dyetracker.ui.core.HorizontalAlignment
+import com.dyetracker.ui.core.Rect
 import com.dyetracker.ui.core.RenderContext
 import com.dyetracker.ui.core.UiDraw
 import com.dyetracker.ui.theme.UiTheme
 import net.minecraft.client.gui.Font
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.util.Util
+import java.time.ZoneId
+import kotlin.math.roundToInt
 
 /**
  * Draws the in-game menu's Collection tab once its dyes and collection are loaded, like the
@@ -16,7 +19,8 @@ import net.minecraft.util.Util
  * bar, the [MenuCollection.EMPTY_HINT] when nothing is owned, the filter pills (category chips
  * with owned/total, then All / Owned / Unowned), then a card per filtered dye in the
  * [DyeTrackerMenuScreen]'s grid, or [MenuCollection.emptyFilterMessage] when the filters leave
- * none. An owned card has an emerald border and a `✓` / `xN` badge; a card not owned is dimmed.
+ * none, then the drop timeline ([MenuTimeline]) of every owned dye with a date, scrolling with the
+ * grid. An owned card has an emerald border and a `✓` / `xN` badge; a card not owned is dimmed.
  * Cards aren't clickable and have no hover state.
  */
 internal object CollectionTabView {
@@ -30,8 +34,10 @@ internal object CollectionTabView {
     /**
      * The summary of all [cells], the [pills] (hover-styled under ([mouseX], [mouseY]); an
      * unselected chip of a category whose dyes are all owned in emerald text), and the [visible]
-     * cards laid out by [geometry] in [columns] columns, the grid scrolled up by [scroll]; with no
-     * [visible] cards, [ownedFilter]'s empty message centred in the grid area.
+     * cards laid out by [geometry] in [columns] columns, then the drop timeline of [cells] below
+     * them, both scrolled up by [scroll]. With no [visible] cards, [ownedFilter]'s empty message
+     * goes in the grid's band above the timeline, or centred in the grid area when there is no
+     * timeline.
      */
     fun draw(
         screen: DyeTrackerMenuScreen,
@@ -64,13 +70,96 @@ internal object CollectionTabView {
             )
         }
         drawPills(screen, context, cells, pills, mouseX, mouseY)
-        if (visible.isEmpty()) {
-            screen.drawMessage(context, MenuCollection.emptyFilterMessage(ownedFilter), UiTheme.Colors.TEXT_SUBTLE, viewport)
+        val emptyMessage = MenuCollection.emptyFilterMessage(ownedFilter)
+        val timelineY = geometry.timelineY
+        if (visible.isEmpty() && timelineY == null) {
+            // A tiny screen leaves no grid area; centring in it would put the message on the pills.
+            if (viewport.height > 0) screen.drawMessage(context, emptyMessage, UiTheme.Colors.TEXT_SUBTLE, viewport)
             return
         }
-        screen.drawCardGrid(context, visible.size, columns, viewport.x, viewport, geometry.contentHeight, scroll) { index, x, y ->
+        val drawBelow = {
+            val gridTop = viewport.y - scroll
+            if (visible.isEmpty()) {
+                val band = Rect(viewport.x, gridTop, viewport.width, geometry.gridHeight)
+                screen.drawMessage(context, emptyMessage, UiTheme.Colors.TEXT_SUBTLE, band)
+            }
+            if (timelineY != null) {
+                drawTimeline(screen, context, font, MenuTimeline.timeline(cells), timelineY - scroll, viewport)
+            }
+        }
+        screen.drawCardGrid(
+            context,
+            visible.size,
+            columns,
+            viewport.x,
+            viewport,
+            geometry.contentHeight,
+            scroll,
+            drawBelow,
+        ) { index, x, y ->
             drawCard(screen, context, renderCtx, font, visible[index], x, y)
         }
+    }
+
+    /**
+     * The drop timeline from [headingY] (already scrolled) inside the clipped [viewport]: the
+     * heading, then a row per [rows] entry, skipping rows outside the viewport.
+     */
+    private fun drawTimeline(
+        screen: DyeTrackerMenuScreen,
+        context: GuiGraphicsExtractor,
+        font: Font,
+        rows: List<TimelineRow>,
+        headingY: Int,
+        viewport: Rect,
+    ) {
+        UiDraw.drawText(context, font, MenuTimeline.HEADING, viewport.x, headingY, UiTheme.Colors.TEXT_PRIMARY)
+        val nowMs = System.currentTimeMillis()
+        val zone = ZoneId.systemDefault()
+        for ((index, row) in rows.withIndex()) {
+            val rowY = MenuLayout.timelineRowY(headingY, font.lineHeight, index)
+            if (rowY >= viewport.bottom) break // rows run downwards, so every later row is below too
+            if (rowY + MenuLayout.TIMELINE_ROW_HEIGHT <= viewport.y) continue
+            drawTimelineRow(screen, context, font, MenuTimeline.timelineText(row, nowMs, zone), row, rowY, viewport)
+        }
+    }
+
+    /**
+     * One timeline row at [rowY] across [viewport]: a square dot and the dye name in its accent,
+     * then the small muted [text] (date and relative time), each fitted to what width is left.
+     */
+    private fun drawTimelineRow(
+        screen: DyeTrackerMenuScreen,
+        context: GuiGraphicsExtractor,
+        font: Font,
+        text: String,
+        row: TimelineRow,
+        rowY: Int,
+        viewport: Rect,
+    ) {
+        val rowHeight = MenuLayout.TIMELINE_ROW_HEIGHT
+        val dot = MenuLayout.TIMELINE_DOT
+        val accent = DyeProgressWidgetView.parseAccentColor(row.color)
+        UiDraw.fillRect(context, viewport.x, rowY + (rowHeight - dot) / 2, dot, dot, accent)
+
+        val nameX = viewport.x + dot + MenuLayout.TEXT_GAP
+        val name = MenuCards.fitText(row.name, viewport.right - nameX) { font.width(it) }
+        UiDraw.drawText(context, font, name, nameX, rowY + (rowHeight - font.lineHeight) / 2, accent)
+
+        val textX = nameX + font.width(name) + MenuLayout.TEXT_GAP
+        val fitted = MenuCards.fitText(text, viewport.right - textX) {
+            screen.scaledWidth(it, MenuLayout.SMALL_TEXT_SCALE)
+        }
+        val smallLineHeight = (font.lineHeight * MenuLayout.SMALL_TEXT_SCALE).roundToInt()
+        UiDraw.drawText(
+            context,
+            font,
+            fitted,
+            textX,
+            rowY + (rowHeight - smallLineHeight) / 2,
+            UiTheme.Colors.TEXT_MUTED,
+            scale = MenuLayout.SMALL_TEXT_SCALE,
+        )
     }
 
     /**

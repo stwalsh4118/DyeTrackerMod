@@ -5,7 +5,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/** Unit coverage for the menu card-grid geometry (tasks 67-1, 67-2) and the Collection tab layout (68-2, 68-3). */
+/**
+ * Unit coverage for the menu card-grid geometry (tasks 67-1, 67-2) and the Collection tab layout
+ * (68-2, 68-3, its drop timeline 68-4).
+ */
 class MenuLayoutTest {
 
     @Test
@@ -181,12 +184,13 @@ class MenuLayoutTest {
 
     /**
      * The Collection tab's layout below a strip ending at y=42 (top 50), 2 columns, 9px text, with
-     * [pills] for its pill block; every character measures 6px.
+     * [pills] for its pill block and [timelineRows] drop timeline rows; every character measures 6px.
      */
     private fun collection(
         showHint: Boolean,
         itemCount: Int = 5,
         pills: List<Pair<String, String>> = emptyList(),
+        timelineRows: Int = 0,
     ) = MenuLayout.collectionGeometry(
         top = 50,
         left = 10,
@@ -198,6 +202,7 @@ class MenuLayoutTest {
         measure = { it.length * 6 },
         itemCount = itemCount,
         columns = 2,
+        timelineRows = timelineRows,
     )
 
     /** Pill widths with 8px padding each side: 100, 100 and 136, so the third wraps in 328px. */
@@ -265,5 +270,53 @@ class MenuLayoutTest {
     @Test
     fun `collection without pills has none`() {
         assertEquals(emptyList(), collection(showHint = false).pills)
+    }
+
+    @Test
+    fun `collection without timeline rows has no timeline`() {
+        val geometry = collection(showHint = false)
+
+        assertNull(geometry.timelineY)
+        assertEquals(3 * 70 + 2 * 8, geometry.gridHeight)
+    }
+
+    @Test
+    fun `collection timeline heading sits an outer margin below the grid`() {
+        val geometry = collection(showHint = false, timelineRows = 3)
+
+        val gridTop = 63 + 4 + 16
+        assertEquals(gridTop + 3 * 70 + 2 * 8 + 16, geometry.timelineY)
+    }
+
+    @Test
+    fun `collection content height adds the timeline heading and rows`() {
+        val geometry = collection(showHint = false, timelineRows = 3)
+
+        assertEquals(3 * 70 + 2 * 8 + 16 + 9 + 4 + 3 * 14, geometry.contentHeight)
+    }
+
+    @Test
+    fun `an empty grid above a timeline keeps a card-tall band for its message`() {
+        val geometry = collection(showHint = false, itemCount = 0, timelineRows = 2)
+
+        val gridTop = 63 + 4 + 16
+        assertEquals(70, geometry.gridHeight)
+        assertEquals(gridTop + 70 + 16, geometry.timelineY)
+        assertEquals(70 + 16 + 9 + 4 + 2 * 14, geometry.contentHeight)
+    }
+
+    @Test
+    fun `an empty grid without a timeline has no content`() {
+        val geometry = collection(showHint = false, itemCount = 0)
+
+        assertEquals(0, geometry.gridHeight)
+        assertNull(geometry.timelineY)
+        assertEquals(0, geometry.contentHeight)
+    }
+
+    @Test
+    fun `timeline rows start a text gap below the heading line`() {
+        assertEquals(100 + 9 + 4, MenuLayout.timelineRowY(headingY = 100, lineHeight = 9, index = 0))
+        assertEquals(100 + 9 + 4 + 2 * 14, MenuLayout.timelineRowY(headingY = 100, lineHeight = 9, index = 2))
     }
 }

@@ -8,8 +8,9 @@ import kotlin.math.max
 /**
  * Where the Collection tab's parts sit below the profile strip: the summary line at [summaryY],
  * the progress bar at [barY], the empty hint at [hintY] (`null` when it doesn't show), the filter
- * [pills] (`key to rect`, as [layoutPills] places them), and the card grid's [viewport] with its
- * [contentHeight]. The grid's unscrolled top is `viewport.y`.
+ * [pills] (`key to rect`, as [layoutPills] places them), and the scrolling [viewport] with its
+ * [contentHeight]: the card grid ([gridHeight] tall, its unscrolled top `viewport.y`), then the
+ * drop timeline's heading at the unscrolled [timelineY] (`null` when there is no timeline).
  */
 data class CollectionGeometry(
     val summaryY: Int,
@@ -18,6 +19,8 @@ data class CollectionGeometry(
     val pills: List<Pair<String, Rect>>,
     val viewport: Rect,
     val contentHeight: Int,
+    val gridHeight: Int,
+    val timelineY: Int?,
 )
 
 /** Sizes (GUI pixels) and card-grid geometry for the in-game DyeTracker menu. */
@@ -109,6 +112,15 @@ object MenuLayout {
     /** Widest the Settings tab's panel gets, however wide the screen. */
     const val SETTINGS_WIDTH = 320
 
+    /** Height of one drop timeline row (dot, dye name, date line). */
+    const val TIMELINE_ROW_HEIGHT = 14
+
+    /** Side of the square dot, in the dye's accent, at a drop timeline row's left. */
+    const val TIMELINE_DOT = 6
+
+    /** Height the Collection grid keeps for its empty-filter message when the drop timeline follows it. */
+    const val EMPTY_GRID_HEIGHT = CARD_HEIGHT
+
     /** Height of one Settings row (label, detail line, control pill). */
     const val SETTINGS_ROW_HEIGHT = 28
 
@@ -121,7 +133,10 @@ object MenuLayout {
      * [STRIP_GAP] below the bar, [STRIP_GAP] below that the [pillLabels] wrapping within
      * [gridWidth] ([layoutPills], widths by [measure]), and [OUTER_MARGIN] below the last pill row
      * (or the hint or bar, without pills) the grid of [itemCount] cards in [columns] columns, down
-     * to [OUTER_MARGIN] above the [screenHeight].
+     * to [OUTER_MARGIN] above the [screenHeight]. With [timelineRows], the drop timeline's heading
+     * goes [OUTER_MARGIN] below the grid (or below an [EMPTY_GRID_HEIGHT] band for the empty-filter
+     * message when there are no cards), its rows below it ([timelineRowY]), and both scroll with
+     * the grid.
      */
     fun collectionGeometry(
         top: Int,
@@ -134,6 +149,7 @@ object MenuLayout {
         measure: (String) -> Int,
         itemCount: Int,
         columns: Int,
+        timelineRows: Int,
     ): CollectionGeometry {
         val barY = top + lineHeight + TEXT_GAP
         val barBottom = barY + UiTheme.Sizing.PROGRESS_BAR_HEIGHT
@@ -141,15 +157,28 @@ object MenuLayout {
         val hintOrBarBottom = hintY?.let { it + lineHeight } ?: barBottom
         val pills = layoutPills(pillLabels, measure, left, hintOrBarBottom + STRIP_GAP, gridWidth)
         val gridTop = (pills.maxOfOrNull { it.second.bottom } ?: hintOrBarBottom) + OUTER_MARGIN
+        val gridHeight = when {
+            itemCount > 0 -> contentHeight(itemCount, columns)
+            timelineRows > 0 -> EMPTY_GRID_HEIGHT
+            else -> 0
+        }
+        val timelineY = if (timelineRows > 0) gridTop + gridHeight + OUTER_MARGIN else null
+        val contentBottom = timelineY?.let { timelineRowY(it, lineHeight, timelineRows) } ?: (gridTop + gridHeight)
         return CollectionGeometry(
             summaryY = top,
             barY = barY,
             hintY = hintY,
             pills = pills,
             viewport = Rect(left, gridTop, gridWidth, screenHeight - gridTop - OUTER_MARGIN),
-            contentHeight = contentHeight(itemCount, columns),
+            contentHeight = contentBottom - gridTop,
+            gridHeight = gridHeight,
+            timelineY = timelineY,
         )
     }
+
+    /** Top of drop timeline row [index] under a heading line ([lineHeight] tall) at [headingY]. */
+    fun timelineRowY(headingY: Int, lineHeight: Int, index: Int): Int =
+        headingY + lineHeight + TEXT_GAP + index * TIMELINE_ROW_HEIGHT
 
     /** Horizontal distance from one card's left edge to the next column's. */
     private const val COLUMN_PITCH = CARD_WIDTH + CARD_GAP

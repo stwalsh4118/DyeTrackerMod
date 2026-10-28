@@ -690,7 +690,10 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     private fun visibleCollectionCells(cells: List<CollectionCell>): List<CollectionCell> =
         MenuCollection.filterCells(cells, collectionCategory, ownedFilter)
 
-    /** Where the Collection tab's parts sit for [cells] (all of them) on the current screen size. */
+    /**
+     * Where the Collection tab's parts sit for [cells] (all of them) on the current screen size,
+     * the drop timeline included.
+     */
     private fun collectionGeometry(cells: List<CollectionCell>): CollectionGeometry {
         val grid = gridGeometry(cells.size)
         return MenuLayout.collectionGeometry(
@@ -704,6 +707,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             measure = { font.width(it) },
             itemCount = visibleCollectionCells(cells).size,
             columns = grid.columns,
+            timelineRows = MenuTimeline.timeline(cells).size,
         )
     }
 
@@ -1260,7 +1264,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /**
      * [itemCount] cards in a [columns]-wide grid from ([left], `viewport.y`), clipped to
      * [viewport] and scrolled up by [scroll], then the scrollbar for [contentHeight]. Only cards
-     * that intersect the viewport are drawn, each by [drawItem] with its index and top-left.
+     * that intersect the viewport are drawn, each by [drawItem] with its index and top-left;
+     * [drawBelow] then draws any scrolled content below the cards inside the same clip.
      * Nothing is drawn when the window leaves the viewport empty (26.2 rejects a zero-size scissor).
      */
     internal fun drawCardGrid(
@@ -1271,6 +1276,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         viewport: Rect,
         contentHeight: Int,
         scroll: Int,
+        drawBelow: () -> Unit = {},
         drawItem: (index: Int, x: Int, y: Int) -> Unit,
     ) {
         if (viewport.width <= 0 || viewport.height <= 0) return
@@ -1281,6 +1287,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             if (y + MenuLayout.CARD_HEIGHT <= viewport.y) continue
             drawItem(index, x, y)
         }
+        drawBelow()
         context.disableScissor()
         drawScrollbar(context, viewport, contentHeight, scroll)
     }
