@@ -1,7 +1,7 @@
 package com.dyetracker.menu
 
 import com.dyetracker.api.ApiClient
-import com.dyetracker.api.CollectionEntry
+import com.dyetracker.api.CollectionResponse
 import com.dyetracker.api.DyeProgressEntry
 import com.dyetracker.api.ProfileSummary
 import com.dyetracker.auth.AccountVerification
@@ -74,7 +74,7 @@ import kotlin.math.roundToInt
  * with category chips (owned/total each) and an All / Owned / Unowned filter of its own, kept while
  * the screen is open; it fetches the collection on opening the tab and on each profile switch or
  * Refresh while on it, dropping a result for another profile or one a newer request superseded
- * ([collectionRequest]).
+ * ([collectionFetch]).
  * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, the layout
  * editor), each control calling what its `/dyetracker` command calls. Settings state is read fresh
  * every frame, so a change made by a command meanwhile shows at once.
@@ -129,15 +129,6 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /** A message replacing row [key]'s detail line until [untilMs] ([Util.getMillis] time). */
     private data class RowMessage(val key: SettingsKey, val text: String, val argb: Int, val untilMs: Long)
-
-    /** The Collection tab's fetch for the profile [profileId]. */
-    private sealed class CollectionState {
-        abstract val profileId: String
-
-        data class Loading(override val profileId: String) : CollectionState()
-        data class Loaded(override val profileId: String, val owned: List<CollectionEntry>) : CollectionState()
-        data class Failed(override val profileId: String, val message: String) : CollectionState()
-    }
 
     /** What the content area shows. */
     private sealed class ViewState {
@@ -245,15 +236,6 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /** A load is running, in the background or behind Loading; Refresh is ignored meanwhile. */
     private val fetchRunning: Boolean get() = refreshing || state is ViewState.Loading
 
-    /** The Collection tab's last fetch; `null` until the tab first fetches. */
-    private var collection: CollectionState? = null
-
-    /** Bumped per collection fetch; a posted collection whose request is stale is dropped. */
-    private var collectionRequest = 0
-
-    /** The running collection fetch; cancelled when another starts. */
-    private var collectionJob: Job? = null
-
     /** Pixels the Collection grid is scrolled up by; apart from the Dyes grid's [scroll]. */
     private var collectionScroll = 0
 
@@ -268,9 +250,19 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
      * the Dyes tab this is just [fetchRunning].
      */
     private val refreshBlocked: Boolean
-        get() = fetchRunning || (tab == MenuTab.COLLECTION && collection is CollectionState.Loading)
+        get() = fetchRunning || (tab == MenuTab.COLLECTION && collectionFetch.busy)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * The Collection tab's collection for the profile the strip shows; a result posted after the
+     * screen closed, a newer collection fetch started or the strip moved to another profile is dropped.
+     */
+    private val collectionFetch = TabFetch<CollectionResponse>(
+        scope,
+        post = { Minecraft.getInstance().execute(it) },
+        shownProfileId = { strip?.profile?.id },
+    )
 
     override fun init() {
         super.init()
@@ -351,7 +343,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                MenuLoadResult.Failed("$UNEXPECTED_ERROR_PREFIX${e.message ?: e.javaClass.simpleName}")
+                MenuLoadResult.Failed(unexpectedErrorMessage(e))
             }
             Minecraft.getInstance().execute {
                 if (myEpoch != epoch) return@execute // stale — screen closed or another load started
@@ -362,35 +354,16 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * Fetches the collection of the profile the strip shows ([ApiClient.fetchCollection]) on
-     * [Dispatchers.IO] and posts it to the render thread, where it is dropped if the screen
-     * closed, a newer collection fetch started ([collectionRequest]) or the strip moved to another
-     * profile. Before the first load gives the strip a profile there is nothing to fetch;
-     * [applyResult] fetches once it lands. The Collection grid's scroll resets for another profile.
+     * [Dispatchers.IO] via [collectionFetch], which drops a stale result on the render thread.
+     * Before the first load gives the strip a profile there is nothing to fetch; [applyResult]
+     * fetches once it lands. The Collection grid's scroll resets for another profile.
      */
     private fun fetchCollection() {
         val target = strip ?: return
         val profileId = target.profile.id
-        val myRequest = ++collectionRequest
-        collectionJob?.cancel()
-        if (collection?.profileId != profileId) collectionScroll = 0
-        collection = CollectionState.Loading(profileId)
-        collectionJob = scope.launch {
-            val result = try {
-                ApiClient.fetchCollection(target.username, profileId)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                ApiClient.ApiResult.Error("$UNEXPECTED_ERROR_PREFIX${e.message ?: e.javaClass.simpleName}")
-            }
-            Minecraft.getInstance().execute {
-                if (closed || myRequest != collectionRequest) return@execute // closed or superseded
-                if (strip?.profile?.id != profileId) return@execute // the strip moved to another profile
-                collection = when (result) {
-                    is ApiClient.ApiResult.Success -> CollectionState.Loaded(profileId, result.data.dyes)
-                    is ApiClient.ApiResult.Error -> CollectionState.Failed(profileId, result.message)
-                }
-                clampCollectionScroll()
-            }
+        if (collectionFetch.state?.profileId != profileId) collectionScroll = 0
+        collectionFetch.fetch(profileId, { ApiClient.fetchCollection(target.username, profileId) }) {
+            clampCollectionScroll()
         }
     }
 
@@ -434,7 +407,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 strip = StripState(result.username, result.profiles, result.profile)
                 clampScrollToContent() // a refresh can change how many dyes there are
                 // On the Collection tab, a first load or one landing on another profile needs that profile's collection.
-                if (tab == MenuTab.COLLECTION && collection?.profileId != result.profile.id) fetchCollection()
+                if (tab == MenuTab.COLLECTION && collectionFetch.needsFetch(result.profile.id)) fetchCollection()
             }
             background -> refreshFailed = true
             else -> state = result.toViewState()
@@ -450,6 +423,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     override fun removed() {
         epoch++
         closed = true
+        collectionFetch.close()
         scope.cancel()
         super.removed()
     }
@@ -623,7 +597,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 when {
                     error != null -> showRowMessage(
                         SettingsKey.SYNC,
-                        "$UNEXPECTED_ERROR_PREFIX${error.message ?: error.javaClass.simpleName}",
+                        unexpectedErrorMessage(error),
                         UiTheme.Colors.STATUS_ERROR,
                     )
                     result.success -> showRowMessage(SettingsKey.SYNC, SYNCED_TEXT, UiTheme.Colors.ACCENT_SECONDARY)
@@ -681,9 +655,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
      */
     private fun collectionCells(): List<CollectionCell>? {
         val loaded = state as? ViewState.Loaded ?: return null
-        val owned = collection as? CollectionState.Loaded ?: return null
-        if (owned.profileId != loaded.result.profile.id) return null
-        return MenuCollection.cells(loaded.result.dyes, owned.owned)
+        val owned = collectionFetch.loadedFor(loaded.result.profile.id) ?: return null
+        return MenuCollection.cells(loaded.result.dyes, owned.dyes)
     }
 
     /** The Collection [cells] in the selected [collectionCategory] that [ownedFilter] keeps: what its grid shows. */
@@ -1004,13 +977,13 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             drawStateMessage(context, state, messageArea)
             return
         }
-        when (val current = collection?.takeIf { it.profileId == loaded.result.profile.id }) {
-            null, is CollectionState.Loading ->
+        when (val current = collectionFetch.stateFor(loaded.result.profile.id)) {
+            null, is FetchState.Loading ->
                 drawMessage(context, COLLECTION_LOADING_TEXT, UiTheme.Colors.TEXT_SUBTLE, messageArea)
-            is CollectionState.Failed ->
+            is FetchState.Failed ->
                 drawMessage(context, "$COLLECTION_FAILED_PREFIX${current.message}", UiTheme.Colors.STATUS_ERROR, messageArea)
-            is CollectionState.Loaded -> {
-                val cells = MenuCollection.cells(loaded.result.dyes, current.owned)
+            is FetchState.Loaded -> {
+                val cells = MenuCollection.cells(loaded.result.dyes, current.data.dyes)
                 val geometry = collectionGeometry(cells)
                 CollectionTabView.draw(
                     this,
@@ -1491,14 +1464,13 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     internal fun scaledWidth(text: String, scale: Float): Int = (font.width(text) * scale).roundToInt()
 
     /** Height of one text line drawn at [scale]. */
-    private fun scaledLineHeight(scale: Float): Int = (font.lineHeight * scale).roundToInt()
+    internal fun scaledLineHeight(scale: Float): Int = (font.lineHeight * scale).roundToInt()
 
     companion object {
         private const val TITLE = "DyeTracker"
         private const val LOADING_TEXT = "Loading your dyes…"
         private const val NO_PROFILES_PREFIX = "No SkyBlock profiles found for "
         private const val FAILED_PREFIX = "Couldn't load your dyes: "
-        private const val UNEXPECTED_ERROR_PREFIX = "Unexpected error: "
         private const val EMPTY_FILTER_TEXT = "No dyes in this category."
         private const val COLLECTION_LOADING_TEXT = "Loading your collection…"
         private const val COLLECTION_FAILED_PREFIX = "Couldn't load your collection: "

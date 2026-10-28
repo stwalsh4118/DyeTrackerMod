@@ -11,7 +11,6 @@ import net.minecraft.client.gui.Font
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.util.Util
 import java.time.ZoneId
-import kotlin.math.roundToInt
 
 /**
  * Draws the in-game menu's Collection tab once its dyes and collection are loaded, like the
@@ -150,7 +149,7 @@ internal object CollectionTabView {
         val fitted = MenuCards.fitText(text, viewport.right - textX) {
             screen.scaledWidth(it, MenuLayout.SMALL_TEXT_SCALE)
         }
-        val smallLineHeight = (font.lineHeight * MenuLayout.SMALL_TEXT_SCALE).roundToInt()
+        val smallLineHeight = screen.scaledLineHeight(MenuLayout.SMALL_TEXT_SCALE)
         UiDraw.drawText(
             context,
             font,
