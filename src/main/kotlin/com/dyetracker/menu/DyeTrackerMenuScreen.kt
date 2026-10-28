@@ -3,21 +3,28 @@ package com.dyetracker.menu
 import com.dyetracker.api.ApiClient
 import com.dyetracker.api.DyeProgressEntry
 import com.dyetracker.api.ProfileSummary
+import com.dyetracker.auth.AccountVerification
 import com.dyetracker.client.showScreen
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.PlayerRngData
 import com.dyetracker.data.RngDataStore
+import com.dyetracker.dyeprogress.DyeProgressPlacementEditor
 import com.dyetracker.dyeprogress.DyeProgressPoller
 import com.dyetracker.dyeprogress.DyeProgressWidgetConfig
 import com.dyetracker.dyeprogress.DyeProgressWidgetView
+import com.dyetracker.overlay.GifPlacementEditor
 import com.dyetracker.rotation.DyeSprites
+import com.dyetracker.rotation.RotationPlacementEditor
+import com.dyetracker.rotation.RotationWidgetConfig
 import com.dyetracker.sync.SyncManager
+import com.dyetracker.ui.bounce.BounceController
 import com.dyetracker.ui.components.ProgressBarWidget
 import com.dyetracker.ui.core.HorizontalAlignment
 import com.dyetracker.ui.core.Rect
 import com.dyetracker.ui.core.RenderContext
 import com.dyetracker.ui.core.UiDraw
+import com.dyetracker.ui.edit.WidgetEditScreen
 import com.dyetracker.ui.texture.ImageTextureManager
 import com.dyetracker.ui.theme.UiTheme
 import kotlinx.coroutines.CancellationException
@@ -59,8 +66,58 @@ import kotlin.math.roundToInt
  * Clicking a dye card pins that dye, for the profile shown, as a HUD dye progress widget
  * ([pinDecision]); a short message at the bottom says what happened, and the hovered card hints
  * whether a click would pin it.
+ *
+ * The header's tab pills switch between the Dyes tab (all of the above) and the Settings tab: one
+ * panel of rows (account, sync, the HUD widget toggles, bounce, the layout editor), each control
+ * calling what its `/dyetracker` command calls. Settings state is read fresh every frame, so a
+ * change made by a command meanwhile shows at once.
  */
 class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
+
+    /** The menu's tabs, in header order; [label] is the tab pill's text. */
+    private enum class MenuTab(val label: String) {
+        DYES("Dyes"),
+        SETTINGS("Settings"),
+    }
+
+    /** How a pill is drawn, beyond [MenuPill.selected]'s two website `Button` variants. */
+    private enum class PillStyle {
+        /** The website primary `Button`: white with black text. */
+        SELECTED,
+
+        /** The website secondary `Button`: card fill, brightening on hover. */
+        UNSELECTED,
+
+        /** A toggle that is on: the website `success` Badge colors. */
+        TOGGLE_ON,
+
+        /** An action waiting for its confirming click: unselected, with error-colored text. */
+        CONFIRM,
+
+        /** Shown but not clickable: muted text, no hover. */
+        INACTIVE,
+    }
+
+    /** What a Settings row is about; picks what a click on its pill does. */
+    private enum class SettingsKey { ACCOUNT, SYNC, ROTATION, DYE_WIDGETS, GIFS, BOUNCE, EDIT_LAYOUT }
+
+    /**
+     * One Settings row as of now: its [label], an optional [detail] line under it, and an optional
+     * control pill showing [pillLabel] drawn in [pillStyle].
+     */
+    private data class SettingsRow(
+        val key: SettingsKey,
+        val label: String,
+        val detail: String? = null,
+        val pillLabel: String? = null,
+        val pillStyle: PillStyle = PillStyle.UNSELECTED,
+    )
+
+    /** A [row] placed in the Settings panel at [rect], its control [pill] right-aligned in it. */
+    private data class PlacedRow(val row: SettingsRow, val rect: Rect, val pill: MenuPill?)
+
+    /** A message replacing row [key]'s detail line until [untilMs] ([Util.getMillis] time). */
+    private data class RowMessage(val key: SettingsKey, val text: String, val argb: Int, val untilMs: Long)
 
     /** What the content area shows. */
     private sealed class ViewState {
@@ -152,6 +209,18 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /** The last card click's message; `null` before the first click. */
     private var pinMessage: PinMessage? = null
+
+    /** The tab shown; kept while the screen is open. */
+    private var tab = MenuTab.DYES
+
+    /** The Unlink pill's two-click confirm. */
+    private val unlinkConfirm = ConfirmClick()
+
+    /** The last Settings click's message; `null` before one says anything. */
+    private var rowMessage: RowMessage? = null
+
+    /** Set by [removed]; a sync completing after the screen closed posts nothing. */
+    private var closed = false
 
     /** A load is running, in the background or behind Loading; Refresh is ignored meanwhile. */
     private val fetchRunning: Boolean get() = refreshing || state is ViewState.Loading
@@ -298,6 +367,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     override fun removed() {
         epoch++
+        closed = true
         scope.cancel()
         super.removed()
     }
@@ -307,6 +377,12 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     override fun mouseClicked(click: MouseButtonEvent, doubled: Boolean): Boolean {
         if (super.mouseClicked(click, doubled)) return true
         if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false
+        val tabPill = pillAt(tabPills(), click.x(), click.y())
+        if (tabPill != null) {
+            tab = MenuTab.valueOf(tabPill.key)
+            return true
+        }
+        if (tab == MenuTab.SETTINGS) return clickSettings(click.x(), click.y())
         val dyes = visibleDyes()
         val grid = gridGeometry(dyes.size)
         val currentStrip = strip
@@ -383,7 +459,83 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             PinDecision.NotPinnable -> null
         }
 
+    /**
+     * Runs the action of the Settings pill at ([mouseX], [mouseY]), as its `/dyetracker` command
+     * does; an inactive pill does nothing. Returns whether a pill took the click.
+     */
+    private fun clickSettings(mouseX: Double, mouseY: Double): Boolean {
+        val now = Util.getMillis()
+        val clicked = placedSettingsRows(now).firstOrNull { placed ->
+            placed.row.pillStyle != PillStyle.INACTIVE && placed.pill?.rect?.contains(mouseX, mouseY) == true
+        } ?: return false
+        when (clicked.row.key) {
+            SettingsKey.ACCOUNT -> if (unlinkConfirm.click(now)) {
+                AccountVerification.unlink()
+                showRowMessage(SettingsKey.ACCOUNT, UNLINKED_TEXT, UiTheme.Colors.TEXT_SUBTLE)
+            }
+            SettingsKey.SYNC -> syncFromSettings()
+            SettingsKey.ROTATION ->
+                RotationPlacementEditor.setVisible(RotationWidgetConfig.WIDGET_ID, !rotationVisible())
+            SettingsKey.DYE_WIDGETS -> {
+                val widgets = ConfigManager.dyeProgressPlacements.all()
+                // NONE's pill is inactive, so a click only gets here with widgets to switch.
+                val target = targetVisibility(aggregate(widgets.map { it.visible }))!!
+                for (widget in widgets) DyeProgressPlacementEditor.setVisible(widget.id, target)
+            }
+            SettingsKey.GIFS -> {
+                val overlays = ConfigManager.gifPlacements.all()
+                // NONE's pill is inactive, so a click only gets here with overlays to switch.
+                val target = targetVisibility(aggregate(overlays.map { it.visible }))!!
+                for (overlay in overlays) GifPlacementEditor.setVisible(overlay.id, target)
+            }
+            SettingsKey.BOUNCE -> {
+                val enabled = !BounceController.isEnabled()
+                BounceController.setEnabled(enabled)
+                ConfigManager.setBounceEnabled(enabled)
+            }
+            SettingsKey.EDIT_LAYOUT -> Minecraft.getInstance().showScreen(WidgetEditScreen())
+        }
+        return true
+    }
+
+    /**
+     * Syncs the player's mod data now, as `/dyetracker sync` does, and shows the outcome in the
+     * Sync row once done: "Synced." or the failure's message. With no mod data yet it says so
+     * instead. The outcome is posted to the render thread and dropped once the screen closed.
+     */
+    private fun syncFromSettings() {
+        val data = RngDataStore.getData()
+        if (!data.hasData()) {
+            showRowMessage(SettingsKey.SYNC, NOTHING_TO_SYNC_TEXT, UiTheme.Colors.TEXT_SUBTLE)
+            return
+        }
+        SyncManager.syncNow(data).whenComplete { result, error ->
+            Minecraft.getInstance().execute {
+                if (closed) return@execute
+                when {
+                    error != null -> showRowMessage(
+                        SettingsKey.SYNC,
+                        "$UNEXPECTED_ERROR_PREFIX${error.message ?: error.javaClass.simpleName}",
+                        UiTheme.Colors.STATUS_ERROR,
+                    )
+                    result.success -> showRowMessage(SettingsKey.SYNC, SYNCED_TEXT, UiTheme.Colors.ACCENT_SECONDARY)
+                    else -> showRowMessage(SettingsKey.SYNC, result.message, UiTheme.Colors.STATUS_ERROR)
+                }
+            }
+        }
+    }
+
+    /** Shows [text] in row [key]'s detail line for [MenuLayout.SETTINGS_MESSAGE_MS]. */
+    private fun showRowMessage(key: SettingsKey, text: String, argb: Int) {
+        rowMessage = RowMessage(key, text, argb, Util.getMillis() + MenuLayout.SETTINGS_MESSAGE_MS)
+    }
+
+    /** Whether the dye rotation widget shows, read as `/dyetracker rotation toggle` reads it. */
+    private fun rotationVisible(): Boolean =
+        ConfigManager.rotationPlacements.all().firstOrNull()?.visible ?: RotationWidgetConfig().visible
+
     override fun mouseScrolled(mouseX: Double, mouseY: Double, horizontal: Double, vertical: Double): Boolean {
+        if (tab == MenuTab.SETTINGS) return false // the hidden card grid keeps its scroll
         val grid = gridGeometry(visibleDyes().size)
         scroll = MenuLayout.clampScroll(
             scroll - (vertical * MenuLayout.SCROLL_STEP).toInt(),
@@ -514,6 +666,118 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /** The sort pill's text for [option], e.g. `Sort: Default`. */
     private fun sortLabel(option: MenuSort): String = "$SORT_LABEL_PREFIX${option.label}"
 
+    /** The header's tab pills, one per [MenuTab], after the title; the active tab's is selected. */
+    private fun tabPills(): List<MenuPill> {
+        var x = MenuLayout.OUTER_MARGIN + font.width(TITLE) + MenuLayout.TAB_GAP
+        val y = (MenuLayout.HEADER_HEIGHT - MenuLayout.PILL_HEIGHT) / 2
+        return MenuTab.entries.map { entry ->
+            val pillWidth = pillWidth(entry.label) { font.width(it) }
+            val pill = MenuPill(entry.name, entry.label, Rect(x, y, pillWidth, MenuLayout.PILL_HEIGHT), entry == tab)
+            x += pillWidth + MenuLayout.PILL_GAP
+            pill
+        }
+    }
+
+    /** The Settings rows as of now ([nowMs] is [Util.getMillis] time), read fresh from the live state. */
+    private fun settingsRows(nowMs: Long): List<SettingsRow> {
+        val config = ConfigManager.config
+        val linked = config.isLinked()
+        val account = if (linked) {
+            val confirming = unlinkConfirm.isArmed(nowMs)
+            SettingsRow(
+                SettingsKey.ACCOUNT,
+                ACCOUNT_LABEL,
+                "$LINKED_AS_PREFIX${config.linkedUsername}",
+                if (confirming) CONFIRM_UNLINK_LABEL else UNLINK_LABEL,
+                if (confirming) PillStyle.CONFIRM else PillStyle.UNSELECTED,
+            )
+        } else {
+            SettingsRow(SettingsKey.ACCOUNT, ACCOUNT_LABEL, NOT_LINKED_TEXT)
+        }
+        val syncDetail = lastSyncText(System.currentTimeMillis(), SyncManager.getLastSyncTime()) +
+            if (SyncManager.isSyncPending()) SYNC_PENDING_SUFFIX else ""
+        return listOf(
+            account,
+            SettingsRow(
+                SettingsKey.SYNC,
+                SYNC_LABEL,
+                syncDetail,
+                SYNC_NOW_LABEL,
+                if (linked) PillStyle.UNSELECTED else PillStyle.INACTIVE,
+            ),
+            switchRow(SettingsKey.ROTATION, ROTATION_LABEL, rotationVisible()),
+            groupRow(
+                SettingsKey.DYE_WIDGETS,
+                DYE_WIDGETS_LABEL,
+                aggregate(ConfigManager.dyeProgressPlacements.all().map { it.visible }),
+                NO_DYE_WIDGETS_TEXT,
+            ),
+            groupRow(
+                SettingsKey.GIFS,
+                GIFS_LABEL,
+                aggregate(ConfigManager.gifPlacements.all().map { it.visible }),
+                NO_GIFS_TEXT,
+            ),
+            switchRow(SettingsKey.BOUNCE, BOUNCE_LABEL, BounceController.isEnabled()),
+            SettingsRow(SettingsKey.EDIT_LAYOUT, EDIT_LAYOUT_LABEL, pillLabel = EDIT_LAYOUT_LABEL),
+        )
+    }
+
+    /** A row with an On/Off pill for one setting that is [on] or not. */
+    private fun switchRow(key: SettingsKey, label: String, on: Boolean): SettingsRow =
+        groupRow(key, label, if (on) ToggleState.ON else ToggleState.OFF, noneDetail = null)
+
+    /**
+     * A row with a toggle pill for a group of widgets in [state]: On-styled when on; inactive, with
+     * [noneDetail] as the detail, when there are none.
+     */
+    private fun groupRow(key: SettingsKey, label: String, state: ToggleState, noneDetail: String?): SettingsRow =
+        SettingsRow(
+            key,
+            label,
+            detail = if (state == ToggleState.NONE) noneDetail else null,
+            pillLabel = toggleLabel(state),
+            pillStyle = when (state) {
+                ToggleState.ON -> PillStyle.TOGGLE_ON
+                ToggleState.NONE -> PillStyle.INACTIVE
+                ToggleState.OFF, ToggleState.MIXED -> PillStyle.UNSELECTED
+            },
+        )
+
+    /**
+     * The Settings panel: [MenuLayout.SETTINGS_WIDTH] wide (narrower on a narrow screen), centred,
+     * below the header, one [MenuLayout.SETTINGS_ROW_HEIGHT] row per [rowCount].
+     */
+    private fun settingsPanel(rowCount: Int): Rect {
+        val panelWidth = minOf(MenuLayout.SETTINGS_WIDTH, width - 2 * MenuLayout.OUTER_MARGIN)
+        val top = MenuLayout.HEADER_HEIGHT + MenuLayout.OUTER_MARGIN
+        return Rect((width - panelWidth) / 2, top, panelWidth, rowCount * MenuLayout.SETTINGS_ROW_HEIGHT)
+    }
+
+    /** [settingsRows] placed top to bottom in [settingsPanel], each pill right-aligned and vertically centred. */
+    private fun placedSettingsRows(nowMs: Long): List<PlacedRow> {
+        val rows = settingsRows(nowMs)
+        val panel = settingsPanel(rows.size)
+        return rows.mapIndexed { index, row ->
+            val rect = Rect(panel.x, panel.y + index * MenuLayout.SETTINGS_ROW_HEIGHT, panel.width, MenuLayout.SETTINGS_ROW_HEIGHT)
+            val pill = row.pillLabel?.let { label ->
+                val pillWidth = pillWidth(label) { font.width(it) }
+                MenuPill(
+                    row.key.name,
+                    label,
+                    Rect(
+                        rect.right - MenuLayout.CARD_PADDING - pillWidth,
+                        rect.y + (rect.height - MenuLayout.PILL_HEIGHT) / 2,
+                        pillWidth,
+                        MenuLayout.PILL_HEIGHT,
+                    ),
+                    selected = false,
+                )
+            }
+            PlacedRow(row, rect, pill)
+        }
+    }
+
     override fun onClose() {
         Minecraft.getInstance().showScreen(null)
     }
@@ -525,7 +789,16 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     override fun extractRenderState(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
         super.extractRenderState(context, mouseX, mouseY, delta)
-        drawHeader(context)
+        drawHeader(context, mouseX, mouseY)
+        when (tab) {
+            MenuTab.DYES -> drawDyesTab(context, mouseX, mouseY)
+            MenuTab.SETTINGS -> drawSettings(context, mouseX, mouseY)
+        }
+        drawPinMessage(context)
+    }
+
+    /** The Dyes tab: the profile strip, then the dyes or what the content area says instead. */
+    private fun drawDyesTab(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
         val dyes = visibleDyes()
         val grid = gridGeometry(dyes.size)
         val currentStrip = strip
@@ -544,7 +817,66 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 drawMessage(context, "$FAILED_PREFIX${current.message}", UiTheme.Colors.STATUS_ERROR, messageArea)
             is ViewState.Loaded -> drawDyes(context, dyes, current.result.profile, grid, mouseX, mouseY)
         }
-        drawPinMessage(context)
+    }
+
+    /** The Settings tab: [placedSettingsRows] in one card-styled panel. */
+    private fun drawSettings(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
+        val now = Util.getMillis()
+        val placed = placedSettingsRows(now)
+        val panel = settingsPanel(placed.size)
+        UiDraw.filledBox(
+            context,
+            panel.x,
+            panel.y,
+            panel.width,
+            panel.height,
+            UiTheme.Colors.CARD_BACKGROUND,
+            UiTheme.Colors.CARD_BORDER,
+        )
+        val message = rowMessage?.takeIf { now < it.untilMs }
+        if (message == null) rowMessage = null
+        for (row in placed) drawSettingsRow(context, row, message?.takeIf { it.key == row.row.key }, mouseX, mouseY)
+    }
+
+    /**
+     * One Settings row: its label on the left, its detail line (or [message], which replaces it)
+     * under the label in small text, both shortened to end before the pill; the pill right-aligned,
+     * hover-styled unless inactive. The text is vertically centred in the row.
+     */
+    private fun drawSettingsRow(
+        context: GuiGraphicsExtractor,
+        placed: PlacedRow,
+        message: RowMessage?,
+        mouseX: Int,
+        mouseY: Int,
+    ) {
+        val row = placed.row
+        val rect = placed.rect
+        val pill = placed.pill
+        val textX = rect.x + MenuLayout.CARD_PADDING
+        val textRight = pill?.let { it.rect.x - MenuLayout.TEXT_GAP } ?: (rect.right - MenuLayout.CARD_PADDING)
+        val detail = message?.text ?: row.detail
+        val detailArgb = message?.argb ?: UiTheme.Colors.TEXT_MUTED
+        val textHeight = font.lineHeight + if (detail != null) scaledLineHeight(MenuLayout.SMALL_TEXT_SCALE) else 0
+        val labelY = rect.y + (rect.height - textHeight) / 2
+        val label = MenuCards.fitText(row.label, textRight - textX) { font.width(it) }
+        UiDraw.drawText(context, font, label, textX, labelY, UiTheme.Colors.TEXT_PRIMARY)
+        if (detail != null) {
+            val fitted = MenuCards.fitText(detail, textRight - textX) { scaledWidth(it, MenuLayout.SMALL_TEXT_SCALE) }
+            UiDraw.drawText(
+                context,
+                font,
+                fitted,
+                textX,
+                labelY + font.lineHeight,
+                detailArgb,
+                scale = MenuLayout.SMALL_TEXT_SCALE,
+            )
+        }
+        if (pill != null) {
+            val hovered = row.pillStyle != PillStyle.INACTIVE && pill.rect.contains(mouseX.toDouble(), mouseY.toDouble())
+            drawPill(context, pill, hovered, row.pillStyle)
+        }
     }
 
     /** The last card click's message, centred in the bottom margin, until it expires. */
@@ -599,14 +931,32 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * One pill, like the website's `Button`: white with black text when selected, else a card
-     * fill and border whose border and text brighten on hover. The label is centred.
+     * fill and border whose border and text brighten on hover. [style] adds the Settings looks: a
+     * toggle that is on takes the `success` Badge colors, a confirming action error-colored text,
+     * and an inactive pill muted text. The label is centred.
      */
-    private fun drawPill(context: GuiGraphicsExtractor, pill: MenuPill, hovered: Boolean) {
-        val (fill, border, text) = when {
-            pill.selected ->
+    private fun drawPill(
+        context: GuiGraphicsExtractor,
+        pill: MenuPill,
+        hovered: Boolean,
+        style: PillStyle = if (pill.selected) PillStyle.SELECTED else PillStyle.UNSELECTED,
+    ) {
+        val hoverBorder = if (hovered) UiTheme.Colors.PILL_HOVER_BORDER else UiTheme.Colors.CARD_BORDER
+        val (fill, border, text) = when (style) {
+            PillStyle.SELECTED ->
                 Triple(UiTheme.Colors.PILL_SELECTED_BG, UiTheme.Colors.PILL_SELECTED_BG, UiTheme.Colors.PILL_SELECTED_TEXT)
-            hovered -> Triple(UiTheme.Colors.CARD_BACKGROUND, UiTheme.Colors.PILL_HOVER_BORDER, UiTheme.Colors.TEXT_PRIMARY)
-            else -> Triple(UiTheme.Colors.CARD_BACKGROUND, UiTheme.Colors.CARD_BORDER, UiTheme.Colors.TEXT_SUBTLE)
+            PillStyle.UNSELECTED -> Triple(
+                UiTheme.Colors.CARD_BACKGROUND,
+                hoverBorder,
+                if (hovered) UiTheme.Colors.TEXT_PRIMARY else UiTheme.Colors.TEXT_SUBTLE,
+            )
+            PillStyle.TOGGLE_ON -> Triple(
+                UiTheme.Colors.TOGGLE_ON_BG,
+                if (hovered) UiTheme.Colors.PILL_HOVER_BORDER else UiTheme.Colors.TOGGLE_ON_BORDER,
+                UiTheme.Colors.ACCENT_SECONDARY,
+            )
+            PillStyle.CONFIRM -> Triple(UiTheme.Colors.CARD_BACKGROUND, hoverBorder, UiTheme.Colors.STATUS_ERROR)
+            PillStyle.INACTIVE -> Triple(UiTheme.Colors.CARD_BACKGROUND, UiTheme.Colors.CARD_BORDER, UiTheme.Colors.TEXT_MUTED)
         }
         val rect = pill.rect
         UiDraw.filledBox(context, rect.x, rect.y, rect.width, rect.height, fill, border)
@@ -617,28 +967,20 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             rect.x,
             rect.y + (rect.height - font.lineHeight) / 2,
             text,
-            shadow = !pill.selected, // a shadow under black text on white only smudges it
+            shadow = style != PillStyle.SELECTED, // a shadow under black text on white only smudges it
             availableWidth = rect.width,
             alignment = HorizontalAlignment.CENTER,
         )
     }
 
-    /** Header bar: the title, then the tab bar (one active tab, underlined, for now). */
-    private fun drawHeader(context: GuiGraphicsExtractor) {
+    /** Header bar: the title, then the [tabPills] (the active tab's selected, the other hover-styled). */
+    private fun drawHeader(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
         UiDraw.fillRect(context, 0, 0, width, MenuLayout.HEADER_HEIGHT, UiTheme.Colors.MENU_SURFACE)
         val textY = (MenuLayout.HEADER_HEIGHT - font.lineHeight) / 2
         UiDraw.drawText(context, font, TITLE, MenuLayout.OUTER_MARGIN, textY, UiTheme.Colors.ACCENT_PRIMARY)
-
-        val tabX = MenuLayout.OUTER_MARGIN + font.width(TITLE) + MenuLayout.TAB_GAP
-        UiDraw.drawText(context, font, DYES_TAB_LABEL, tabX, textY, UiTheme.Colors.TEXT_PRIMARY)
-        UiDraw.fillRect(
-            context,
-            tabX,
-            textY + font.lineHeight,
-            font.width(DYES_TAB_LABEL),
-            MenuLayout.TAB_UNDERLINE_HEIGHT,
-            UiTheme.Colors.ACCENT_PRIMARY,
-        )
+        for (pill in tabPills()) {
+            drawPill(context, pill, hovered = pill.rect.contains(mouseX.toDouble(), mouseY.toDouble()))
+        }
     }
 
     /** One line of [text], centred in [area]. */
@@ -891,7 +1233,6 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     companion object {
         private const val TITLE = "DyeTracker"
-        private const val DYES_TAB_LABEL = "Dyes"
         private const val LOADING_TEXT = "Loading your dyes…"
         private const val NO_PROFILES_PREFIX = "No SkyBlock profiles found for "
         private const val FAILED_PREFIX = "Couldn't load your dyes: "
@@ -940,5 +1281,46 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
         /** The hovered card's hint when it is already pinned. */
         private const val ON_HUD_HINT_TEXT = "On HUD"
+
+        private const val ACCOUNT_LABEL = "Account"
+        private const val SYNC_LABEL = "Sync"
+        private const val ROTATION_LABEL = "Rotation widget"
+        private const val DYE_WIDGETS_LABEL = "Dye widgets"
+        private const val GIFS_LABEL = "GIF overlays"
+        private const val BOUNCE_LABEL = "Bounce"
+
+        /** The Edit layout row's label, and its pill's. */
+        private const val EDIT_LAYOUT_LABEL = "Edit layout"
+
+        /** Before the linked account's name in the Account row. */
+        private const val LINKED_AS_PREFIX = "Linked as "
+
+        /** The Account row's detail while no account is linked. */
+        private const val NOT_LINKED_TEXT = "Not linked: get a code on the website, then /dyetracker link <code>"
+
+        private const val UNLINK_LABEL = "Unlink"
+
+        /** The Unlink pill's text while it waits for the confirming click. */
+        private const val CONFIRM_UNLINK_LABEL = "Confirm unlink"
+
+        /** The Account row's message after the confirming click unlinked the account. */
+        private const val UNLINKED_TEXT = "Unlinked."
+
+        /** After the Sync row's last-sync text while a sync is pending. */
+        private const val SYNC_PENDING_SUFFIX = " · pending"
+
+        private const val SYNC_NOW_LABEL = "Sync now"
+
+        /** The Sync row's message when there is no mod data to sync. */
+        private const val NOTHING_TO_SYNC_TEXT = "Nothing to sync yet."
+
+        /** The Sync row's message after a successful sync. */
+        private const val SYNCED_TEXT = "Synced."
+
+        /** The Dye widgets row's detail when no dye widget is configured. */
+        private const val NO_DYE_WIDGETS_TEXT = "Pin dyes from the Dyes tab"
+
+        /** The GIF overlays row's detail when no overlay is configured. */
+        private const val NO_GIFS_TEXT = "Add one with /dyetracker gif add <url>"
     }
 }

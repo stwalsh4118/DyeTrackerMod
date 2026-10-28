@@ -128,6 +128,12 @@ object UiTheme {
 
         /** Hovered unselected menu pill border; the website secondary Button's `hover:border-white/30`. */
         const val PILL_HOVER_BORDER: Int = 0x4D_FF_FF_FF
+
+        /** Menu toggle pill fill when on; the website Badge `success` variant's `bg-secondary/10`. */
+        const val TOGGLE_ON_BG: Int = 0x1A_00_F0_FF
+
+        /** Menu toggle pill border when on; the website Badge `success` variant's `border-secondary/20`. */
+        const val TOGGLE_ON_BORDER: Int = 0x33_00_F0_FF
     }
 
     /** Spacing tokens in GUI pixels. */

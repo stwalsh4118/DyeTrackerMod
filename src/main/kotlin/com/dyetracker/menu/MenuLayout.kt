@@ -27,11 +27,8 @@ object MenuLayout {
     /** Most card columns shown, however wide the screen. */
     const val MAX_COLUMNS = 6
 
-    /** Horizontal gap before each header tab label (after the title, between tabs). */
+    /** Horizontal gap between the header's title and its tab pills. */
     const val TAB_GAP = 16
-
-    /** Thickness of the underline marking the active tab. */
-    const val TAB_UNDERLINE_HEIGHT = 1
 
     /** Side of the black icon box in a card's top-left corner. */
     const val ICON_BOX = 28
@@ -92,6 +89,15 @@ object MenuLayout {
 
     /** How long the Unlink pill waits for its confirming click, in ms. */
     const val UNLINK_CONFIRM_MS = 3_000L
+
+    /** Widest the Settings tab's panel gets, however wide the screen. */
+    const val SETTINGS_WIDTH = 320
+
+    /** Height of one Settings row (label, detail line, control pill). */
+    const val SETTINGS_ROW_HEIGHT = 28
+
+    /** How long a Settings row's message after a click (unlinked, synced, nothing to sync) shows, in ms. */
+    const val SETTINGS_MESSAGE_MS = 4_000L
 
     /** Horizontal distance from one card's left edge to the next column's. */
     private const val COLUMN_PITCH = CARD_WIDTH + CARD_GAP
