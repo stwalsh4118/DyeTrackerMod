@@ -54,11 +54,17 @@ object MenuLayout {
     /** Offset of a card's name below the icon box's top edge. */
     const val NAME_TOP_OFFSET = 2
 
+    /** Side of a bundled dye sprite PNG, the source size for the stretched blit. */
+    const val SPRITE_SOURCE_SIZE = 300
+
     /** Pixels scrolled per mouse-wheel notch. */
     const val SCROLL_STEP = 20
 
     /** Width of the scrollbar track on the viewport's right edge. */
     const val SCROLLBAR_WIDTH = 2
+
+    /** Gap between the card grid's right edge and the scrollbar. */
+    const val SCROLLBAR_GAP = 4
 
     /** Shortest the scrollbar thumb gets, however long the content. */
     const val SCROLLBAR_MIN_THUMB = 12
