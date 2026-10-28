@@ -30,6 +30,10 @@ Some dyes depend on things the Hypixel API doesn't record. For these, the mod co
 - [Fabric API](https://modrinth.com/mod/fabric-api) (the build matching your Minecraft version)
 - [Fabric Language Kotlin](https://modrinth.com/mod/fabric-language-kotlin) 1.12.3+
 
+### Minecraft versions
+
+New features ship for Minecraft **26.1.2** and **26.2**. The **1.21.10** and **1.21.11** builds get bug fixes only.
+
 ## Installation
 
 1. Install Fabric Loader for your Minecraft version (1.21.10 or 1.21.11).
@@ -57,6 +61,26 @@ Some dyes depend on things the Hypixel API doesn't record. For these, the mod co
 | `/dyetracker link <code>` | Link your account using a code from the website |
 | `/dyetracker status` | Check your current link status |
 | `/dyetracker unlink` | Unlink your account |
+| `/dyetracker menu` | Open the in-game DyeTracker menu |
+
+### In-game menu
+
+Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu** in **Controls → DyeTracker** (it has no key until you set one).
+
+**Dyes tab**
+
+- Shows your dyes and your progress on each, looked up by your in-game name. You don't need to link your account to use it.
+- If your account is linked, the counts the mod tracks for you (see [Dyes the mod counts for you](#dyes-the-mod-counts-for-you)) show their exact synced values.
+- Switch between your SkyBlock profiles with the profile switcher.
+- Filter by category and change the sort order (progress or name).
+- Click a dye to pin it to your HUD as a progress widget.
+
+**Settings tab**
+
+- **Account**: see which account is linked, or unlink it (click Unlink, then Confirm unlink).
+- **Sync**: send your tracked counts to DyeTracker now.
+- **Rotation widget**, **Dye widgets**, **GIF overlays** and **Bounce**: turn each on or off.
+- **Edit layout**: move and resize your HUD widgets.
 
 ## Building from Source
 
