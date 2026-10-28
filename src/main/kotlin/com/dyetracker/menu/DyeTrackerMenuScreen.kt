@@ -172,8 +172,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * The category pills ("All Dyes" first), wrapping within [gridWidth] from [left], and the sort
-     * pill right-aligned on the first row. The category rows leave room for the widest sort label,
-     * so cycling the sort never reflows them.
+     * pill right-aligned on the first row. The first category row leaves room for the widest sort
+     * label, so cycling the sort never reflows the pills; later rows use the full grid width.
      */
     private fun controlPills(left: Int, gridWidth: Int): List<MenuPill> {
         val top = MenuLayout.HEADER_HEIGHT + MenuLayout.OUTER_MARGIN
@@ -182,7 +182,14 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             .map { (it ?: ALL_PILL_KEY) to categoryLabel(it) }
         val sortReserve = MenuSort.entries.maxOf { pillWidth(sortLabel(it), measure) } + MenuLayout.PILL_GAP
         val selectedKey = category ?: ALL_PILL_KEY
-        val placed = layoutPills(categoryLabels, measure, left, top, gridWidth - sortReserve)
+        val placed = layoutPills(
+            categoryLabels,
+            measure,
+            left,
+            top,
+            maxWidth = gridWidth,
+            firstRowMaxWidth = gridWidth - sortReserve,
+        )
         val categoryPills = categoryLabels.zip(placed) { (key, label), (_, rect) ->
             MenuPill(key, label, rect, selected = key == selectedKey)
         }

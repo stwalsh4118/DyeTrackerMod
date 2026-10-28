@@ -22,8 +22,8 @@ class MenuFiltersTest {
     private val dusk = entry("dusk", "nucleus", 50.0)
     private val bubblegum = entry("bubblegum", "dungeon", null)
 
-    /** API order; deliberately not sorted by name or progress. */
-    private val dyes = listOf(celeste, aurora, dusk, bubblegum)
+    /** API order; deliberately not sorted by name or progress (50, null, 80, 50), either way. */
+    private val dyes = listOf(dusk, bubblegum, celeste, aurora)
 
     @Test
     fun `menu categories follow the website order`() {
@@ -96,17 +96,18 @@ class MenuFiltersTest {
 
     @Test
     fun `default keeps the input order`() {
-        assertEquals(listOf(celeste, aurora, dusk, bubblegum), applyFilters(dyes, null, MenuSort.DEFAULT))
+        assertEquals(listOf(dusk, bubblegum, celeste, aurora), applyFilters(dyes, null, MenuSort.DEFAULT))
     }
 
     @Test
     fun `progress descending puts null progress last`() {
-        assertEquals(listOf(celeste, aurora, dusk, bubblegum), applyFilters(dyes, null, MenuSort.PROGRESS_DESC))
+        // dusk and aurora tie at 50; dusk comes first in the input, so it stays first.
+        assertEquals(listOf(celeste, dusk, aurora, bubblegum), applyFilters(dyes, null, MenuSort.PROGRESS_DESC))
     }
 
     @Test
     fun `progress ascending puts null progress first`() {
-        assertEquals(listOf(bubblegum, aurora, dusk, celeste), applyFilters(dyes, null, MenuSort.PROGRESS_ASC))
+        assertEquals(listOf(bubblegum, dusk, aurora, celeste), applyFilters(dyes, null, MenuSort.PROGRESS_ASC))
     }
 
     @Test
@@ -117,6 +118,14 @@ class MenuFiltersTest {
     @Test
     fun `name descending ignores case`() {
         assertEquals(listOf(dusk, celeste, bubblegum, aurora), applyFilters(dyes, null, MenuSort.NAME_DESC))
+    }
+
+    @Test
+    fun `progress descending reorders an unsorted input`() {
+        assertEquals(
+            listOf(celeste, aurora, bubblegum),
+            applyFilters(listOf(bubblegum, aurora, celeste), null, MenuSort.PROGRESS_DESC),
+        )
     }
 
     @Test

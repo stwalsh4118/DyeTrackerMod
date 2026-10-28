@@ -20,7 +20,8 @@ fun pillWidth(label: String, measure: (String) -> Int): Int = measure(label) + 2
  * Rects for [labels] (`key to label` pairs), laid out left to right from ([left], [top]) with
  * [MenuLayout.PILL_GAP] between pills. Each pill is [pillWidth] wide and [MenuLayout.PILL_HEIGHT]
  * tall. A pill that would pass `left + maxWidth` starts a new row [MenuLayout.PILL_GAP] below; a
- * row's first pill stays on its row even when it alone is wider than [maxWidth].
+ * row's first pill stays on its row even when it alone is wider than [maxWidth]. The first row
+ * wraps at `left + firstRowMaxWidth` instead, to leave room for something beside it.
  */
 fun layoutPills(
     labels: List<Pair<String, String>>,
@@ -28,8 +29,9 @@ fun layoutPills(
     left: Int,
     top: Int,
     maxWidth: Int,
+    firstRowMaxWidth: Int = maxWidth,
 ): List<Pair<String, Rect>> {
-    val right = left + maxWidth
+    var right = left + firstRowMaxWidth
     var x = left
     var y = top
     return labels.map { (key, label) ->
@@ -37,6 +39,7 @@ fun layoutPills(
         if (x > left && x + width > right) {
             x = left
             y += MenuLayout.PILL_HEIGHT + MenuLayout.PILL_GAP
+            right = left + maxWidth
         }
         val rect = Rect(x, y, width, MenuLayout.PILL_HEIGHT)
         x += width + MenuLayout.PILL_GAP

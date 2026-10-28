@@ -67,6 +67,17 @@ class MenuPillTest {
     }
 
     @Test
+    fun `only the first row wraps at the narrower first-row width`() {
+        // Row 1 ends at 10 + 50 = 60: All (10..44) fits, Slayer (48..100) wraps.
+        // Row 2 uses the full width (ends at 210): Slayer (10..62) and Dungeon (66..124) share it.
+        val pills = layoutPills(labels, measure, left, top, maxWidth = 200, firstRowMaxWidth = 50)
+        assertEquals(
+            listOf(Rect(10, 20, 34, 16), Rect(10, 40, 52, 16), Rect(66, 40, 58, 16)),
+            pills.map { it.second },
+        )
+    }
+
+    @Test
     fun `no labels lay out no pills`() {
         assertTrue(layoutPills(emptyList(), measure, left, top, maxWidth = 100).isEmpty())
     }
