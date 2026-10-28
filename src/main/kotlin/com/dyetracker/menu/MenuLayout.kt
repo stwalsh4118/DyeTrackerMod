@@ -87,6 +87,9 @@ object MenuLayout {
     /** Horizontal gap between the strip's name and its profile pill, and the least before its totals. */
     const val STRIP_ITEM_GAP = TEXT_GAP * 2
 
+    /** How long the message after a card click (pinned, already pinned, can't pin) shows, in ms. */
+    const val PIN_MESSAGE_MS = 4_000L
+
     /** Horizontal distance from one card's left edge to the next column's. */
     private const val COLUMN_PITCH = CARD_WIDTH + CARD_GAP
 

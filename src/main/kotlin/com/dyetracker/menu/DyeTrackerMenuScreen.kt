@@ -8,6 +8,8 @@ import com.dyetracker.DyeTrackerMod
 import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.PlayerRngData
 import com.dyetracker.data.RngDataStore
+import com.dyetracker.dyeprogress.DyeProgressPoller
+import com.dyetracker.dyeprogress.DyeProgressWidgetConfig
 import com.dyetracker.dyeprogress.DyeProgressWidgetView
 import com.dyetracker.rotation.DyeSprites
 import com.dyetracker.sync.SyncManager
@@ -53,6 +55,10 @@ import kotlin.math.roundToInt
  * there is one. A linked player's pending mod data is synced first ([shouldSyncFirst]).
  * Loads run on [Dispatchers.IO]; each result is posted back to the render thread and dropped if
  * the screen was closed or another load started meanwhile ([epoch] guard).
+ *
+ * Clicking a dye card pins that dye, for the profile shown, as a HUD dye progress widget
+ * ([pinDecision]); a short message at the bottom says what happened, and the hovered card hints
+ * whether a click would pin it.
  */
 class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
@@ -76,6 +82,12 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         /** Whether the profile pill cycles: only with more than one profile. */
         val canSwitch: Boolean get() = profiles.size > 1
     }
+
+    /** The message after a card click, shown at the bottom until [untilMs] ([Util.getMillis] time). */
+    private data class PinMessage(val text: String, val argb: Int, val untilMs: Long)
+
+    /** A hovered card's pin hint, drawn bottom-right in [argb]. */
+    private data class PinHint(val text: String, val argb: Int)
 
     /** One piece of text in the profile strip, drawn at [x] in [argb]. */
     private data class StripText(val text: String, val x: Int, val argb: Int)
@@ -137,6 +149,9 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /** The last background fetch failed; cleared by the next successful load. */
     private var refreshFailed = false
+
+    /** The last card click's message; `null` before the first click. */
+    private var pinMessage: PinMessage? = null
 
     /** A load is running, in the background or behind Loading; Refresh is ignored meanwhile. */
     private val fetchRunning: Boolean get() = refreshing || state is ViewState.Loading
@@ -292,7 +307,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     override fun mouseClicked(click: MouseButtonEvent, doubled: Boolean): Boolean {
         if (super.mouseClicked(click, doubled)) return true
         if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false
-        val grid = gridGeometry(visibleDyes().size)
+        val dyes = visibleDyes()
+        val grid = gridGeometry(dyes.size)
         val currentStrip = strip
         if (currentStrip != null) {
             val layout = stripLayout(currentStrip, grid.stripRow)
@@ -306,16 +322,66 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 return true
             }
         }
-        if (state !is ViewState.Loaded) return false // control pills are only shown over loaded dyes
-        val pill = pillAt(grid.pills, click.x(), click.y()) ?: return false
-        when (pill.key) {
-            SORT_PILL_KEY -> sort = sort.next()
-            ALL_PILL_KEY -> category = null
-            else -> category = pill.key
+        val loaded = state as? ViewState.Loaded ?: return false // control pills and cards only show over loaded dyes
+        val pill = pillAt(grid.pills, click.x(), click.y())
+        if (pill != null) {
+            when (pill.key) {
+                SORT_PILL_KEY -> sort = sort.next()
+                ALL_PILL_KEY -> category = null
+                else -> category = pill.key
+            }
+            scroll = 0
+            return true
         }
-        scroll = 0
+        val index = MenuLayout.cardIndexAt(
+            click.x(),
+            click.y(),
+            dyes.size,
+            grid.columns,
+            grid.left,
+            grid.top,
+            scroll,
+            grid.viewport,
+        ) ?: return false
+        pinCard(dyes[index], loaded.result.profile)
         return true
     }
+
+    /**
+     * Pins [entry], for [profile], as a HUD dye progress widget when [pinDecision] says so, then
+     * polls at once so it fills in; either way shows what happened in [pinMessage].
+     */
+    private fun pinCard(entry: DyeProgressEntry, profile: ProfileSummary) {
+        val (text, argb) = when (val decision = currentPinDecision(entry, profile)) {
+            is PinDecision.Add -> {
+                ConfigManager.dyeProgressPlacements.add(
+                    DyeProgressWidgetConfig(
+                        id = DyeProgressWidgetConfig.newId(),
+                        dyeId = decision.dyeId,
+                        profileName = decision.profileName,
+                        profileId = decision.profileId,
+                    ),
+                )
+                DyeProgressPoller.pollOnce()
+                "$PINNED_PREFIX${entry.name}$PINNED_SUFFIX" to UiTheme.Colors.ACCENT_SECONDARY
+            }
+            PinDecision.AlreadyPinned -> "${entry.name}$ALREADY_PINNED_SUFFIX" to UiTheme.Colors.TEXT_SUBTLE
+            PinDecision.NotPinnable -> "${entry.name}$NOT_PINNABLE_SUFFIX" to UiTheme.Colors.STATUS_ERROR
+        }
+        pinMessage = PinMessage(text, argb, Util.getMillis() + MenuLayout.PIN_MESSAGE_MS)
+    }
+
+    /** [pinDecision] for [entry] on [profile] against the HUD widgets configured now. */
+    private fun currentPinDecision(entry: DyeProgressEntry, profile: ProfileSummary): PinDecision =
+        pinDecision(ConfigManager.dyeProgressPlacements.all(), entry, profile, DyeSprites::has)
+
+    /** The hovered card's hint: `+ HUD` when a click would pin it, `On HUD` when pinned, none when it can't be. */
+    private fun pinHint(entry: DyeProgressEntry, profile: ProfileSummary): PinHint? =
+        when (currentPinDecision(entry, profile)) {
+            is PinDecision.Add -> PinHint(PIN_HINT_TEXT, UiTheme.Colors.ACCENT_SECONDARY)
+            PinDecision.AlreadyPinned -> PinHint(ON_HUD_HINT_TEXT, UiTheme.Colors.TEXT_MUTED)
+            PinDecision.NotPinnable -> null
+        }
 
     override fun mouseScrolled(mouseX: Double, mouseY: Double, horizontal: Double, vertical: Double): Boolean {
         val grid = gridGeometry(visibleDyes().size)
@@ -476,8 +542,20 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 drawMessage(context, "$NO_PROFILES_PREFIX${current.username}.", UiTheme.Colors.TEXT_SUBTLE, messageArea)
             is ViewState.Failed ->
                 drawMessage(context, "$FAILED_PREFIX${current.message}", UiTheme.Colors.STATUS_ERROR, messageArea)
-            is ViewState.Loaded -> drawDyes(context, dyes, grid, mouseX, mouseY)
+            is ViewState.Loaded -> drawDyes(context, dyes, current.result.profile, grid, mouseX, mouseY)
         }
+        drawPinMessage(context)
+    }
+
+    /** The last card click's message, centred in the bottom margin, until it expires. */
+    private fun drawPinMessage(context: GuiGraphicsExtractor) {
+        val message = pinMessage ?: return
+        if (Util.getMillis() >= message.untilMs) {
+            pinMessage = null
+            return
+        }
+        val margin = Rect(0, height - MenuLayout.OUTER_MARGIN, width, MenuLayout.OUTER_MARGIN)
+        drawMessage(context, message.text, message.argb, margin)
     }
 
     /**
@@ -498,10 +576,14 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         }
     }
 
-    /** The control pills, then [dyes] in the grid laid out by [grid], or a note when the filter leaves no dyes. */
+    /**
+     * The control pills, then [dyes] (of [profile]) in the grid laid out by [grid], or a note when
+     * the filter leaves no dyes.
+     */
     private fun drawDyes(
         context: GuiGraphicsExtractor,
         dyes: List<DyeProgressEntry>,
+        profile: ProfileSummary,
         grid: GridGeometry,
         mouseX: Int,
         mouseY: Int,
@@ -512,7 +594,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             drawMessage(context, EMPTY_FILTER_TEXT, UiTheme.Colors.TEXT_SUBTLE, grid.viewport)
             return
         }
-        drawGrid(context, dyes, grid, mouseX, mouseY)
+        drawGrid(context, dyes, profile, grid, mouseX, mouseY)
     }
 
     /**
@@ -575,12 +657,14 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * The dye cards laid out by [grid], clipped to its viewport and scrolled by [scroll]; only
-     * cards that intersect the viewport are drawn. Nothing is drawn when the window leaves the
-     * viewport empty (26.2 rejects a zero-size scissor).
+     * cards that intersect the viewport are drawn, the hovered one with its [pinHint] for
+     * [profile]. Nothing is drawn when the window leaves the viewport empty (26.2 rejects a
+     * zero-size scissor).
      */
     private fun drawGrid(
         context: GuiGraphicsExtractor,
         dyes: List<DyeProgressEntry>,
+        profile: ProfileSummary,
         grid: GridGeometry,
         mouseX: Int,
         mouseY: Int,
@@ -597,13 +681,15 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             scroll,
             viewport,
         )
+        val hint = hovered?.let { pinHint(dyes[it], profile) }
         val renderCtx = RenderContext(context, Util.getMillis(), false)
         context.enableScissor(viewport.x, viewport.y, viewport.right, viewport.bottom)
         for ((index, entry) in dyes.withIndex()) {
             val (x, y) = MenuLayout.cardOrigin(index, grid.columns, grid.left, grid.top - scroll)
             if (y >= viewport.bottom) break // cards are row-ordered, so every later card is below too
             if (y + MenuLayout.CARD_HEIGHT <= viewport.y) continue
-            drawCard(context, renderCtx, entry, x, y, hovered = index == hovered)
+            val isHovered = index == hovered
+            drawCard(context, renderCtx, entry, x, y, hovered = isHovered, hint = if (isHovered) hint else null)
         }
         context.disableScissor()
         drawScrollbar(context, viewport, grid.contentHeight)
@@ -631,7 +717,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /**
      * One card, like the website's `DyeCard`: icon box with the sprite, name and category, a
      * status badge top-right, and a label/value line over the progress bar. The border takes the
-     * dye's accent when [hovered].
+     * dye's accent when [hovered]. A [hint] goes at the right end of the label/value line, the
+     * value moving left of it, or dropped when the label, value and hint don't all fit.
      */
     private fun drawCard(
         context: GuiGraphicsExtractor,
@@ -640,6 +727,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         x: Int,
         y: Int,
         hovered: Boolean,
+        hint: PinHint?,
     ) {
         val padding = MenuLayout.CARD_PADDING
         val innerWidth = MenuLayout.CARD_WIDTH - 2 * padding
@@ -677,26 +765,46 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         val barHeight = UiTheme.Sizing.PROGRESS_BAR_HEIGHT
         val barY = y + MenuLayout.CARD_HEIGHT - padding - barHeight
         val lineY = barY - MenuLayout.TEXT_GAP - scaledLineHeight(MenuLayout.SMALL_TEXT_SCALE)
+        val label = MenuCards.statusLabel(entry)
         UiDraw.drawText(
             context,
             font,
-            MenuCards.statusLabel(entry),
+            label,
             x + padding,
             lineY,
             UiTheme.Colors.TEXT_SUBTLE,
             scale = MenuLayout.SMALL_TEXT_SCALE,
         )
-        UiDraw.drawText(
-            context,
-            font,
-            MenuCards.valueText(entry),
-            x + padding,
-            lineY,
-            UiTheme.Colors.TEXT_PRIMARY,
-            scale = MenuLayout.SMALL_TEXT_SCALE,
-            availableWidth = innerWidth,
-            alignment = HorizontalAlignment.END,
-        )
+        val value = MenuCards.valueText(entry)
+        var valueWidth = innerWidth // the value is right-aligned in this width from the card's left padding
+        if (hint != null) {
+            UiDraw.drawText(
+                context,
+                font,
+                hint.text,
+                x + padding,
+                lineY,
+                hint.argb,
+                scale = MenuLayout.SMALL_TEXT_SCALE,
+                availableWidth = innerWidth,
+                alignment = HorizontalAlignment.END,
+            )
+            valueWidth = innerWidth - scaledWidth(hint.text, MenuLayout.SMALL_TEXT_SCALE) - MenuLayout.TEXT_GAP
+        }
+        val labelEnd = scaledWidth(label, MenuLayout.SMALL_TEXT_SCALE) + MenuLayout.TEXT_GAP
+        if (hint == null || labelEnd + scaledWidth(value, MenuLayout.SMALL_TEXT_SCALE) <= valueWidth) {
+            UiDraw.drawText(
+                context,
+                font,
+                value,
+                x + padding,
+                lineY,
+                UiTheme.Colors.TEXT_PRIMARY,
+                scale = MenuLayout.SMALL_TEXT_SCALE,
+                availableWidth = valueWidth,
+                alignment = HorizontalAlignment.END,
+            )
+        }
         ProgressBarWidget(
             value = (entry.progress ?: 0.0).toFloat().coerceIn(ProgressBarWidget.MIN_VALUE, ProgressBarWidget.MAX_VALUE),
             width = innerWidth,
@@ -814,5 +922,23 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
         /** The strip's status text after a background fetch failed, until the next success. */
         private const val REFRESH_FAILED_TEXT = "refresh failed"
+
+        /** Before the dye's name in the message after a card click pinned it. */
+        private const val PINNED_PREFIX = "Pinned "
+
+        /** After the dye's name in the message after a card click pinned it. */
+        private const val PINNED_SUFFIX = " to your HUD. Move it with /dyetracker dye edit."
+
+        /** After the dye's name in the message when its card was already pinned. */
+        private const val ALREADY_PINNED_SUFFIX = " is already on your HUD."
+
+        /** After the dye's name in the message when its card can't be pinned. */
+        private const val NOT_PINNABLE_SUFFIX = " can't be pinned yet."
+
+        /** The hovered card's hint when a click would pin it. */
+        private const val PIN_HINT_TEXT = "+ HUD"
+
+        /** The hovered card's hint when it is already pinned. */
+        private const val ON_HUD_HINT_TEXT = "On HUD"
     }
 }
