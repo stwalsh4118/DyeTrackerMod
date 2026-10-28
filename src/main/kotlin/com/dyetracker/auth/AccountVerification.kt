@@ -194,7 +194,8 @@ object AccountVerification {
             )
         }
         // Drop volatile per-account dye progress so widgets don't show the old account's stale
-        // values after unlinking (placements remain in config but render as Loading until relinked).
+        // values after unlinking. Placements remain in config; the next poll refills them under the
+        // in-game name (PlayerIdentity.hudUsername).
         DyeProgressStore.clear()
         DyeTrackerMod.info("Account unlinked")
     }

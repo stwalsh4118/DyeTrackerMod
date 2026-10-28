@@ -14,6 +14,11 @@ object PlayerIdentity {
         linkedUsername.ifBlank { inGameName?.trim().orEmpty() }
 
     /** The name the HUD widget poller fetches under: the linked name, else the in-game name. */
-    fun hudUsername(): String =
-        effectiveUsername(ConfigManager.config.linkedUsername, Minecraft.getInstance().user.name)
+    fun hudUsername(): String {
+        // `user` is declared non-null, but the poller's first tick can run inside Minecraft's
+        // constructor, before `user` is assigned.
+        @Suppress("UNNECESSARY_SAFE_CALL")
+        val inGameName = Minecraft.getInstance().user?.name
+        return effectiveUsername(ConfigManager.config.linkedUsername, inGameName)
+    }
 }
