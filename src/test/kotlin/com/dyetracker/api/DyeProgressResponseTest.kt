@@ -140,6 +140,36 @@ class DyeProgressResponseTest {
     }
 
     @Test
+    fun `decodes the selected flag on a player-profiles response`() {
+        val body = """
+            {
+              "uuid": "abc-123",
+              "username": "Notch",
+              "profiles": [
+                { "id": "p1", "cute_name": "Mango", "selected": false },
+                { "id": "p2", "cute_name": "Banana", "selected": true }
+              ]
+            }
+        """.trimIndent()
+
+        val result = json.decodeFromString<PlayerProfilesResponse>(body)
+
+        assertFalse(result.profiles[0].selected)
+        assertTrue(result.profiles[1].selected)
+    }
+
+    @Test
+    fun `a profile without the selected key decodes as not selected`() {
+        val body = """
+            { "uuid": "abc-123", "username": "Notch", "profiles": [ { "id": "p1", "cute_name": "Mango" } ] }
+        """.trimIndent()
+
+        val result = json.decodeFromString<PlayerProfilesResponse>(body)
+
+        assertFalse(result.profiles.single().selected)
+    }
+
+    @Test
     fun `decodes an API error body`() {
         val body = """
             { "error": "PlayerNotFound", "message": "Player not found", "status": 404 }

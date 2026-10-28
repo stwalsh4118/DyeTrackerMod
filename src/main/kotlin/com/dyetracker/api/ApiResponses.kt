@@ -109,7 +109,9 @@ data class SyncDyeCollectionResponse(
 @Serializable
 data class ProfileSummary(
     val id: String,
-    @SerialName("cute_name") val cuteName: String
+    @SerialName("cute_name") val cuteName: String,
+    /** True for the profile currently selected in-game (Hypixel's `selected`). */
+    val selected: Boolean = false
 )
 
 /**
