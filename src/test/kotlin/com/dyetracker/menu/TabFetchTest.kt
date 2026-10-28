@@ -145,6 +145,14 @@ class TabFetchTest {
     }
 
     @Test
+    fun `needsFetch is true again after a failure for that profile`() {
+        fetch.fetch(P1, { ApiClient.ApiResult.Error("HTTP 500") })
+        runPosted()
+
+        assertTrue(fetch.needsFetch(P1))
+    }
+
+    @Test
     fun `stateFor gives the state only for its profile`() {
         fetch.fetch(P1, { ApiClient.ApiResult.Success("owned") })
         runPosted()

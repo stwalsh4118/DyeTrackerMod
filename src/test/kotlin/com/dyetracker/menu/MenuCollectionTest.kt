@@ -8,7 +8,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** Unit coverage for the Collection tab's cells, summary, badge and empty hint (68-2) and its filters (68-3). */
+/**
+ * Unit coverage for the Collection tab's cells, summary, badge and empty hint (68-2), its filters
+ * (68-3), and the Dyes tab's OBTAINED badge and obtained totals (68-5).
+ */
 class MenuCollectionTest {
 
     private fun dye(dyeId: String, category: String = "mob_drop") = DyeProgressEntry(
@@ -136,6 +139,27 @@ class MenuCollectionTest {
     fun `ownedBadge is x and the count for two or more`() {
         assertEquals("x2", MenuCollection.ownedBadge(2))
         assertEquals("x3", MenuCollection.ownedBadge(3))
+    }
+
+    @Test
+    fun `obtainedBadge is null when not owned`() {
+        assertNull(MenuCollection.obtainedBadge(0))
+    }
+
+    @Test
+    fun `obtainedBadge is OBTAINED for one`() {
+        assertEquals("OBTAINED", MenuCollection.obtainedBadge(1))
+    }
+
+    @Test
+    fun `obtainedBadge adds x and the count for two or more`() {
+        assertEquals("OBTAINED x2", MenuCollection.obtainedBadge(2))
+        assertEquals("OBTAINED x4", MenuCollection.obtainedBadge(4))
+    }
+
+    @Test
+    fun `obtainedTotalsText reads owned of total obtained and how many at 100`() {
+        assertEquals("5 / 42 obtained · 3 at 100%", MenuCollection.obtainedTotalsText(5, 42, 3))
     }
 
     @Test

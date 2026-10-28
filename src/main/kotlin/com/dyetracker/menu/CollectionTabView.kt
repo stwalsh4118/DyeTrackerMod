@@ -24,12 +24,6 @@ import java.time.ZoneId
  */
 internal object CollectionTabView {
 
-    private val OWNED_BADGE_COLORS = DyeTrackerMenuScreen.BadgeColors(
-        UiTheme.Colors.OWNED_TEXT,
-        UiTheme.Colors.OWNED_BG,
-        UiTheme.Colors.OWNED_BORDER,
-    )
-
     /**
      * The summary of all [cells], the [pills] (hover-styled under ([mouseX], [mouseY]); an
      * unselected chip of a category whose dyes are all owned in emerald text), and the [visible]
@@ -243,7 +237,7 @@ internal object CollectionTabView {
             val badgeLeft = screen.drawBadge(
                 context,
                 MenuCollection.ownedBadge(cell.count),
-                OWNED_BADGE_COLORS,
+                DyeTrackerMenuScreen.OWNED_BADGE_COLORS,
                 textRight,
                 y + padding,
             )

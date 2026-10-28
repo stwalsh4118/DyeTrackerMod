@@ -19,7 +19,8 @@ data class CategoryCount(val category: String, val owned: Int, val total: Int)
 /**
  * Pure logic for the in-game menu's Collection tab, mirroring the website's Collection page: one
  * cell per dye of the Dyes tab's list, the owned/total summary, an owned card's badge, when to
- * explain an empty collection, and the category chips and All / Owned / Unowned filter.
+ * explain an empty collection, and the category chips and All / Owned / Unowned filter; and the
+ * Dyes tab's OBTAINED badge and obtained totals.
  */
 object MenuCollection {
     /** Shown when the player owns none of the dyes. */
@@ -27,6 +28,9 @@ object MenuCollection {
 
     /** An owned card's badge for a count of exactly one. */
     private const val SINGLE_BADGE = "✓"
+
+    /** A Dyes tab card's badge for an owned dye, like the website's. */
+    private const val OBTAINED_BADGE = "OBTAINED"
 
     /** Before the count in an owned card's badge for two or more, like the website's `x3`. */
     private const val MULTIPLE_BADGE_PREFIX = "x"
@@ -80,6 +84,23 @@ object MenuCollection {
 
     /** An owned card's badge: `✓` for one, `x<count>` for two or more, like the website. */
     fun ownedBadge(count: Int): String = if (count <= 1) SINGLE_BADGE else "$MULTIPLE_BADGE_PREFIX$count"
+
+    /**
+     * A Dyes tab card's badge for a dye the player owns [count] of: `OBTAINED`, or
+     * `OBTAINED x<count>` for two or more, like the website; `null` when not owned.
+     */
+    fun obtainedBadge(count: Int): String? = when {
+        count <= 0 -> null
+        count == 1 -> OBTAINED_BADGE
+        else -> "$OBTAINED_BADGE $MULTIPLE_BADGE_PREFIX$count"
+    }
+
+    /**
+     * The profile strip's totals once the collection is loaded, e.g. `5 / 42 obtained · 3 at 100%`:
+     * [owned] of the profile's [total] dyes, and how many are [complete].
+     */
+    fun obtainedTotalsText(owned: Int, total: Int, complete: Int): String =
+        "$owned / $total obtained · $complete at 100%"
 
     /** Whether to show [EMPTY_HINT]: none of [cells] is owned. */
     fun showEmptyHint(cells: List<CollectionCell>): Boolean = cells.none { it.owned }

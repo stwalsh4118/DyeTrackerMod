@@ -49,8 +49,14 @@ class TabFetch<T>(
     /** A fetch is running (for whichever profile). */
     val busy: Boolean get() = state is FetchState.Loading
 
-    /** Whether [profileId] has no fetch yet: the last one was for another profile, or none ran. */
-    fun needsFetch(profileId: String): Boolean = state?.profileId != profileId
+    /**
+     * Whether [profileId] needs a fetch: none is loaded or running for it (the last one was for
+     * another profile, failed, or none ran).
+     */
+    fun needsFetch(profileId: String): Boolean = when (stateFor(profileId)) {
+        null, is FetchState.Failed -> true
+        is FetchState.Loading, is FetchState.Loaded -> false
+    }
 
     /** The last fetch's state when it was for [profileId], else `null`. */
     fun stateFor(profileId: String): FetchState<T>? = state?.takeIf { it.profileId == profileId }

@@ -72,9 +72,11 @@ import kotlin.math.roundToInt
  * the Settings tab. The Collection tab keeps the profile strip and shows which of the Dyes tab's
  * dyes the player owns on that profile, like the website's Collection page ([CollectionTabView]),
  * with category chips (owned/total each) and an All / Owned / Unowned filter of its own, kept while
- * the screen is open; it fetches the collection on opening the tab and on each profile switch or
- * Refresh while on it, dropping a result for another profile or one a newer request superseded
- * ([collectionFetch]).
+ * the screen is open. The collection is fetched alongside the dyes (each load landing on a profile
+ * without one, each profile switch, Refresh; and opening the Collection tab after a failure),
+ * dropping a result for another profile or one a newer request superseded ([collectionFetch]).
+ * Once loaded, the Dyes tab's cards of owned dyes show an OBTAINED badge and the strip's totals
+ * count the obtained dyes; until then (or after a collection error) they show as without it.
  * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, the layout
  * editor), each control calling what its `/dyetracker` command calls. Settings state is read fresh
  * every frame, so a change made by a command meanwhile shows at once.
@@ -255,8 +257,9 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
-     * The Collection tab's collection for the profile the strip shows; a result posted after the
-     * screen closed, a newer collection fetch started or the strip moved to another profile is dropped.
+     * The collection for the profile the strip shows, one result shared by the Dyes tab's OBTAINED
+     * badges and totals and the Collection tab; a result posted after the screen closed, a newer
+     * collection fetch started or the strip moved to another profile is dropped.
      */
     private val collectionFetch = TabFetch<CollectionResponse>(
         scope,
@@ -367,6 +370,12 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         }
     }
 
+    /** [fetchCollection] unless the strip's profile has its collection loaded or loading ([TabFetch.needsFetch]). */
+    private fun ensureCollection() {
+        val profileId = strip?.profile?.id ?: return
+        if (collectionFetch.needsFetch(profileId)) fetchCollection()
+    }
+
     /**
      * Syncs [data] now and suspends until the sync is done, succeeded or not. A failed sync
      * re-arms the normal debounced sync, since `syncNow` cancelled its pending retry. [attachRearm]
@@ -392,7 +401,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
      * resets when it is another profile than the strip showed (a background full load picked the
      * profile selected in-game). A failed [background] load (or one finding no profiles) keeps the
      * cached dyes on screen and shows "refresh failed"; any other failure replaces the grid area.
-     * On the Collection tab, a loaded profile without a collection fetch yet gets one.
+     * A loaded profile without its collection loaded or loading gets a collection fetch, on any tab.
      */
     private fun applyResult(result: MenuLoadResult, background: Boolean) {
         refreshing = false
@@ -406,8 +415,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 if (strip?.profile?.id != result.profile.id) scroll = 0
                 strip = StripState(result.username, result.profiles, result.profile)
                 clampScrollToContent() // a refresh can change how many dyes there are
-                // On the Collection tab, a first load or one landing on another profile needs that profile's collection.
-                if (tab == MenuTab.COLLECTION && collectionFetch.needsFetch(result.profile.id)) fetchCollection()
+                // A first load or one landing on another profile needs that profile's collection.
+                ensureCollection()
             }
             background -> refreshFailed = true
             else -> state = result.toViewState()
@@ -435,9 +444,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false
         val tabPill = pillAt(tabPills(), click.x(), click.y())
         if (tabPill != null) {
-            val previous = tab
             tab = MenuTab.valueOf(tabPill.key)
-            if (tab == MenuTab.COLLECTION && previous != MenuTab.COLLECTION) fetchCollection()
+            if (tab == MenuTab.COLLECTION) ensureCollection() // reuses the Dyes tab's collection; retries a failed one
             return true
         }
         if (tab == MenuTab.SETTINGS) return clickSettings(click.x(), click.y(), doubled)
@@ -449,13 +457,13 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             // The profile pill also works while a switch loads or after it failed, so the player can switch again.
             if (currentStrip.canSwitch && layout.profilePill.rect.contains(click.x(), click.y())) {
                 switchProfile(currentStrip)
-                if (tab == MenuTab.COLLECTION) fetchCollection()
+                ensureCollection()
                 return true
             }
             if (layout.refreshPill?.rect?.contains(click.x(), click.y()) == true) {
                 if (!refreshBlocked) {
                     fetchProfile(currentStrip)
-                    if (tab == MenuTab.COLLECTION) fetchCollection()
+                    fetchCollection()
                 }
                 return true
             }
@@ -659,6 +667,9 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         return MenuCollection.cells(loaded.result.dyes, owned.dyes)
     }
 
+    /** How many of each dye (by `dyeId`) the player owns on the shown profile; empty until [collectionCells] loads. */
+    private fun obtainedCounts(): Map<String, Int> = collectionCells()?.associate { it.entry.dyeId to it.count }.orEmpty()
+
     /** The Collection [cells] in the selected [collectionCategory] that [ownedFilter] keeps: what its grid shows. */
     private fun visibleCollectionCells(cells: List<CollectionCell>): List<CollectionCell> =
         MenuCollection.filterCells(cells, collectionCategory, ownedFilter)
@@ -764,8 +775,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         var spare = row.right - (profilePill.rect.right + gap + refreshWidth)
         val status = loaded?.let { statusText() }?.takeIf { (text, _) -> font.width(text) + gap <= spare }
         if (status != null) spare -= font.width(status.first) + gap
-        val totals = loaded?.let { MenuData.totalsText(MenuData.totals(it.result.dyes)) }
-            ?.takeIf { font.width(it) + gap <= spare }
+        val totals = loaded?.let { stripTotalsText(it.result.dyes) }?.takeIf { font.width(it) + gap <= spare }
 
         var right = row.right
         val totalsText = totals?.let { StripText(it, right - font.width(it), UiTheme.Colors.TEXT_SUBTLE) }
@@ -780,6 +790,17 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             StripText(text, refreshPill.rect.x - gap - font.width(text), argb)
         }
         return StripLayout(profilePill, statusText, refreshPill, totalsText)
+    }
+
+    /**
+     * The strip's totals over every one of the loaded [dyes]: obtained of all and how many at 100%
+     * once the shown profile has its collection loaded ([collectionCells],
+     * [MenuCollection.obtainedTotalsText]), else how many dyes and how many at 100% ([MenuData.totalsText]).
+     */
+    private fun stripTotalsText(dyes: List<DyeProgressEntry>): String {
+        val totals = MenuData.totals(dyes)
+        val cells = collectionCells() ?: return MenuData.totalsText(totals)
+        return MenuCollection.obtainedTotalsText(MenuCollection.summary(cells).owned, totals.dyes, totals.complete)
     }
 
     /** The strip's status text and its color: "refreshing…", else "refresh failed", else the data's age. */
@@ -1099,7 +1120,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /**
      * The profile strip in [row], laid out by [stripLayout]: the username, the profile pill
      * (hover-styled only when it can cycle), the status text, the Refresh pill (hover-styled only
-     * while it isn't [refreshBlocked], as it is ignored meanwhile), and the totals of every loaded dye.
+     * while it isn't [refreshBlocked], as it is ignored meanwhile), and the totals of every loaded
+     * dye ([stripTotalsText]).
      */
     private fun drawStrip(context: GuiGraphicsExtractor, strip: StripState, row: Rect, mouseX: Int, mouseY: Int) {
         val textY = row.y + (row.height - font.lineHeight) / 2
@@ -1227,10 +1249,20 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             grid.viewport,
         )
         val hint = hovered?.let { pinHint(dyes[it], profile) }
+        val obtained = obtainedCounts()
         val renderCtx = RenderContext(context, Util.getMillis(), false)
         drawCardGrid(context, dyes.size, grid.columns, grid.left, grid.viewport, grid.contentHeight, scroll) { index, x, y ->
             val isHovered = index == hovered
-            drawCard(context, renderCtx, dyes[index], x, y, hovered = isHovered, hint = if (isHovered) hint else null)
+            drawCard(
+                context,
+                renderCtx,
+                dyes[index],
+                x,
+                y,
+                hovered = isHovered,
+                hint = if (isHovered) hint else null,
+                obtainedCount = obtained[dyes[index].dyeId] ?: 0,
+            )
         }
     }
 
@@ -1289,9 +1321,11 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * One card, like the website's `DyeCard`: icon box with the sprite, name and category, a
-     * status badge top-right, and a label/value line over the progress bar. The border takes the
-     * dye's accent when [hovered]. A [hint] goes at the right end of the label/value line, the
-     * value moving left of it, or dropped when the label, value and hint don't all fit.
+     * status badge top-right, and a label/value line over the progress bar. A dye the player owns
+     * ([obtainedCount] above 0) has its [MenuCollection.obtainedBadge] left of the status badge,
+     * the name ending before it. The border takes the dye's accent when [hovered]. A [hint] goes at
+     * the right end of the label/value line, the value moving left of it, or dropped when the
+     * label, value and hint don't all fit.
      */
     private fun drawCard(
         context: GuiGraphicsExtractor,
@@ -1301,6 +1335,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         y: Int,
         hovered: Boolean,
         hint: PinHint?,
+        obtainedCount: Int,
     ) {
         val padding = MenuLayout.CARD_PADDING
         val innerWidth = MenuLayout.CARD_WIDTH - 2 * padding
@@ -1315,7 +1350,10 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             if (hovered) accent else UiTheme.Colors.CARD_BORDER,
         )
         drawIconBox(context, renderCtx, entry.dyeId, x + padding, y + padding)
-        val badgeLeft = drawBadge(context, MenuCards.badgeFor(entry), x + MenuLayout.CARD_WIDTH - padding, y + padding)
+        val statusLeft = drawBadge(context, MenuCards.badgeFor(entry), x + MenuLayout.CARD_WIDTH - padding, y + padding)
+        val badgeLeft = MenuCollection.obtainedBadge(obtainedCount)?.let {
+            drawBadge(context, it, OWNED_BADGE_COLORS, statusLeft - MenuLayout.TEXT_GAP, y + padding)
+        } ?: statusLeft
 
         val textX = x + padding + MenuLayout.ICON_BOX + MenuLayout.TEXT_GAP
         val nameY = y + padding + MenuLayout.NAME_TOP_OFFSET
@@ -1558,6 +1596,13 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
         /** The Dye widgets row's detail when no dye widget is configured. */
         private const val NO_DYE_WIDGETS_TEXT = "Pin dyes from the Dyes tab"
+
+        /** An owned dye's badge colors: the Collection tab's `✓` / `xN` and the Dyes tab's OBTAINED. */
+        internal val OWNED_BADGE_COLORS = BadgeColors(
+            UiTheme.Colors.OWNED_TEXT,
+            UiTheme.Colors.OWNED_BG,
+            UiTheme.Colors.OWNED_BORDER,
+        )
 
         /** The GIF overlays row's detail when no overlay is configured. */
         private const val NO_GIFS_TEXT = "Add one with /dyetracker gif add <url>"
