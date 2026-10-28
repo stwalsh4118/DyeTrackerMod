@@ -8,7 +8,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** Unit coverage for the menu's in-memory cache, the "updated … ago" text and the sync-first check (task 67-5). */
+/**
+ * Unit coverage for the menu's in-memory cache, the "updated … ago" text, the sync-first check
+ * and the re-arm after a failed sync (task 67-5).
+ */
 class MenuCacheTest {
 
     private val mango = ProfileSummary(id = "p-mango", cuteName = "Mango")
@@ -131,6 +134,17 @@ class MenuCacheTest {
         assertFalse(shouldSyncFirst(isLinked = false, syncPending = true, hasData = false))
         assertFalse(shouldSyncFirst(isLinked = true, syncPending = false, hasData = false))
         assertFalse(shouldSyncFirst(isLinked = false, syncPending = false, hasData = false))
+    }
+
+    @Test
+    fun `shouldRearmSync re-arms after a failed sync or one with no result`() {
+        assertTrue(shouldRearmSync(succeeded = false))
+        assertTrue(shouldRearmSync(succeeded = null))
+    }
+
+    @Test
+    fun `shouldRearmSync leaves a successful sync alone`() {
+        assertFalse(shouldRearmSync(succeeded = true))
     }
 
     private companion object {

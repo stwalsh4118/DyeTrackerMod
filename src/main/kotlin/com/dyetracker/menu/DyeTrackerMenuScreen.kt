@@ -4,7 +4,9 @@ import com.dyetracker.api.ApiClient
 import com.dyetracker.api.DyeProgressEntry
 import com.dyetracker.api.ProfileSummary
 import com.dyetracker.client.showScreen
+import com.dyetracker.DyeTrackerMod
 import com.dyetracker.config.ConfigManager
+import com.dyetracker.data.PlayerRngData
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.dyeprogress.DyeProgressWidgetView
 import com.dyetracker.rotation.DyeSprites
@@ -23,6 +25,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
@@ -43,10 +46,11 @@ import kotlin.math.roundToInt
  * Always loads by the in-game name, linked or not. The filter and sort last while the screen is
  * open, across profile switches.
  *
- * Every loaded profile goes into [MENU_CACHE] for the game session. The first open shows the
- * player's last viewed profile from it at once and refreshes it in the background, else loads via
- * [MenuData.load]; a profile switch or Refresh does the same for that profile via
- * [MenuData.loadProfile]. A linked player's pending mod data is synced first ([shouldSyncFirst]).
+ * Every loaded profile goes into [MENU_CACHE] for the game session. Opening always loads via
+ * [MenuData.load] (profiles, then the one selected in-game), in the background behind the
+ * player's last viewed profile from the cache when there is one. A profile switch or Refresh
+ * loads that profile via [MenuData.loadProfile], in the background behind its cache entry when
+ * there is one. A linked player's pending mod data is synced first ([shouldSyncFirst]).
  * Loads run on [Dispatchers.IO]; each result is posted back to the render thread and dropped if
  * the screen was closed or another load started meanwhile ([epoch] guard).
  */
@@ -147,17 +151,26 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         startLoad()
     }
 
-    /** Shows the player's last viewed profile from [MENU_CACHE] and refreshes it, else loads from scratch. */
+    /**
+     * Loads the player's profiles and the selected profile's dyes ([MenuData.load]). When the
+     * player's last viewed profile is in [MENU_CACHE] it shows at once and this full load runs in
+     * the background, so a profile switched or created in-game since is still picked up.
+     */
     private fun startLoad() {
         val username = Minecraft.getInstance().user.name
         val cached = MENU_CACHE.lastFor(username)
-        if (cached == null) {
-            launchLoad(background = false) {
-                MenuData.load(username, ApiClient::fetchProfiles, ApiClient::fetchDyeProgress)
-            }
-            return
+        if (cached != null) showCached(cached)
+        launchLoad(background = cached != null) {
+            MenuData.load(username, ApiClient::fetchProfiles, ApiClient::fetchDyeProgress)
         }
-        fetchProfile(StripState(cached.result.username, cached.result.profiles, cached.result.profile))
+    }
+
+    /** Shows [cached]'s dyes and profile, and its fetch time for the age text. */
+    private fun showCached(cached: CachedMenu) {
+        val result = cached.result
+        strip = StripState(result.username, result.profiles, result.profile)
+        state = ViewState.Loaded(result)
+        fetchedAtMs = cached.fetchedAtMs
     }
 
     /**
@@ -201,8 +214,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         val syncFirst = shouldSyncFirst(ConfigManager.config.isLinked(), SyncManager.isSyncPending(), modData.hasData())
         loadJob = scope.launch {
             if (syncFirst) {
-                // Fetch once the sync is done, whether it succeeded or not; handle() swallows a failure.
-                SyncManager.syncNow(modData).handle { _, _ -> }.join()
+                syncThenWait(modData)
                 ensureActive() // superseded or closed while syncing: skip the fetch
             }
             val result = try {
@@ -220,9 +232,32 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /**
-     * A loaded result replaces the shown dyes and strip and goes into [MENU_CACHE]. A failed
-     * [background] load keeps the cached dyes on screen and shows "refresh failed"; any other
-     * failure replaces the grid area.
+     * Syncs [data] now and suspends until the sync is done, succeeded or not. A failed sync
+     * re-arms the normal debounced sync ([shouldRearmSync]), since `syncNow` cancelled its pending
+     * retry. The re-arm hangs off the sync's own future, so it still runs when this load is
+     * cancelled meanwhile; cancellation only stops the wait (it cancels the dependent stage, not
+     * the sync).
+     */
+    private suspend fun syncThenWait(data: PlayerRngData) {
+        try {
+            SyncManager.syncNow(data)
+                .handle { result, _ ->
+                    // Re-arm with the newest data, so a change made during the sync isn't overwritten.
+                    if (shouldRearmSync(result?.success)) SyncManager.onDataChanged(RngDataStore.getData())
+                }
+                .await()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DyeTrackerMod.warn("Menu sync before fetch failed: {}", e.message ?: e.javaClass.simpleName)
+        }
+    }
+
+    /**
+     * A loaded result replaces the shown dyes and strip and goes into [MENU_CACHE]; the scroll
+     * resets when it is another profile than the strip showed (a background full load picked the
+     * profile selected in-game). A failed [background] load (or one finding no profiles) keeps the
+     * cached dyes on screen and shows "refresh failed"; any other failure replaces the grid area.
      */
     private fun applyResult(result: MenuLoadResult, background: Boolean) {
         refreshing = false
@@ -233,6 +268,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 fetchedAtMs = now
                 refreshFailed = false
                 state = ViewState.Loaded(result)
+                if (strip?.profile?.id != result.profile.id) scroll = 0
                 strip = StripState(result.username, result.profiles, result.profile)
                 clampScrollToContent() // a refresh can change how many dyes there are
             }

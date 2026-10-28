@@ -72,3 +72,10 @@ fun formatAge(nowMs: Long, fetchedAtMs: Long): String {
  */
 fun shouldSyncFirst(isLinked: Boolean, syncPending: Boolean, hasData: Boolean): Boolean =
     isLinked && syncPending && hasData
+
+/**
+ * Whether the normal debounced sync must be re-armed after the menu's sync: when it failed or
+ * gave no result ([succeeded] `null`, e.g. it completed exceptionally). `syncNow` cancels the
+ * pending sync and schedules no retry, so without this a failed attempt would be the last.
+ */
+fun shouldRearmSync(succeeded: Boolean?): Boolean = succeeded != true
