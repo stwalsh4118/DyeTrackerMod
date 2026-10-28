@@ -2,6 +2,7 @@ package com.dyetracker.menu
 
 import com.dyetracker.api.DyeProgressEntry
 import com.dyetracker.api.ProfileSummary
+import java.util.concurrent.CompletableFuture
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -10,7 +11,7 @@ import kotlin.test.assertTrue
 
 /**
  * Unit coverage for the menu's in-memory cache, the "updated … ago" text, the sync-first check
- * and the re-arm after a failed sync (task 67-5).
+ * and the re-arm after a failed sync, and its wiring on the sync's future (task 67-5).
  */
 class MenuCacheTest {
 
@@ -145,6 +146,81 @@ class MenuCacheTest {
     @Test
     fun `shouldRearmSync leaves a successful sync alone`() {
         assertFalse(shouldRearmSync(succeeded = true))
+    }
+
+    /** Counts [rearm] calls. */
+    private class RearmCounter {
+        var calls = 0
+        val rearm: () -> Unit = { calls++ }
+    }
+
+    private val isSuccess: (Boolean) -> Boolean = { it }
+
+    @Test
+    fun `attachRearm re-arms once when the sync fails`() {
+        val sync = CompletableFuture<Boolean>()
+        val counter = RearmCounter()
+        attachRearm(sync, isSuccess, counter.rearm)
+
+        sync.complete(false)
+
+        assertEquals(1, counter.calls)
+    }
+
+    @Test
+    fun `attachRearm does not re-arm when the sync succeeds`() {
+        val sync = CompletableFuture<Boolean>()
+        val counter = RearmCounter()
+        attachRearm(sync, isSuccess, counter.rearm)
+
+        sync.complete(true)
+
+        assertEquals(0, counter.calls)
+    }
+
+    @Test
+    fun `attachRearm re-arms when the sync completes exceptionally`() {
+        val sync = CompletableFuture<Boolean>()
+        val counter = RearmCounter()
+        attachRearm(sync, isSuccess, counter.rearm)
+
+        sync.completeExceptionally(IllegalStateException("network down"))
+
+        assertEquals(1, counter.calls)
+    }
+
+    @Test
+    fun `attachRearm still re-arms after the returned wait stage is cancelled`() {
+        val sync = CompletableFuture<Boolean>()
+        val counter = RearmCounter()
+        val wait = attachRearm(sync, isSuccess, counter.rearm)
+
+        wait.cancel(false) // what await() does when the waiting coroutine is cancelled
+        sync.complete(false)
+
+        assertEquals(1, counter.calls)
+    }
+
+    @Test
+    fun `cancelling the returned wait stage does not cancel the sync`() {
+        val sync = CompletableFuture<Boolean>()
+        val wait = attachRearm(sync, isSuccess, RearmCounter().rearm)
+
+        wait.cancel(false)
+
+        assertFalse(sync.isDone)
+        assertTrue(sync.complete(true))
+    }
+
+    @Test
+    fun `the returned wait stage completes normally once the sync fails`() {
+        val sync = CompletableFuture<Boolean>()
+        val wait = attachRearm(sync, isSuccess, RearmCounter().rearm)
+
+        sync.completeExceptionally(IllegalStateException("network down"))
+
+        assertTrue(wait.isDone)
+        assertFalse(wait.isCompletedExceptionally)
     }
 
     private companion object {

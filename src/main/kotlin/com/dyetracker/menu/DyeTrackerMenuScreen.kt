@@ -233,19 +233,17 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * Syncs [data] now and suspends until the sync is done, succeeded or not. A failed sync
-     * re-arms the normal debounced sync ([shouldRearmSync]), since `syncNow` cancelled its pending
-     * retry. The re-arm hangs off the sync's own future, so it still runs when this load is
-     * cancelled meanwhile; cancellation only stops the wait (it cancels the dependent stage, not
-     * the sync).
+     * re-arms the normal debounced sync, since `syncNow` cancelled its pending retry. [attachRearm]
+     * hangs the re-arm on the sync's own future and hands back a separate stage to wait on, so
+     * when this load is cancelled `await()` cancels only that stage: the sync and the re-arm
+     * still run.
      */
     private suspend fun syncThenWait(data: PlayerRngData) {
         try {
-            SyncManager.syncNow(data)
-                .handle { result, _ ->
-                    // Re-arm with the newest data, so a change made during the sync isn't overwritten.
-                    if (shouldRearmSync(result?.success)) SyncManager.onDataChanged(RngDataStore.getData())
-                }
-                .await()
+            // Re-arm with the newest data, so a change made during the sync isn't overwritten.
+            attachRearm(SyncManager.syncNow(data), { it.success }) {
+                SyncManager.onDataChanged(RngDataStore.getData())
+            }.await()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

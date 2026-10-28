@@ -1,5 +1,7 @@
 package com.dyetracker.menu
 
+import java.util.concurrent.CompletableFuture
+
 /** A menu load result kept in [MenuCache], with when it was fetched (epoch ms). */
 data class CachedMenu(val result: MenuLoadResult.Loaded, val fetchedAtMs: Long)
 
@@ -79,3 +81,17 @@ fun shouldSyncFirst(isLinked: Boolean, syncPending: Boolean, hasData: Boolean): 
  * pending sync and schedules no retry, so without this a failed attempt would be the last.
  */
 fun shouldRearmSync(succeeded: Boolean?): Boolean = succeeded != true
+
+/**
+ * Hangs the re-arm on [sync]: once it completes, [rearm] runs when [shouldRearmSync] says so
+ * ([succeeded] reads a normal result; an exceptional completion counts as no result). Returns a
+ * stage that completes once [sync] has, succeeded or not, for the caller to wait on. The re-arm is
+ * its own stage on [sync], so cancelling the returned stage (as `await()` does when the waiting
+ * coroutine is cancelled) neither cancels [sync] nor skips the re-arm.
+ */
+fun <T> attachRearm(sync: CompletableFuture<T>, succeeded: (T) -> Boolean, rearm: () -> Unit): CompletableFuture<Unit> {
+    sync.whenComplete { result, error ->
+        if (shouldRearmSync(if (error == null) succeeded(result) else null)) rearm()
+    }
+    return sync.handle { _, _ -> }
+}
