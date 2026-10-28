@@ -90,6 +90,9 @@ object MenuLayout {
     /** How long the message after a card click (pinned, already pinned, can't pin) shows, in ms. */
     const val PIN_MESSAGE_MS = 4_000L
 
+    /** How long the Unlink pill waits for its confirming click, in ms. */
+    const val UNLINK_CONFIRM_MS = 3_000L
+
     /** Horizontal distance from one card's left edge to the next column's. */
     private const val COLUMN_PITCH = CARD_WIDTH + CARD_GAP
 
