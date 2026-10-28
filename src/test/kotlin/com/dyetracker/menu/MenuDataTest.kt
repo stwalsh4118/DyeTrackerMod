@@ -11,7 +11,10 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.fail
 
-/** Unit coverage for the menu's pure profile selection and two-call data load (task 67-1). */
+/**
+ * Unit coverage for the menu's pure profile selection and two-call data load (task 67-1), and
+ * the profile switcher's cycling, single-profile load and totals (task 67-4).
+ */
 class MenuDataTest {
 
     private val mango = ProfileSummary(id = "p-mango", cuteName = "Mango")
@@ -95,4 +98,89 @@ class MenuDataTest {
         assertEquals(listOf("matcha", "fossil", "lava"), loaded.dyes.map { it.dyeId })
         assertEquals(listOf("steve" to "p-banana"), calls)
     }
+
+    @Test
+    fun `nextProfile cycles through the profiles in list order and wraps`() {
+        val profiles = listOf(mango, banana, apple)
+
+        assertEquals(banana, MenuData.nextProfile(profiles, mango))
+        assertEquals(apple, MenuData.nextProfile(profiles, banana))
+        assertEquals(mango, MenuData.nextProfile(profiles, apple))
+    }
+
+    @Test
+    fun `nextProfile matches the current profile by id`() {
+        val staleMango = mango.copy(cuteName = "Old Mango", selected = true)
+
+        assertEquals(banana, MenuData.nextProfile(listOf(mango, banana, apple), staleMango))
+    }
+
+    @Test
+    fun `nextProfile returns the only profile itself`() {
+        assertEquals(mango, MenuData.nextProfile(listOf(mango), mango))
+    }
+
+    @Test
+    fun `nextProfile returns an unknown current profile itself`() {
+        val unknown = ProfileSummary(id = "p-kiwi", cuteName = "Kiwi")
+
+        assertEquals(unknown, MenuData.nextProfile(listOf(mango, banana, apple), unknown))
+    }
+
+    @Test
+    fun `nextProfile returns the current profile for an empty list`() {
+        assertEquals(mango, MenuData.nextProfile(emptyList(), mango))
+    }
+
+    @Test
+    fun `loadProfile fetches the given profile's dyes once and keeps the given profiles`() {
+        val calls = mutableListOf<Pair<String, String>>()
+        val profiles = listOf(mango, banana, apple)
+        val result = MenuData.loadProfile("Steve", profiles, apple) { username, profileId ->
+            calls += username to profileId
+            ApiClient.ApiResult.Success(DyeProgressResponse(username = "steve", profile = banana, dyes = dyes))
+        }
+
+        val loaded = assertIs<MenuLoadResult.Loaded>(result)
+        assertEquals("Steve", loaded.username)
+        assertEquals(profiles, loaded.profiles)
+        assertEquals(apple, loaded.profile)
+        assertEquals(listOf("matcha", "fossil", "lava"), loaded.dyes.map { it.dyeId })
+        assertEquals(listOf("Steve" to "p-apple"), calls)
+    }
+
+    @Test
+    fun `loadProfile returns Failed with the message when the dyes call errors`() {
+        val result = MenuData.loadProfile("Steve", listOf(mango, banana), banana) { _, _ ->
+            ApiClient.ApiResult.Error("dyes down", 503)
+        }
+
+        assertEquals(MenuLoadResult.Failed("dyes down"), result)
+    }
+
+    @Test
+    fun `totals counts every dye and those at or past 100 percent as complete`() {
+        val entries = listOf(
+            entry("exact", progress = 100.0),
+            entry("over", progress = 120.0),
+            entry("almost", progress = 99.9),
+            entry("untracked", progress = null),
+            entry("half", progress = 50.0),
+        )
+
+        assertEquals(MenuTotals(dyes = 5, complete = 2), MenuData.totals(entries))
+    }
+
+    @Test
+    fun `totals of no dyes is zero`() {
+        assertEquals(MenuTotals(dyes = 0, complete = 0), MenuData.totals(emptyList()))
+    }
+
+    @Test
+    fun `totalsText shows the dye count and the complete count`() {
+        assertEquals("64 dyes · 3 at 100%", MenuData.totalsText(MenuTotals(64, 3)))
+    }
+
+    private fun entry(dyeId: String, progress: Double?) =
+        DyeProgressEntry(dyeId = dyeId, name = dyeId, color = "#ffffff", category = "Mining", progress = progress)
 }
