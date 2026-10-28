@@ -310,6 +310,44 @@ object ApiClient {
     }
 
     /**
+     * Fetch the dyes a player owns on one profile from the public
+     * `GET /api/v1/player/:username/collection?profileId=…` endpoint. No auth required. Only
+     * linked players who synced from Vincent's Dye Guide have rows; everyone else gets an empty
+     * list. Never throws — returns [ApiResult.Error] on non-200 / network failure.
+     */
+    fun fetchCollection(username: String, profileId: String): ApiResult<CollectionResponse> {
+        val url = "${ConfigManager.config.apiUrl}/api/v1/player/${encodePathSegment(username)}/collection" +
+            "?profileId=${URLEncoder.encode(profileId, StandardCharsets.UTF_8)}"
+
+        DyeTrackerMod.info("API: GET {} (fetching collection)", url)
+
+        return try {
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", CONTENT_TYPE_JSON)
+                .GET()
+                .timeout(Duration.ofSeconds(GET_REQUEST_TIMEOUT_SECONDS))
+                .build()
+
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            DyeTrackerMod.info("API: Response status={}", response.statusCode())
+
+            if (response.statusCode() == 200) {
+                val data = json.decodeFromString<CollectionResponse>(response.body())
+                DyeTrackerMod.info("API: fetchCollection success, {} dye(s) for profile={}", data.dyes.size, profileId)
+                ApiResult.Success(data)
+            } else {
+                val error = parseError(response.body())
+                DyeTrackerMod.warn("fetchCollection failed: {} ({})", error, response.statusCode())
+                ApiResult.Error(error, response.statusCode())
+            }
+        } catch (e: Exception) {
+            DyeTrackerMod.error("fetchCollection exception", e)
+            ApiResult.Error("Network error: ${e.message}")
+        }
+    }
+
+    /**
      * Fetch a player's SkyBlock profiles from the public `GET /api/v1/player/:username`
      * endpoint, used to resolve a typed profile `cute_name` to the `profileId` the dyes
      * endpoint requires. No auth required. Never throws — returns [ApiResult.Error] on

@@ -134,6 +134,21 @@ object UiTheme {
 
         /** Menu toggle pill border when on; the website Badge `success` variant's `border-secondary/20`. */
         const val TOGGLE_ON_BORDER: Int = 0x33_00_F0_FF
+
+        /** Menu Collection tab's summary bar fill; the website Collection page's `bg-emerald-500` (`#10b981`). */
+        const val COLLECTION_ACCENT: Int = 0xFF_10_B9_81.toInt()
+
+        /** Menu Collection owned-card badge text; the website's `text-emerald-400` (`#34d399`). */
+        const val OWNED_TEXT: Int = 0xFF_34_D3_99.toInt()
+
+        /** Menu Collection owned-card badge fill; the website's `bg-emerald-500/10` (`#10b981`). */
+        const val OWNED_BG: Int = 0x1A_10_B9_81
+
+        /** Menu Collection owned-card border and badge border; the website's `border-emerald-500/30` (`#10b981`). */
+        const val OWNED_BORDER: Int = 0x4D_10_B9_81
+
+        /** Wash over a not-owned Collection card; stands in for the website's `opacity-50` + `grayscale`. */
+        const val UNOWNED_DIM: Int = 0x99_00_00_00.toInt()
     }
 
     /** Spacing tokens in GUI pixels. */

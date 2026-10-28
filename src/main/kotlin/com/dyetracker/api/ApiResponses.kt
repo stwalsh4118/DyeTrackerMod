@@ -156,3 +156,28 @@ data class PlayerProfilesResponse(
     val username: String,
     val profiles: List<ProfileSummary>
 )
+
+/**
+ * One owned dye from `GET /api/v1/player/:username/collection`: [count] of [dyeId] on
+ * [profileId], first obtained at [obtainedAt] (epoch ms) when known. The JSON's `syncedAt` and
+ * `metadata` are dropped by the client's `ignoreUnknownKeys` Json.
+ */
+@Serializable
+data class CollectionEntry(
+    val dyeId: String,
+    val profileId: String = "",
+    val count: Int = 1,
+    val obtainedAt: Long? = null
+)
+
+/**
+ * Response from `GET /api/v1/player/:username/collection` (public endpoint): the dyes the
+ * player owns. Only linked players who synced from Vincent's Dye Guide have any; everyone else
+ * gets an empty [dyes].
+ */
+@Serializable
+data class CollectionResponse(
+    val uuid: String = "",
+    val username: String = "",
+    val dyes: List<CollectionEntry> = emptyList()
+)
