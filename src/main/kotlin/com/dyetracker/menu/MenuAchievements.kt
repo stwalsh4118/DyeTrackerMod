@@ -118,12 +118,12 @@ object MenuAchievements {
 
     /**
      * A section's header. Under `ALL`, how many of its [sectionTotal] entries (all of its category,
-     * before filtering) are unlocked, e.g. `Dye Drops  2 / 13`; under a status filter, just how many
-     * it shows, e.g. `Dye Drops  11`, as the website counts a filtered section.
+     * before filtering) are unlocked, e.g. `Dye Drops  2 / 13`; under a status filter, how many it
+     * shows of [sectionTotal], e.g. `Dye Drops  11 / 13`, as the website heads a filtered section.
      */
     fun sectionHeader(s: AchievementSection, sectionTotal: Int, f: StatusFilter): String = when (f) {
         StatusFilter.ALL -> "${s.label}  ${s.entries.count { it.unlocked }} / $sectionTotal"
-        StatusFilter.UNLOCKED, StatusFilter.LOCKED -> "${s.label}  ${s.entries.size}"
+        StatusFilter.UNLOCKED, StatusFilter.LOCKED -> "${s.label}  ${s.entries.size} / $sectionTotal"
     }
 
     /** A status pill's text: [f]'s label and how many of [entries] it keeps, e.g. `Unlocked (2)`. */

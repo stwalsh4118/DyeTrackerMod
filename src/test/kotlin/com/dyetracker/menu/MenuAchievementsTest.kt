@@ -166,7 +166,7 @@ class MenuAchievementsTest {
     }
 
     @Test
-    fun `a section header under a status filter is its plain count`() {
+    fun `a section header under a status filter counts what it shows against the section total`() {
         val locked = AchievementSection("dye-drop", "Dye Drops", listOf(entry("drop_b")))
         val unlocked = AchievementSection(
             "dye-drop",
@@ -174,8 +174,8 @@ class MenuAchievementsTest {
             listOf(entry("drop_a", unlocked = true), entry("drop_c", unlocked = true)),
         )
 
-        assertEquals("Dye Drops  1", MenuAchievements.sectionHeader(locked, sectionTotal = 3, StatusFilter.LOCKED))
-        assertEquals("Dye Drops  2", MenuAchievements.sectionHeader(unlocked, sectionTotal = 3, StatusFilter.UNLOCKED))
+        assertEquals("Dye Drops  1 / 3", MenuAchievements.sectionHeader(locked, sectionTotal = 3, StatusFilter.LOCKED))
+        assertEquals("Dye Drops  2 / 3", MenuAchievements.sectionHeader(unlocked, sectionTotal = 3, StatusFilter.UNLOCKED))
     }
 
     @Test
