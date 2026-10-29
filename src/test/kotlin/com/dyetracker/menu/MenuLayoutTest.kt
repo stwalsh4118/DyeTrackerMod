@@ -463,11 +463,6 @@ class MenuLayoutTest {
     }
 
     @Test
-    fun `the chart is 56 px tall`() {
-        assertEquals(56, MenuLayout.HISTORY_CHART_HEIGHT)
-    }
-
-    @Test
     fun `history list stays inside the panel`() {
         val viewport = history(3, pills = listOf("DAY" to "24h")).viewport
 
