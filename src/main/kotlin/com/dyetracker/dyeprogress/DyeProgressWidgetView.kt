@@ -303,9 +303,12 @@ object DyeProgressWidgetView {
         val name = nameOf(cfg, entry)
         val percent = formatProgress(entry.progress)
         val sourceText = if (isComplete) COMPLETE_TEXT else (entry.source ?: entry.formula).orEmpty()
-        val rotationText = entry.rotation?.let { rotationLineText(it, System.currentTimeMillis()) }.orEmpty()
-
         val layout = readyLayout(cfg, hasSource = sourceText.isNotBlank(), hasRotation = entry.rotation != null)
+        // Formatted only when the line shows, so a widget with it toggled off does no work per frame.
+        val rotationText = entry.rotation
+            ?.takeIf { layout.showRotation }
+            ?.let { rotationLineText(it, System.currentTimeMillis()) }
+            .orEmpty()
 
         // Column width: spans the widest present piece so the header pins to the bar's edges.
         val nameWidth = if (layout.nameInHeader) TextWidget(name).measure().width else 0
