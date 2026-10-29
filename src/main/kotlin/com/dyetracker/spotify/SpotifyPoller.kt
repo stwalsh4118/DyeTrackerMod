@@ -14,24 +14,39 @@ import kotlinx.coroutines.launch
 fun shouldPoll(connected: Boolean, widgetVisible: Boolean): Boolean = connected && widgetVisible
 
 /**
- * The snapshot after a poll that returned [result] at [nowMs]: nothing playing clears it, a track
- * replaces it, and a failure keeps [current] (the widget doesn't flicker on one bad poll).
+ * The record after a poll that returned [result] at [nowMs]. A track, an episode or an ad marks
+ * the record active now and replaces the snapshot (an ad has no item, so no snapshot). Nothing
+ * playing keeps the snapshot until [SpotifyConstants.IDLE_HIDE_MS] after the record was last
+ * active, then clears it. A failure keeps the snapshot (the widget doesn't flicker on one bad
+ * poll).
  */
-internal fun nextSnapshot(
-    current: NowPlayingSnapshot?,
-    result: SpotifyResult<CurrentlyPlaying?>,
-    nowMs: Long,
-): NowPlayingSnapshot? = when (result) {
-    is SpotifyResult.Success -> result.data?.let { snapshotOf(it, nowMs) }
-    is SpotifyResult.Failure -> current
-}
+internal fun nextRecord(prev: PollRecord, result: SpotifyResult<CurrentlyPlaying?>, nowMs: Long): PollRecord =
+    when (result) {
+        is SpotifyResult.Failure -> prev.copy(lastResult = result)
+        is SpotifyResult.Success -> {
+            val cp = result.data
+            if (cp != null && (cp.item != null || isAd(cp))) {
+                PollRecord(result, snapshotOf(cp, nowMs), lastActiveAtMs = nowMs)
+            } else {
+                val idle = nowMs - prev.lastActiveAtMs >= SpotifyConstants.IDLE_HIDE_MS
+                PollRecord(result, if (idle) null else prev.snapshot, prev.lastActiveAtMs)
+            }
+        }
+    }
+
+/**
+ * The record on a tick that doesn't poll: logged out or not set up clears it (no stale song after
+ * a logout); connected but hidden leaves it alone.
+ */
+internal fun recordWithoutPoll(prev: PollRecord, connected: Boolean): PollRecord =
+    if (connected) prev else PollRecord.EMPTY
 
 /**
  * Keeps [SpotifyNowPlayingStore] current for the HUD widget (PBI 76). Every
- * [SpotifyConstants.POLL_INTERVAL_MS] it asks Spotify what's playing, but only while the player
- * is connected and the widget is visible; otherwise it clears the snapshot and makes no call.
- * Runs on [SpotifyThreads.apiDispatcher], the one Spotify API thread. Failures are logged at
- * debug and never reach gameplay.
+ * [SpotifyConstants.POLL_INTERVAL_MS] (longer after a 429, see [pollDelayMs]) it asks Spotify
+ * what's playing, but only while the player is connected and the widget is visible. Not connected
+ * clears the record with no call; hidden leaves it alone. Runs on [SpotifyThreads.apiDispatcher],
+ * the one Spotify API thread. Failures are logged at debug and never reach gameplay.
  */
 object SpotifyPoller {
 
@@ -45,8 +60,7 @@ object SpotifyPoller {
         if (job?.isActive == true) return
         job = scope.launch {
             while (isActive) {
-                safeTick()
-                delay(SpotifyConstants.POLL_INTERVAL_MS)
+                delay(pollDelayMs(safeTick()))
             }
         }
         DyeTrackerMod.info("Spotify poller started ({}ms interval)", SpotifyConstants.POLL_INTERVAL_MS)
@@ -58,29 +72,34 @@ object SpotifyPoller {
         job = null
     }
 
-    private fun safeTick() {
+    /** [tick], with any exception logged; returns the tick's poll result, or null when none. */
+    private fun safeTick(): SpotifyResult<CurrentlyPlaying?>? {
         try {
-            tick()
+            return tick()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
             // The class name only: an exception message may carry a response body.
             DyeTrackerMod.warn("Spotify poll failed: {}", e.javaClass.simpleName)
+            return null
         }
     }
 
-    private fun tick() {
+    /** One poll, written to the store as a whole record; returns its result, or null with no poll. */
+    private fun tick(): SpotifyResult<CurrentlyPlaying?>? {
         val session = SpotifySessions.default
+        val connected = session.status() == SessionStatus.CONNECTED
         val visible = ConfigManager.spotifyPlacements.all().firstOrNull()?.visible ?: SpotifyWidgetConfig().visible
-        if (!shouldPoll(session.status() == SessionStatus.CONNECTED, visible)) {
-            SpotifyNowPlayingStore.snapshot = null
-            return
+        if (!shouldPoll(connected, visible)) {
+            SpotifyNowPlayingStore.record = recordWithoutPoll(SpotifyNowPlayingStore.record, connected)
+            return null
         }
         val result = session.currentlyPlaying()
         if (result is SpotifyResult.Failure) {
             DyeTrackerMod.debug("Spotify poll: {}", failureText(result))
         }
-        SpotifyNowPlayingStore.snapshot =
-            nextSnapshot(SpotifyNowPlayingStore.snapshot, result, System.currentTimeMillis())
+        SpotifyNowPlayingStore.record = nextRecord(SpotifyNowPlayingStore.record, result, System.currentTimeMillis())
+        return result
     }
 }
+

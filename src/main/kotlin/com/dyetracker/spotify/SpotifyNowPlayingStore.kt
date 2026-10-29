@@ -1,10 +1,10 @@
 package com.dyetracker.spotify
 
 /**
- * The track the HUD widget shows: written by [SpotifyPoller] on the Spotify API thread, read by
- * the HUD provider on the render thread. Null when nothing is playing or the poller is idle.
+ * What the HUD widget shows: the poller's [PollRecord], written whole by [SpotifyPoller] on the
+ * Spotify API thread each tick and read by the HUD provider on the render thread.
  */
 object SpotifyNowPlayingStore {
     @Volatile
-    var snapshot: NowPlayingSnapshot? = null
+    var record: PollRecord = PollRecord.EMPTY
 }

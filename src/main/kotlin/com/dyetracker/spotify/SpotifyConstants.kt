@@ -77,4 +77,22 @@ object SpotifyConstants {
 
     /** Vertical gap between the widget's lines (title, subtitle, bar), in GUI pixels. */
     const val LINE_GAP_PX = 3
+
+    /** Nothing playing for this long hides the widget until something plays again. */
+    const val IDLE_HIDE_MS = 30_000L
+
+    /** A paused widget's panel, border, text and bar alpha are multiplied by this. */
+    const val PAUSED_ALPHA_FACTOR = 0.5f
+
+    /** `currently_playing_type` while Spotify plays an ad. */
+    const val AD_TYPE = "ad"
+
+    /** The widget's title while an ad plays. */
+    const val AD_TITLE = "Advertisement"
+
+    /** Prefix of a paused widget's time text. */
+    const val PAUSED_LABEL = "Paused"
+
+    /** The widget's text in edit mode while it would otherwise be hidden, so it can be placed. */
+    const val EDIT_PLACEHOLDER = "Spotify"
 }

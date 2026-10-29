@@ -124,6 +124,18 @@ class NowPlayingTest {
         assertEquals(0, snapshotOf(cp, 10_000)?.progressMs)
     }
 
+    @Test
+    fun `an episode's snapshot is the episode name over its show`() {
+        val cp = CurrentlyPlaying(
+            isPlaying = true,
+            type = "episode",
+            item = PlayingItem(name = "Ep 12", type = "episode", show = SpotifyShow(name = "The Pod")),
+        )
+        val s = snapshotOf(cp, 10_000)
+        assertEquals("Ep 12", s?.title)
+        assertEquals("The Pod", s?.subtitle)
+    }
+
     private companion object {
         const val TRACK_URL = "https://open.spotify.com/track/1"
     }
