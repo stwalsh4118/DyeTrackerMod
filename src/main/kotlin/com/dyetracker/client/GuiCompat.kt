@@ -1,16 +1,19 @@
 package com.dyetracker.client
 
+import com.mojang.blaze3d.platform.InputConstants
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.Screen
 
 /*
- * Screen and HUD-visibility access across the 26.x nodes. Minecraft 26.2 moved this state off
- * [Minecraft] onto its `gui` field (`Gui`): `setScreen` → `gui.setScreen`, the `screen` field →
- * `gui.screen()`, and F1's `options.hideGui` → `gui.hud.isHidden()`.
+ * Screen, HUD-visibility and key-mapping access across the 26.x nodes. Minecraft 26.2 moved
+ * screen state off [Minecraft] onto its `gui` field (`Gui`): `setScreen` → `gui.setScreen`, the
+ * `screen` field → `gui.screen()`, and F1's `options.hideGui` → `gui.hud.isHidden()`. Minecraft
+ * 26.3 replaced GLFW with SDL and renamed the keyboard input type `KEYSYM` → `KEYBOARD`.
  *
  * Call these instead of the vanilla members so the version switch lives here only. The
  * `//?` lines are Stonecutter version comments; see
- * docs/delivery/53/research/53-1-26.2-toolchain-guide.md.
+ * docs/delivery/53/research/53-1-26.2-toolchain-guide.md and
+ * docs/delivery/78/research/78-1-26.3-toolchain-guide.md.
  */
 
 /** The screen currently open, or null when in game. */
@@ -37,5 +40,14 @@ fun Minecraft.isHudHidden(): Boolean {
     /*return gui.hud.isHidden()
     *///?} else {
     return options.hideGui
+    //?}
+}
+
+/** The input type for a keyboard [net.minecraft.client.KeyMapping]. */
+fun keyboardInputType(): InputConstants.Type {
+    //? if >=26.3 {
+    /*return InputConstants.Type.KEYBOARD
+    *///?} else {
+    return InputConstants.Type.KEYSYM
     //?}
 }

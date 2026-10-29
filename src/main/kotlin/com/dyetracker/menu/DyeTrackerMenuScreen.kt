@@ -30,6 +30,7 @@ import com.dyetracker.ui.core.UiDraw
 import com.dyetracker.ui.edit.WidgetEditScreen
 import com.dyetracker.ui.texture.ImageTextureManager
 import com.dyetracker.ui.theme.UiTheme
+import com.mojang.blaze3d.platform.InputConstants
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +46,6 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
 import net.minecraft.util.Util
-import org.lwjgl.glfw.GLFW
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -541,7 +541,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     override fun mouseClicked(click: MouseButtonEvent, doubled: Boolean): Boolean {
         if (super.mouseClicked(click, doubled)) return true
-        if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false
+        if (click.button() != InputConstants.MOUSE_BUTTON_LEFT) return false
         val tabPill = pillAt(tabPills(), click.x(), click.y())
         if (tabPill != null) {
             tab = MenuTab.valueOf(tabPill.key)

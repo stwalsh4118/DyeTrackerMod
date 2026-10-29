@@ -4,6 +4,7 @@ import com.dyetracker.ui.core.UiDraw
 import com.dyetracker.ui.edit.EditScreenAction
 import com.dyetracker.ui.edit.WidgetEditScreen
 import com.dyetracker.ui.theme.UiTheme
+import com.mojang.blaze3d.platform.InputConstants
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,7 +17,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.components.EditBox
 import net.minecraft.network.chat.Component
-import org.lwjgl.glfw.GLFW
 
 /**
  * GIF-specific "+ Add overlay" affordance for the generalized edit screen. Contributed as an
@@ -90,7 +90,7 @@ object GifAddAction : EditScreenAction {
     }
 
     override fun keyPressed(screen: WidgetEditScreen, keyCode: Int): Boolean {
-        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+        if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
             submit(screen)
             return true
         }

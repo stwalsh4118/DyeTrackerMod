@@ -3,6 +3,7 @@ package com.dyetracker.menu
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.client.DyeTrackerKeys
 import com.dyetracker.client.currentScreen
+import com.dyetracker.client.keyboardInputType
 import com.dyetracker.client.showScreen
 import com.dyetracker.config.ConfigManager
 import com.mojang.blaze3d.platform.InputConstants
@@ -38,7 +39,7 @@ object MenuKeybind {
     fun register() {
         menuKey = KeyMapping(
             TRANSLATION_KEY,
-            InputConstants.Type.KEYSYM,
+            keyboardInputType(),
             InputConstants.UNKNOWN.value,
             DyeTrackerKeys.CATEGORY,
         )

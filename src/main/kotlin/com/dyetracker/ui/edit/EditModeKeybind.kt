@@ -3,13 +3,13 @@ package com.dyetracker.ui.edit
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.client.DyeTrackerKeys
 import com.dyetracker.client.currentScreen
+import com.dyetracker.client.keyboardInputType
 import com.dyetracker.client.showScreen
 import com.mojang.blaze3d.platform.InputConstants
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper
 import net.minecraft.client.KeyMapping
 import net.minecraft.client.Minecraft
-import org.lwjgl.glfw.GLFW
 
 /**
  * Registers the `G` keybind that opens the generalized [WidgetEditScreen] (HUD edit mode for
@@ -25,7 +25,7 @@ import org.lwjgl.glfw.GLFW
 object EditModeKeybind {
 
     private const val TRANSLATION_KEY = "key.dyetracker.edit_overlays"
-    private const val DEFAULT_KEY = GLFW.GLFW_KEY_G
+    private const val DEFAULT_KEY = InputConstants.KEY_G
 
     private lateinit var editKey: KeyMapping
 
@@ -33,7 +33,7 @@ object EditModeKeybind {
     fun register() {
         editKey = KeyMapping(
             TRANSLATION_KEY,
-            InputConstants.Type.KEYSYM,
+            keyboardInputType(),
             DEFAULT_KEY,
             DyeTrackerKeys.CATEGORY,
         )

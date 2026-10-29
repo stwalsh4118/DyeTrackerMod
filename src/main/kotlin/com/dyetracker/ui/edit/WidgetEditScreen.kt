@@ -9,6 +9,7 @@ import com.dyetracker.ui.hud.HudWidgetEntry
 import com.dyetracker.ui.hud.HudWidgetHost
 import com.dyetracker.ui.hud.HudWidgetRegistry
 import com.dyetracker.ui.theme.UiTheme
+import com.mojang.blaze3d.platform.InputConstants
 import net.minecraft.client.Minecraft
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.client.gui.GuiGraphicsExtractor
@@ -20,7 +21,6 @@ import net.minecraft.client.gui.components.Button
 import net.minecraft.client.input.KeyEvent
 import net.minecraft.network.chat.Component
 import net.minecraft.util.Util
-import org.lwjgl.glfw.GLFW
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -161,7 +161,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
     override fun mouseClicked(click: MouseButtonEvent, doubled: Boolean): Boolean {
         if (super.mouseClicked(click, doubled)) return true
         if (activeAction != null) return false
-        if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false
+        if (click.button() != InputConstants.MOUSE_BUTTON_LEFT) return false
         val mx = click.x()
         val my = click.y()
         // Top-down z-order: later entries draw last (on top), so reverse to match what's seen.
@@ -181,7 +181,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
 
     override fun mouseDragged(click: MouseButtonEvent, deltaX: Double, deltaY: Double): Boolean {
         if (activeAction != null) return super.mouseDragged(click, deltaX, deltaY)
-        if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return super.mouseDragged(click, deltaX, deltaY)
+        if (click.button() != InputConstants.MOUSE_BUTTON_LEFT) return super.mouseDragged(click, deltaX, deltaY)
         val entry = focusedEntry() ?: return super.mouseDragged(click, deltaX, deltaY)
         val editor = entry.editor ?: return super.mouseDragged(click, deltaX, deltaY)
         val p = entry.placement
@@ -194,7 +194,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
     }
 
     override fun mouseReleased(click: MouseButtonEvent): Boolean {
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) flushDirty()
+        if (click.button() == InputConstants.MOUSE_BUTTON_LEFT) flushDirty()
         return super.mouseReleased(click)
     }
 
@@ -218,7 +218,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
         val key = input.key()
 
         // ESC is scoped: in an action it dismisses the panel; otherwise it closes the screen.
-        if (key == GLFW.GLFW_KEY_ESCAPE) {
+        if (key == InputConstants.KEY_ESCAPE) {
             if (activeAction != null) {
                 dismissActiveAction()
                 return true
@@ -234,18 +234,18 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
         }
 
         when (key) {
-            GLFW.GLFW_KEY_DELETE, GLFW.GLFW_KEY_BACKSPACE -> {
+            InputConstants.KEY_DELETE, InputConstants.KEY_BACKSPACE -> {
                 val entry = focusedEntry() ?: return super.keyPressed(input)
                 entry.editor?.remove(entry.id)
                 focusedId = null
                 return true
             }
-            GLFW.GLFW_KEY_E -> {
+            InputConstants.KEY_E -> {
                 val entry = focusedEntry() ?: return super.keyPressed(input)
                 entry.editor?.setVisible(entry.id, !entry.placement.visible)
                 return true
             }
-            GLFW.GLFW_KEY_C -> {
+            InputConstants.KEY_C -> {
                 val entry = focusedEntry() ?: return super.keyPressed(input)
                 val panel = entry.configPanel ?: return super.keyPressed(input)
                 activateAction(ConfigPanelAction(panel, entry.id))
@@ -273,12 +273,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
 
     private fun clamp(value: Float, lo: Float, hi: Float): Float = max(lo, min(hi, value))
 
-    /** Poll GLFW directly because `Screen.hasShiftDown()` is no longer present in 1.21.10. */
-    private fun isShiftHeld(): Boolean {
-        val handle = Minecraft.getInstance().window.handle()
-        return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS ||
-            GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS
-    }
+    private fun isShiftHeld(): Boolean = Minecraft.getInstance().hasShiftDown()
 
     /**
      * Adapts a focused widget's [WidgetConfigPanel] (bound to [widgetId]) onto the existing modal

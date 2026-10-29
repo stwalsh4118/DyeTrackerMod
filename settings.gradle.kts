@@ -14,9 +14,9 @@ plugins {
 
 stonecutter {
     create(rootProject) {
-        // 26.x line (mc-26x branch): 26.1.2 (PBI 59) and 26.2 (PBI 53). 1.21.x stays on `main`.
-        // 26.1.2 is the checked-in source state; 26.2 differences are Stonecutter version comments.
-        versions("26.1.2", "26.2")
+        // 26.x line (mc-26x branch): 26.1.2 (PBI 59), 26.2 (PBI 53) and 26.3 (PBI 78). 1.21.x stays on `main`.
+        // 26.1.2 is the checked-in source state; 26.2/26.3 differences are Stonecutter version comments.
+        versions("26.1.2", "26.2", "26.3")
         vcsVersion = "26.1.2"
     }
 }
