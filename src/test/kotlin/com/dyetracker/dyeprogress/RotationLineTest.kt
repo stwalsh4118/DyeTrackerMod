@@ -6,8 +6,9 @@ import kotlin.test.assertEquals
 
 /**
  * Unit coverage for the single-dye widget's rotation line (tasks 72-4, 72-7): the rotation chance
- * percent and the composed line, which always reads `this rotation` (the API's `since` is ignored)
- * and tags a boosted chance with its multiplier, e.g. `(2x)`.
+ * percent (two significant digits below 0.01%) and the composed line, which always reads
+ * `this rotation` (the API's `since` is ignored) and tags a boosted chance with its multiplier,
+ * e.g. `(2x)`.
  */
 class RotationLineTest {
 
@@ -31,24 +32,44 @@ class RotationLineTest {
         assertEquals("1.2%", rotationPercentText(1.234))
     }
 
+    @Test
+    fun `rotationPercentText shows two significant digits below a hundredth of a percent`() {
+        assertEquals("0.0027%", rotationPercentText(0.0027))
+    }
+
+    @Test
+    fun `rotationPercentText keeps a trailing zero as the second significant digit`() {
+        assertEquals("0.000040%", rotationPercentText(0.00004))
+    }
+
+    @Test
+    fun `rotationPercentText just under a hundredth of a percent keeps two significant digits`() {
+        assertEquals("0.0099%", rotationPercentText(0.0099))
+    }
+
+    @Test
+    fun `rotationPercentText at zero is two decimals`() {
+        assertEquals("0.00%", rotationPercentText(0.0))
+    }
+
     // --- rotationLineText ----------------------------------------------------
 
     @Test
     fun `rotationLineText with progress at a 2x boost tags the chance`() {
         val r = DyeRotationStats(523, "16 skeletons", 0.0027, 2, null)
-        assertEquals("16 skeletons · 0.00% this rotation (2x)", rotationLineText(r))
+        assertEquals("16 skeletons · 0.0027% this rotation (2x)", rotationLineText(r))
     }
 
     @Test
     fun `rotationLineText with progress at a 3x boost tags the chance`() {
         val r = DyeRotationStats(523, "16 skeletons", 0.0027, 3, null)
-        assertEquals("16 skeletons · 0.00% this rotation (3x)", rotationLineText(r))
+        assertEquals("16 skeletons · 0.0027% this rotation (3x)", rotationLineText(r))
     }
 
     @Test
     fun `rotationLineText with progress and no boost has no tag`() {
         val r = DyeRotationStats(523, "16 skeletons", 0.0027, 1, null)
-        assertEquals("16 skeletons · 0.00% this rotation", rotationLineText(r))
+        assertEquals("16 skeletons · 0.0027% this rotation", rotationLineText(r))
     }
 
     @Test
@@ -56,7 +77,7 @@ class RotationLineTest {
         val partial = DyeRotationStats(523, "16 skeletons", 0.0027, 2, since)
         val full = DyeRotationStats(523, "16 skeletons", 0.0027, 2, null)
         assertEquals(rotationLineText(full), rotationLineText(partial))
-        assertEquals("16 skeletons · 0.00% this rotation (2x)", rotationLineText(partial))
+        assertEquals("16 skeletons · 0.0027% this rotation (2x)", rotationLineText(partial))
     }
 
     @Test

@@ -108,7 +108,7 @@ Click a dye in the menu's Dyes tab to pin it to your HUD. The widget shows the d
 
 Under the bar, the widget shows what you did toward the dye this rotation (the current SkyBlock year, about 5 real days) and the chance that work alone gave you, at this year's boost if the dye is boosted:
 
-- `1,234 skeletons · 0.04% this rotation`, or `1,234 skeletons · 0.08% this rotation (2x)` when the dye is boosted this SkyBlock year (`(3x)` at a 3x boost).
+- `1,234 skeletons · 0.04% this rotation`, or `16 skeletons · 0.0027% this rotation (2x)` when the dye is boosted this SkyBlock year (`(3x)` at a 3x boost).
 - If DyeTracker started counting partway through the rotation (e.g. on a newly linked account), the line still reads "this rotation" but only counts from then on.
 - Dyes with no drop chance (Livid, Necron, Jade and Dark Purple) show the count only, e.g. `12 completions this rotation`.
 - [Dyes the mod counts for you](#dyes-the-mod-counts-for-you) show the line once you've done some of that work this rotation.
