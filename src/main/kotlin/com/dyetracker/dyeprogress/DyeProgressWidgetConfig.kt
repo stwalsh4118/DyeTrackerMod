@@ -38,6 +38,7 @@ data class DyeProgressWidgetConfig(
     val showName: Boolean = DEFAULT_SHOW_NAME,
     val showSource: Boolean = DEFAULT_SHOW_SOURCE,
     val showPercent: Boolean = DEFAULT_SHOW_PERCENT,
+    val showRotation: Boolean = DEFAULT_SHOW_ROTATION,
     val percentInIconCorner: Boolean = DEFAULT_PERCENT_IN_ICON_CORNER,
 ) : WidgetPlacement {
     companion object {
@@ -70,6 +71,9 @@ data class DyeProgressWidgetConfig(
 
         /** Percent value shown by default. */
         const val DEFAULT_SHOW_PERCENT = true
+
+        /** Rotation line (PBI 72) shown by default, so existing widgets show it. */
+        const val DEFAULT_SHOW_ROTATION = true
 
         /** Percent renders in the header (not the icon corner) by default. */
         const val DEFAULT_PERCENT_IN_ICON_CORNER = false

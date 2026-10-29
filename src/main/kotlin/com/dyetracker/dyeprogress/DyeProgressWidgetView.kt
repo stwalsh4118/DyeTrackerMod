@@ -158,9 +158,9 @@ object DyeProgressWidgetView {
 
     /**
      * Which pieces the READY widget's header/info-column include and where the percent renders,
-     * derived purely from the config flags (and whether a source line has text). The dye icon is
-     * always present and is not represented here. Drives [readyPanel]'s tree composition and is
-     * unit-tested in lieu of the live-renderer tree.
+     * derived purely from the config flags (and whether a source line has text and the entry has
+     * rotation stats). The dye icon is always present and is not represented here. Drives
+     * [readyPanel]'s tree composition and is unit-tested in lieu of the live-renderer tree.
      */
     data class ReadyLayout(
         val nameInHeader: Boolean,
@@ -168,18 +168,23 @@ object DyeProgressWidgetView {
         val percentInCorner: Boolean,
         val showBar: Boolean,
         val showSource: Boolean,
+        val showRotation: Boolean,
     ) {
         /** True when the header row has at least one of name/percent and should be rendered. */
         val hasHeader: Boolean get() = nameInHeader || percentInHeader
     }
 
-    /** Resolve the READY-state piece layout for [cfg]; [hasSource] gates the source line. */
-    fun readyLayout(cfg: DyeProgressWidgetConfig, hasSource: Boolean): ReadyLayout = ReadyLayout(
+    /**
+     * Resolve the READY-state piece layout for [cfg]; [hasSource] gates the source line and
+     * [hasRotation] (the entry carries rotation stats, PBI 72) gates the rotation line.
+     */
+    fun readyLayout(cfg: DyeProgressWidgetConfig, hasSource: Boolean, hasRotation: Boolean): ReadyLayout = ReadyLayout(
         nameInHeader = cfg.showName,
         percentInHeader = cfg.showPercent && !cfg.percentInIconCorner,
         percentInCorner = cfg.showPercent && cfg.percentInIconCorner,
         showBar = cfg.showProgressBar,
         showSource = cfg.showSource && hasSource,
+        showRotation = cfg.showRotation && hasRotation,
     )
 
     /** Compose the widget tree for [cfg] given the current store [status] and per-dye [entry]. */
@@ -298,8 +303,9 @@ object DyeProgressWidgetView {
         val name = nameOf(cfg, entry)
         val percent = formatProgress(entry.progress)
         val sourceText = if (isComplete) COMPLETE_TEXT else (entry.source ?: entry.formula).orEmpty()
+        val rotationText = entry.rotation?.let { rotationLineText(it, System.currentTimeMillis()) }.orEmpty()
 
-        val layout = readyLayout(cfg, hasSource = sourceText.isNotBlank())
+        val layout = readyLayout(cfg, hasSource = sourceText.isNotBlank(), hasRotation = entry.rotation != null)
 
         // Column width: spans the widest present piece so the header pins to the bar's edges.
         val nameWidth = if (layout.nameInHeader) TextWidget(name).measure().width else 0
@@ -310,9 +316,12 @@ object DyeProgressWidgetView {
             maxOf(nameWidth, percentWidth)
         }
         val sourceWidth = if (layout.showSource) TextWidget(sourceText, scale = SECONDARY_TEXT_SCALE).measure().width else 0
+        val rotationWidth =
+            if (layout.showRotation) TextWidget(rotationText, scale = SECONDARY_TEXT_SCALE).measure().width else 0
         val colWidth = buildList {
             if (layout.hasHeader) add(headerWidth)
             if (layout.showSource) add(sourceWidth)
+            if (layout.showRotation) add(rotationWidth)
             if (layout.showBar) add(MIN_BAR_WIDTH)
         }.maxOrNull() ?: 0
 
@@ -326,6 +335,16 @@ object DyeProgressWidgetView {
                     TextWidget(
                         sourceText,
                         color = if (isComplete) accent else UiTheme.Colors.TEXT_SECONDARY,
+                        scale = SECONDARY_TEXT_SCALE,
+                        alignment = HorizontalAlignment.START,
+                    ),
+                )
+            }
+            if (layout.showRotation) {
+                add(
+                    TextWidget(
+                        rotationText,
+                        color = UiTheme.Colors.TEXT_SECONDARY,
                         scale = SECONDARY_TEXT_SCALE,
                         alignment = HorizontalAlignment.START,
                     ),

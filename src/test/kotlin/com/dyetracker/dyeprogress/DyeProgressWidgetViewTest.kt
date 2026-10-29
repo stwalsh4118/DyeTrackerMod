@@ -35,6 +35,7 @@ class DyeProgressWidgetViewTest {
         showName: Boolean = true,
         showSource: Boolean = true,
         showPercent: Boolean = true,
+        showRotation: Boolean = true,
         percentInIconCorner: Boolean = false,
     ) = DyeProgressWidgetConfig(
         id = "w1",
@@ -47,6 +48,7 @@ class DyeProgressWidgetViewTest {
         showName = showName,
         showSource = showSource,
         showPercent = showPercent,
+        showRotation = showRotation,
         percentInIconCorner = percentInIconCorner,
     )
 
@@ -183,7 +185,7 @@ class DyeProgressWidgetViewTest {
 
     @Test
     fun `readyLayout defaults reproduce today's full layout`() {
-        val layout = DyeProgressWidgetView.readyLayout(cfg(), hasSource = true)
+        val layout = DyeProgressWidgetView.readyLayout(cfg(), hasSource = true, hasRotation = false)
         assertTrue(layout.nameInHeader)
         assertTrue(layout.percentInHeader)
         assertFalse(layout.percentInCorner)
@@ -194,7 +196,7 @@ class DyeProgressWidgetViewTest {
 
     @Test
     fun `readyLayout drops the bar when showProgressBar is off`() {
-        val layout = DyeProgressWidgetView.readyLayout(cfg(showProgressBar = false), hasSource = true)
+        val layout = DyeProgressWidgetView.readyLayout(cfg(showProgressBar = false), hasSource = true, hasRotation = false)
         assertFalse(layout.showBar)
         assertTrue(layout.nameInHeader)
         assertTrue(layout.percentInHeader)
@@ -202,7 +204,7 @@ class DyeProgressWidgetViewTest {
 
     @Test
     fun `readyLayout drops the name but keeps the percent when showName is off`() {
-        val layout = DyeProgressWidgetView.readyLayout(cfg(showName = false), hasSource = true)
+        val layout = DyeProgressWidgetView.readyLayout(cfg(showName = false), hasSource = true, hasRotation = false)
         assertFalse(layout.nameInHeader)
         assertTrue(layout.percentInHeader)
         assertTrue(layout.hasHeader)
@@ -213,6 +215,7 @@ class DyeProgressWidgetViewTest {
         val layout = DyeProgressWidgetView.readyLayout(
             cfg(showPercent = false, percentInIconCorner = true),
             hasSource = true,
+            hasRotation = false,
         )
         assertFalse(layout.percentInHeader)
         assertFalse(layout.percentInCorner)
@@ -220,7 +223,7 @@ class DyeProgressWidgetViewTest {
 
     @Test
     fun `readyLayout routes the percent to the corner when percentInIconCorner is on`() {
-        val layout = DyeProgressWidgetView.readyLayout(cfg(percentInIconCorner = true), hasSource = true)
+        val layout = DyeProgressWidgetView.readyLayout(cfg(percentInIconCorner = true), hasSource = true, hasRotation = false)
         assertTrue(layout.percentInCorner)
         assertFalse(layout.percentInHeader)
         assertTrue(layout.nameInHeader)
@@ -228,20 +231,20 @@ class DyeProgressWidgetViewTest {
 
     @Test
     fun `readyLayout keeps the percent in the header when percentInIconCorner is off`() {
-        val layout = DyeProgressWidgetView.readyLayout(cfg(percentInIconCorner = false), hasSource = true)
+        val layout = DyeProgressWidgetView.readyLayout(cfg(percentInIconCorner = false), hasSource = true, hasRotation = false)
         assertTrue(layout.percentInHeader)
         assertFalse(layout.percentInCorner)
     }
 
     @Test
     fun `readyLayout omits the source line when there is no source text even if enabled`() {
-        val layout = DyeProgressWidgetView.readyLayout(cfg(showSource = true), hasSource = false)
+        val layout = DyeProgressWidgetView.readyLayout(cfg(showSource = true), hasSource = false, hasRotation = false)
         assertFalse(layout.showSource)
     }
 
     @Test
     fun `readyLayout omits the source line when showSource is off`() {
-        val layout = DyeProgressWidgetView.readyLayout(cfg(showSource = false), hasSource = true)
+        val layout = DyeProgressWidgetView.readyLayout(cfg(showSource = false), hasSource = true, hasRotation = false)
         assertFalse(layout.showSource)
     }
 
@@ -255,6 +258,7 @@ class DyeProgressWidgetViewTest {
                 showSource = false,
             ),
             hasSource = true,
+            hasRotation = false,
         )
         assertFalse(layout.nameInHeader)
         assertFalse(layout.percentInHeader)
@@ -274,10 +278,36 @@ class DyeProgressWidgetViewTest {
                 percentInIconCorner = true,
             ),
             hasSource = true,
+            hasRotation = false,
         )
         assertFalse(layout.hasHeader)
         assertFalse(layout.showBar)
         assertFalse(layout.showSource)
         assertTrue(layout.percentInCorner)
+    }
+
+    @Test
+    fun `readyLayout without a rotation hides the rotation line`() {
+        val layout = DyeProgressWidgetView.readyLayout(cfg(showRotation = true), hasSource = true, hasRotation = false)
+        assertFalse(layout.showRotation)
+    }
+
+    @Test
+    fun `readyLayout shows the rotation line when the flag is on and a rotation exists`() {
+        val layout = DyeProgressWidgetView.readyLayout(cfg(showRotation = true), hasSource = true, hasRotation = true)
+        assertTrue(layout.showRotation)
+    }
+
+    @Test
+    fun `readyLayout hides the rotation line when the flag is off even with a rotation`() {
+        val layout = DyeProgressWidgetView.readyLayout(cfg(showRotation = false), hasSource = true, hasRotation = true)
+        assertFalse(layout.showRotation)
+    }
+
+    @Test
+    fun `readyLayout rotation line is independent of the source line`() {
+        val layout = DyeProgressWidgetView.readyLayout(cfg(showSource = false), hasSource = false, hasRotation = true)
+        assertFalse(layout.showSource)
+        assertTrue(layout.showRotation)
     }
 }

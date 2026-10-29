@@ -29,6 +29,7 @@ class DyeProgressConfigPanelTest {
             showName = true,
             showSource = false,
             showPercent = true,
+            showRotation = false,
             percentInIconCorner = true,
         )
         assertFalse(pieceValue(cfg, DyeProgressPiece.BACKGROUND))
@@ -36,6 +37,7 @@ class DyeProgressConfigPanelTest {
         assertFalse(pieceValue(cfg, DyeProgressPiece.PROGRESS_BAR))
         assertTrue(pieceValue(cfg, DyeProgressPiece.NAME))
         assertFalse(pieceValue(cfg, DyeProgressPiece.SOURCE))
+        assertFalse(pieceValue(cfg, DyeProgressPiece.ROTATION))
         assertTrue(pieceValue(cfg, DyeProgressPiece.PERCENT))
         assertTrue(pieceValue(cfg, DyeProgressPiece.PERCENT_IN_CORNER))
     }
@@ -73,6 +75,25 @@ class DyeProgressConfigPanelTest {
         val off = applyPieceToggle(base, DyeProgressPiece.SOURCE, false)
         assertFalse(off.showSource)
         assertEquals(base.copy(showSource = false), off)
+    }
+
+    @Test
+    fun `pieceValue reads the rotation toggle when on`() {
+        assertTrue(pieceValue(base.copy(showRotation = true), DyeProgressPiece.ROTATION))
+    }
+
+    @Test
+    fun `applyPieceToggle sets rotation only`() {
+        val off = applyPieceToggle(base, DyeProgressPiece.ROTATION, false)
+        assertFalse(off.showRotation)
+        assertEquals(base.copy(showRotation = false), off)
+    }
+
+    @Test
+    fun `the rotation piece sits right after the source line`() {
+        val pieces = DyeProgressPiece.entries
+        assertEquals(pieces.indexOf(DyeProgressPiece.SOURCE) + 1, pieces.indexOf(DyeProgressPiece.ROTATION))
+        assertEquals("Rotation line", DyeProgressPiece.ROTATION.label)
     }
 
     @Test

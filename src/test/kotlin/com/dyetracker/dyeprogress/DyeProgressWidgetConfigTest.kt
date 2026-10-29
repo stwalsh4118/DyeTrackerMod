@@ -40,6 +40,7 @@ class DyeProgressWidgetConfigTest {
             showName = false,
             showSource = false,
             showPercent = false,
+            showRotation = false,
             percentInIconCorner = true,
         )
 
@@ -106,6 +107,43 @@ class DyeProgressWidgetConfigTest {
         assertTrue(cfg.showSource)
         assertTrue(cfg.showPercent)
         assertFalse(cfg.percentInIconCorner)
+    }
+
+    @Test
+    fun `showRotation defaults to on`() {
+        val cfg = DyeProgressWidgetConfig(
+            id = "abc123",
+            dyeId = "celeste",
+            profileName = "Mango",
+            profileId = "p1",
+        )
+
+        assertTrue(cfg.showRotation)
+        assertEquals(DyeProgressWidgetConfig.DEFAULT_SHOW_ROTATION, cfg.showRotation)
+    }
+
+    @Test
+    fun `a config JSON without the showRotation key decodes with the rotation line on`() {
+        // A pre-PBI-72 widget config: every PBI 36 toggle present, no showRotation key.
+        val legacy = """
+            {
+              "id": "w1",
+              "dyeId": "matcha",
+              "profileName": "Mango",
+              "profileId": "p1",
+              "showBackground": true,
+              "showBorder": true,
+              "showProgressBar": true,
+              "showName": true,
+              "showSource": true,
+              "showPercent": true,
+              "percentInIconCorner": false
+            }
+        """.trimIndent()
+
+        val cfg = json.decodeFromString<DyeProgressWidgetConfig>(legacy)
+
+        assertTrue(cfg.showRotation)
     }
 
     @Test

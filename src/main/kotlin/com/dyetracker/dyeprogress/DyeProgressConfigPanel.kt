@@ -18,6 +18,7 @@ enum class DyeProgressPiece(val label: String) {
     PROGRESS_BAR("Progress bar"),
     NAME("Name"),
     SOURCE("Source line"),
+    ROTATION("Rotation line"),
     PERCENT("Percent"),
     PERCENT_IN_CORNER("Percent in icon corner"),
 }
@@ -29,6 +30,7 @@ fun pieceValue(cfg: DyeProgressWidgetConfig, piece: DyeProgressPiece): Boolean =
     DyeProgressPiece.PROGRESS_BAR -> cfg.showProgressBar
     DyeProgressPiece.NAME -> cfg.showName
     DyeProgressPiece.SOURCE -> cfg.showSource
+    DyeProgressPiece.ROTATION -> cfg.showRotation
     DyeProgressPiece.PERCENT -> cfg.showPercent
     DyeProgressPiece.PERCENT_IN_CORNER -> cfg.percentInIconCorner
 }
@@ -41,6 +43,7 @@ fun applyPieceToggle(cfg: DyeProgressWidgetConfig, piece: DyeProgressPiece, chec
         DyeProgressPiece.PROGRESS_BAR -> cfg.copy(showProgressBar = checked)
         DyeProgressPiece.NAME -> cfg.copy(showName = checked)
         DyeProgressPiece.SOURCE -> cfg.copy(showSource = checked)
+        DyeProgressPiece.ROTATION -> cfg.copy(showRotation = checked)
         DyeProgressPiece.PERCENT -> cfg.copy(showPercent = checked)
         DyeProgressPiece.PERCENT_IN_CORNER -> cfg.copy(percentInIconCorner = checked)
     }
