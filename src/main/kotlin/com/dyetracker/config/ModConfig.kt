@@ -86,6 +86,11 @@ data class ModConfig(
      * Dye shown as the hunt on the Discord card (PBI 77); blank = none. Defaults to blank so existing config files load unchanged.
      */
     val discordHuntDyeId: String = "",
+
+    /**
+     * Whether the one-time Discord setup hint was shown (PBI 77). Defaults to false so existing config files load unchanged.
+     */
+    val discordHintShown: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_API_URL = "https://dye-tracker-api.seanwalsh4118-7a3.workers.dev"

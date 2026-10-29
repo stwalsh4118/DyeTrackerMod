@@ -7,6 +7,8 @@ import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.PotionTier
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.discord.DiscordPresence
+import com.dyetracker.discord.disableDiscordPresence
+import com.dyetracker.discord.enableDiscordPresence
 import com.dyetracker.dyeprogress.DyeCatalog
 import com.dyetracker.dyeprogress.DyeProgressAdder
 import com.dyetracker.dyeprogress.DyeProgressPlacementEditor
@@ -497,22 +499,21 @@ object DyeTrackerCommands {
     }
 
     /**
-     * Turn Discord Rich Presence on/off (PBI 77), or print its status when [enabled] is null. Only
-     * flips the persisted flag and wakes the presence worker: all Discord IPC runs on the worker,
-     * never on this (client) thread.
+     * Turn Discord Rich Presence on/off (PBI 77), or print its status when [enabled] is null. On
+     * and off go through [enableDiscordPresence] / [disableDiscordPresence], which only flip the
+     * persisted flag and wake the presence worker (all Discord IPC runs on the worker, never on
+     * this client thread); the first time on also prints the one-time setup hint.
      */
     private fun handleDiscordCommand(source: FabricClientCommandSource, enabled: Boolean?) {
         when (enabled) {
             true -> {
-                ConfigManager.setDiscordEnabled(true)
-                DiscordPresence.wake()
                 source.sendFeedback(
                     Component.literal("Discord presence on.").withStyle(ChatFormatting.GREEN)
                 )
+                enableDiscordPresence { source.sendFeedback(it) }
             }
             false -> {
-                ConfigManager.setDiscordEnabled(false)
-                DiscordPresence.wake()
+                disableDiscordPresence()
                 source.sendFeedback(
                     Component.literal("Discord presence off.").withStyle(ChatFormatting.YELLOW)
                 )
