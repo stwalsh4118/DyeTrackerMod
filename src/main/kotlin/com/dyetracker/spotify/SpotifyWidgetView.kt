@@ -15,12 +15,14 @@ import net.minecraft.client.Minecraft
 
 /**
  * Builds the Spotify now-playing widget from PBI 30 toolkit components, one layout per
- * [SpotifyWidgetState] (task 76-4). A track or episode shows, on Spotify's fallback panel color,
- * its cover at the left once loaded (task 76-5), then the title with the Spotify icon, the
- * artists (or show), and a live progress bar with `m:ss / m:ss`; paused, the same layout dimmed by
- * [SpotifyConstants.PAUSED_ALPHA_FACTOR] (the icon and the cover never are) with `Paused · `
- * before the time. An ad shows [SpotifyConstants.AD_TITLE]; not set up, logged out and errors
- * show a message panel. Text is fitted to [SpotifyConstants.TEXT_WIDTH_PX] with `…`, except a
+ * [SpotifyWidgetState] (task 76-4). A track or episode shows its cover at the left once loaded
+ * (task 76-5), then the title with the Spotify icon, the artists (or show), and a live progress
+ * bar with `m:ss / m:ss`. Its panel, border, bar fill and text take the cover's colors, fading on
+ * a track change, and the icon is green or white by contrast ([SpotifyColorStore], task 76-6).
+ * Paused, the same layout is dimmed by [SpotifyConstants.PAUSED_ALPHA_FACTOR] (the icon and the
+ * cover never are) with `Paused · ` before the time. An ad shows [SpotifyConstants.AD_TITLE]; not
+ * set up, logged out and errors show a message panel; these and the edit placeholder use
+ * [FALLBACK_COLORS]. Text is fitted to [SpotifyConstants.TEXT_WIDTH_PX] with `…`, except a
  * message's command hint.
  */
 object SpotifyWidgetView {
@@ -36,7 +38,8 @@ object SpotifyWidgetView {
         is SpotifyWidgetState.Playing -> track(state.s, nowMs, paused = false)
         is SpotifyWidgetState.Paused -> track(state.s, nowMs, paused = true)
         SpotifyWidgetState.Ad -> panel(
-            listOf(titleRow(fit(SpotifyConstants.AD_TITLE), UiTheme.Colors.TEXT_PRIMARY, SpotifyConstants.TEXT_WIDTH_PX)),
+            listOf(titleRow(fit(SpotifyConstants.AD_TITLE), FALLBACK_COLORS, SpotifyConstants.TEXT_WIDTH_PX)),
+            FALLBACK_COLORS,
         )
         SpotifyWidgetState.NotSetUp, SpotifyWidgetState.LoggedOut -> message(messageLines(state))
         is SpotifyWidgetState.Error -> message(messageLines(state).map(::fit))
@@ -44,6 +47,7 @@ object SpotifyWidgetView {
     }
 
     private fun track(s: NowPlayingSnapshot, nowMs: Long, paused: Boolean): Widget {
+        val colors = SpotifyColorStore.colorsAt(nowMs)
         val textWidth = SpotifyConstants.TEXT_WIDTH_PX
         val time = timeText(s, nowMs, paused)
         val barWidth = (textWidth - font.width(time) - UiTheme.Spacing.INNER_GAP).coerceAtLeast(0)
@@ -54,14 +58,15 @@ object SpotifyWidgetView {
                     value = progressPercent(s, nowMs),
                     width = barWidth,
                     trackColor = tone(UiTheme.Colors.PROGRESS_TRACK, paused),
-                    fillColor = tone(UiTheme.Colors.SPOTIFY_GREEN, paused),
+                    fillColor = tone(colors.accent, paused),
                 ),
-                TextWidget(time, color = tone(UiTheme.Colors.TEXT_PRIMARY, paused)),
+                TextWidget(time, color = tone(colors.text, paused)),
             ),
             spacing = UiTheme.Spacing.INNER_GAP,
         )
         return panel(
-            listOf(titleRow(fit(s.title), tone(UiTheme.Colors.TEXT_PRIMARY, paused), textWidth), subtitle, barRow),
+            listOf(titleRow(fit(s.title), colors, textWidth, paused), subtitle, barRow),
+            colors,
             paused,
             art(),
         )
@@ -80,24 +85,35 @@ object SpotifyWidgetView {
 
     /** The first line with the icon, then any further lines (the command hint) in secondary text. */
     private fun message(lines: List<String>): Widget {
-        val first = titleRow(lines.firstOrNull().orEmpty(), UiTheme.Colors.TEXT_PRIMARY)
+        val first = titleRow(lines.firstOrNull().orEmpty(), FALLBACK_COLORS)
         val rest = lines.drop(1).map { TextWidget(it, color = UiTheme.Colors.TEXT_SECONDARY) }
-        return panel(listOf(first) + rest)
+        return panel(listOf(first) + rest, FALLBACK_COLORS)
     }
 
-    private fun placeholder(): Widget = panel(listOf(titleRow(SpotifyConstants.EDIT_PLACEHOLDER, UiTheme.Colors.TEXT_PRIMARY)))
+    private fun placeholder(): Widget =
+        panel(listOf(titleRow(SpotifyConstants.EDIT_PLACEHOLDER, FALLBACK_COLORS)), FALLBACK_COLORS)
 
-    /** [text] (already fitted) then the Spotify icon, never dimmed. */
-    private fun titleRow(text: String, color: Int, minWidth: Int = 0): Widget = Row(
+    /** [text] (already fitted) in [colors]' text color, dimmed when [paused], then [colors]' icon, never dimmed. */
+    private fun titleRow(text: String, colors: SpotifyColors, minWidth: Int = 0, paused: Boolean = false): Widget = Row(
         children = listOf(
-            TextWidget(text, color = color, minWidth = minWidth),
-            SpriteWidget(SpotifyConstants.ICON_GREEN_ID, SpotifyConstants.ICON_SCALE),
+            TextWidget(text, color = tone(colors.text, paused), minWidth = minWidth),
+            SpriteWidget(iconId(colors.icon), SpotifyConstants.ICON_SCALE),
         ),
         spacing = UiTheme.Spacing.INNER_GAP,
     )
 
-    /** [lines] in a column on the panel, with [art] at their left when there is one. */
-    private fun panel(lines: List<Widget>, paused: Boolean = false, art: Widget? = null): Widget {
+    private fun iconId(icon: SpotifyIcon): String = when (icon) {
+        SpotifyIcon.GREEN -> SpotifyConstants.ICON_GREEN_ID
+        SpotifyIcon.WHITE -> SpotifyConstants.ICON_WHITE_ID
+    }
+
+    /** [lines] in a column on [colors]' panel, with [art] at their left when there is one. */
+    private fun panel(
+        lines: List<Widget>,
+        colors: SpotifyColors,
+        paused: Boolean = false,
+        art: Widget? = null,
+    ): Widget {
         val text = Column(
             children = lines,
             spacing = SpotifyConstants.LINE_GAP_PX,
@@ -105,8 +121,8 @@ object SpotifyWidgetView {
         )
         return PanelWidget(
             child = if (art == null) text else Row(children = listOf(art, text), spacing = UiTheme.Spacing.INNER_GAP),
-            background = tone(UiTheme.Colors.SPOTIFY_FALLBACK_BACKGROUND, paused),
-            border = tone(UiTheme.Colors.PANEL_BORDER, paused),
+            background = tone(colors.background, paused),
+            border = tone(colors.border, paused),
         )
     }
 

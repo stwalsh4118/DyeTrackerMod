@@ -9,7 +9,8 @@ import kotlin.test.assertTrue
 
 /**
  * Unit coverage for [SpotifyPoller]'s pure parts (task 76-3): it polls only while connected and
- * the widget is visible, and how a poll result changes the record (task 76-4).
+ * the widget is visible, how a poll result changes the record (task 76-4), and which art it
+ * shows (none once logged out, task 76-6).
  */
 class SpotifyPollerTest {
 
@@ -96,12 +97,31 @@ class SpotifyPollerTest {
         assertSame(ACTIVE, recordWithoutPoll(ACTIVE, connected = true))
     }
 
+    @Test
+    fun `connected shows the snapshot's art`() {
+        assertEquals(ART_URL, artUrlFor(WITH_ART, connected = true))
+    }
+
+    @Test
+    fun `not connected shows no art even with a snapshot`() {
+        assertNull(artUrlFor(WITH_ART, connected = false))
+    }
+
+    @Test
+    fun `connected with no snapshot shows no art`() {
+        assertNull(artUrlFor(PollRecord.EMPTY, connected = true))
+    }
+
     private companion object {
         const val NOW = 50_000L
+        const val ART_URL = "https://i.scdn.co/image/a"
         val PREVIOUS = NowPlayingSnapshot("Old", "Artist", "", isPlaying = true, progressMs = 1, durationMs = 2, receivedAtMs = 3)
 
         /** Last active 10 s ago: inside the idle window. */
         val ACTIVE = PollRecord(SpotifyResult.Success(null), PREVIOUS, lastActiveAtMs = NOW - 10_000)
+
+        /** A record whose snapshot has art. */
+        val WITH_ART = PollRecord(SpotifyResult.Success(null), PREVIOUS.copy(artUrl = ART_URL), lastActiveAtMs = NOW)
 
         /** Last active exactly the idle limit ago: past the window. */
         val STALE = PollRecord(SpotifyResult.Success(null), PREVIOUS, lastActiveAtMs = NOW - SpotifyConstants.IDLE_HIDE_MS)

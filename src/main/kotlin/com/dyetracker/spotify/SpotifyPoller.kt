@@ -41,6 +41,10 @@ internal fun nextRecord(prev: PollRecord, result: SpotifyResult<CurrentlyPlaying
 internal fun recordWithoutPoll(prev: PollRecord, connected: Boolean): PollRecord =
     if (connected) prev else PollRecord.EMPTY
 
+/** The art to show for [rec]: its snapshot's, only while [connected] (no art after a logout). */
+internal fun artUrlFor(rec: PollRecord, connected: Boolean): String? =
+    if (connected) rec.snapshot?.artUrl else null
+
 /**
  * Keeps [SpotifyNowPlayingStore] current for the HUD widget (PBI 76). Every
  * [SpotifyConstants.POLL_INTERVAL_MS] (longer after a 429, see [pollDelayMs]) it asks Spotify
@@ -103,10 +107,14 @@ object SpotifyPoller {
         return result
     }
 
-    /** Write [rec] to the store, then load its snapshot's art (none without a snapshot releases it). */
+    /**
+     * Write [rec] to the store, then load its snapshot's art. No snapshot, or a session no longer
+     * connected (the poll may have logged it out), releases it.
+     */
     private fun publish(rec: PollRecord) {
         SpotifyNowPlayingStore.record = rec
-        SpotifyArtFetcher.ensure(rec.snapshot?.artUrl)
+        val connected = SpotifySessions.default.status() == SessionStatus.CONNECTED
+        SpotifyArtFetcher.ensure(artUrlFor(rec, connected))
     }
 }
 

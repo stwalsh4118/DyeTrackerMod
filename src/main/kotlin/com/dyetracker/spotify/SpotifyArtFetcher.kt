@@ -18,12 +18,14 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 import javax.imageio.ImageIO
+import javax.imageio.ImageReader
 
 /** [ArtFetchResult.Failed.reason]s, logged once per URL. Never a body or a server message. */
 internal const val ART_NOT_ALLOWED = "host not allowed"
 internal const val ART_NOT_AN_IMAGE = "not an image"
 internal const val ART_TOO_LARGE = "too large"
 internal const val ART_UNDECODABLE = "undecodable"
+internal const val ART_DIMENSIONS_TOO_LARGE = "dimensions too large"
 
 private const val HEADER_CONTENT_TYPE = "Content-Type"
 private const val HEADER_CONTENT_LENGTH = "Content-Length"
@@ -58,7 +60,9 @@ internal fun artHttpClient(): HttpClient = HttpClient.newBuilder()
  * Fetches and decodes one image, in memory and bounded (task 76-5): only a URL [allow] accepts
  * (production: [isAllowedArtUrl]; tests swap it for a local fake), status 200, an `image/...`
  * content type, a body of at most [SpotifyConstants.ART_MAX_BYTES] (a larger `Content-Length` is
- * refused before reading, and the read stops past the cap either way). Blocking; never throws.
+ * refused before reading, and the read stops past the cap either way), and a header no wider or
+ * taller than [SpotifyConstants.ART_MAX_DIM_PX] ([decodeBounded], task 76-6). Blocking; never
+ * throws.
  */
 internal class ArtFetchCore(
     private val client: HttpClient = artHttpClient(),
@@ -96,8 +100,32 @@ internal class ArtFetchCore(
             return ArtFetchResult.Failed(ART_TOO_LARGE)
         }
         val bytes = readCapped(body, SpotifyConstants.ART_MAX_BYTES) ?: return ArtFetchResult.Failed(ART_TOO_LARGE)
-        val image = ImageIO.read(ByteArrayInputStream(bytes)) ?: return ArtFetchResult.Failed(ART_UNDECODABLE)
-        return ArtFetchResult.Loaded(image)
+        return decodeBounded(bytes)
+    }
+}
+
+/**
+ * [bytes] decoded, unless its header declares a width or height past
+ * [SpotifyConstants.ART_MAX_DIM_PX]: the size is read from the header before [ImageReader.read],
+ * so an oversized image is never decoded. No reader for the format is [ART_UNDECODABLE].
+ */
+internal fun decodeBounded(bytes: ByteArray): ArtFetchResult {
+    val stream = ImageIO.createImageInputStream(ByteArrayInputStream(bytes))
+        ?: return ArtFetchResult.Failed(ART_UNDECODABLE)
+    stream.use {
+        val readers = ImageIO.getImageReaders(stream)
+        if (!readers.hasNext()) return ArtFetchResult.Failed(ART_UNDECODABLE)
+        val reader = readers.next()
+        try {
+            reader.input = stream
+            val max = SpotifyConstants.ART_MAX_DIM_PX
+            if (reader.getWidth(0) > max || reader.getHeight(0) > max) {
+                return ArtFetchResult.Failed(ART_DIMENSIONS_TOO_LARGE)
+            }
+            return ArtFetchResult.Loaded(reader.read(0))
+        } finally {
+            reader.dispose()
+        }
     }
 }
 
@@ -108,12 +136,17 @@ internal class ArtFetchCore(
  * URL. A failure's reason goes to [warn] once per URL and releases the old art, so a new track
  * never shows the last one's cover. A load whose URL is no longer wanted is skipped before the
  * fetch, never uploaded after it, and released if its upload lands after the URL changed.
+ *
+ * [recolor] (task 76-6) is only ever called on [worker]: with the [paletteOf] of the decoded
+ * image (before its corners are rounded) as it is uploaded, and with [FALLBACK_COLORS] on a
+ * failure or after a null that is still wanted when its turn on [worker] comes.
  */
 internal class ArtLoader(
     private val worker: Executor,
     private val fetch: (String) -> ArtFetchResult,
     private val upload: (BufferedImage) -> CompletableFuture<*>,
     private val release: () -> Unit,
+    private val recolor: (SpotifyColors) -> Unit,
     private val warn: (String) -> Unit = { DyeTrackerMod.warn("Spotify album art not shown: {}", it) },
 ) {
 
@@ -132,7 +165,12 @@ internal class ArtLoader(
             wanted = url
             if (url == null) release()
         }
-        if (url != null) worker.execute { load(url) }
+        if (url == null) worker.execute(::clearColors) else worker.execute { load(url) }
+    }
+
+    /** No art: back to the fallback colors, unless a newer URL took over (its load recolors). */
+    private fun clearColors() {
+        if (wanted == null) recolor(FALLBACK_COLORS)
     }
 
     private fun load(url: String) {
@@ -150,16 +188,14 @@ internal class ArtLoader(
     }
 
     private fun show(url: String, image: BufferedImage) {
-        val rounded = try {
-            roundCorners(image, SpotifyConstants.ART_CORNER_RADIUS_PX * image.width / SpotifyConstants.ART_MIN_WIDTH_PX)
-        } catch (e: Exception) {
-            fail(url, e.javaClass.simpleName)
-            return
-        }
+        val colors = paletteOf(image)
+        val radius = SpotifyConstants.ART_CORNER_RADIUS_PX * image.width / SpotifyConstants.ART_MIN_WIDTH_PX
+        val rounded = roundCorners(image, radius)
         // Under the lock: a newer ensure() can't slip between the check and the queued upload, so
         // its release is never queued ahead of this upload. One that lands later is released below.
         synchronized(lock) {
             if (wanted != url) return
+            recolor(colors)
             upload(rounded).whenComplete { _, _ -> if (wanted != url) release() }
         }
     }
@@ -167,7 +203,10 @@ internal class ArtLoader(
     private fun fail(url: String, reason: String) {
         if (warned.add(url)) warn(reason)
         synchronized(lock) {
-            if (wanted == url) release()
+            if (wanted == url) {
+                release()
+                recolor(FALLBACK_COLORS)
+            }
         }
     }
 }
@@ -176,9 +215,9 @@ internal class ArtLoader(
  * The now-playing widget's album art (PBI 76, task 76-5): fetched in memory, bounded, only from
  * Spotify's image hosts, once per URL, on its own daemon thread (`DyeTracker-SpotifyArt`) so a
  * slow image never delays polling, then uploaded with rounded corners as
- * [SpotifyConstants.ART_TEXTURE_ID]. No disk cache (unlike `OverlayDownloader`, whose cache would
- * grow per track). [SpotifyPoller] calls [ensure] after each tick; its stop and the logout call
- * `ensure(null)`.
+ * [SpotifyConstants.ART_TEXTURE_ID]. Its palette (task 76-6) goes to [SpotifyColorStore] on the
+ * same thread. No disk cache (unlike `OverlayDownloader`, whose cache would grow per track).
+ * [SpotifyPoller] calls [ensure] after each tick; its stop and the logout call `ensure(null)`.
  */
 object SpotifyArtFetcher {
 
@@ -192,6 +231,7 @@ object SpotifyArtFetcher {
             )
         },
         release = { ImageTextureManager.release(SpotifyConstants.ART_TEXTURE_ID) },
+        recolor = { SpotifyColorStore.recolor(it, System.currentTimeMillis()) },
     )
 
     /** Show [url]'s art (no-op when it already is, or is loading); null releases the art. */

@@ -96,6 +96,7 @@ object SpotifyConstants {
     /** The widget's text in edit mode while it would otherwise be hidden, so it can be placed. */
     const val EDIT_PLACEHOLDER = "Spotify"
 
+    /** HTTP status of a successful response; the only status an art fetch accepts. */
     const val HTTP_OK = 200
 
     /** Texture id of the current album art (or episode/show image), for `ImageTextureManager`. */
@@ -107,11 +108,50 @@ object SpotifyConstants {
     /** An image body past this many bytes is abandoned. */
     const val ART_MAX_BYTES = 2 * 1024 * 1024
 
+    /**
+     * An image whose header declares a width or height past this many pixels is refused before
+     * it is decoded, so a small compressed body can't expand into a huge bitmap.
+     */
+    const val ART_MAX_DIM_PX = 2048
+
     /** Corner radius on a [ART_MIN_WIDTH_PX]-wide image; scaled to the image's real width. */
     const val ART_CORNER_RADIUS_PX = 6
 
     /** The art's drawn width in GUI pixels. */
     const val ART_DRAW_PX = 32
+
+    /** How long the widget's colors fade from the last cover's palette to the new one. */
+    const val COLOR_FADE_MS = 800L
+
+    /** Minimum WCAG contrast of the white text on the palette background. */
+    const val TEXT_MIN_CONTRAST = 4.5
+
+    /** Minimum WCAG contrast of the accent (border, progress fill) on the palette background. */
+    const val ACCENT_MIN_CONTRAST = 3.0
+
+    /** Minimum WCAG contrast of the green icon on the background; below it the white icon shows. */
+    const val ICON_MIN_CONTRAST = 3.0
+
+    /** Minimum HSV saturation of a cover color picked as the accent. */
+    const val ACCENT_MIN_SATURATION = 0.25f
+
+    /** Minimum RGB (Euclidean) distance of the accent from the cover's dominant color. */
+    const val ACCENT_MIN_DISTANCE = 64
+
+    /** How far toward white the dominant color is lightened when the cover has no accent. */
+    const val ACCENT_FALLBACK_LIGHTEN = 0.4f
+
+    /** Alpha of the palette's panel background. */
+    const val PANEL_ALPHA = 0xC8
+
+    /** Cover pixels with alpha below this are left out of the palette. */
+    const val PALETTE_ALPHA_CUTOFF = 128
+
+    /** A cover wider than this is sampled every `width / PALETTE_SAMPLE_PX` pixels. */
+    const val PALETTE_SAMPLE_PX = 64
+
+    /** One darken or lighten step of the palette's contrast search. */
+    const val COLOR_STEP = 0.05f
 
     /** The only hosts art is fetched from (Spotify's image CDNs), over https. */
     val ART_ALLOWED_HOST_SUFFIXES = listOf(".scdn.co", ".spotifycdn.com")

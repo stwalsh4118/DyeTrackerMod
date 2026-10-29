@@ -16,12 +16,14 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 
 /**
  * Unit coverage for the album art fetch (task 76-5): the capped read, the HTTP checks and decode
  * of [ArtFetchCore] against a local JDK [HttpServer] fake (the host check is bypassed only by the
  * injected allow function), and [ArtLoader]'s once-per-URL load, release and stale-upload rules.
+ * Task 76-6 adds the dimension check before decode and the loader's recolor from the cover.
  */
 class SpotifyArtFetcherTest {
 
@@ -147,6 +149,32 @@ class SpotifyArtFetcherTest {
     }
 
     @Test
+    fun `a header wider than the max dimension is refused before decoding`() {
+        serve(200, png(OVERSIZE_PX, 1))
+        assertEquals(ArtFetchResult.Failed(ART_DIMENSIONS_TOO_LARGE), core.fetch(url))
+    }
+
+    @Test
+    fun `a header taller than the max dimension is refused before decoding`() {
+        serve(200, png(1, OVERSIZE_PX))
+        assertEquals(ArtFetchResult.Failed(ART_DIMENSIONS_TOO_LARGE), core.fetch(url))
+    }
+
+    @Test
+    fun `an image exactly the max dimension decodes`() {
+        serve(200, png(SpotifyConstants.ART_MAX_DIM_PX, 1))
+        assertEquals(SpotifyConstants.ART_MAX_DIM_PX, assertIs<ArtFetchResult.Loaded>(core.fetch(url)).image.width)
+    }
+
+    @Test
+    fun `a 64 by 64 image passes the dimension check`() {
+        serve(200, png(64, 64))
+        val image = assertIs<ArtFetchResult.Loaded>(core.fetch(url)).image
+        assertEquals(64, image.width)
+        assertEquals(64, image.height)
+    }
+
+    @Test
     fun `the default host check refuses the fake without a request`() {
         serve(200, png(8, 8))
         assertEquals(ArtFetchResult.Failed(ART_NOT_ALLOWED), ArtFetchCore().fetch(url))
@@ -174,9 +202,14 @@ class SpotifyArtFetcherTest {
     private val textures = Textures()
     private val fetched = mutableListOf<String>()
     private val warnings = mutableListOf<String>()
+    private val recolors = mutableListOf<SpotifyColors>()
     private val direct = Executor { it.run() }
 
     private fun blank(size: Int) = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
+
+    private fun solid(argb: Int) = BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB).apply {
+        for (y in 0 until 64) for (x in 0 until 64) setRGB(x, y, argb)
+    }
 
     private fun loader(
         worker: Executor = direct,
@@ -186,6 +219,7 @@ class SpotifyArtFetcherTest {
         fetch = { fetched.add(it); fetch(it) },
         upload = textures::upload,
         release = { textures.releases++ },
+        recolor = { recolors.add(it) },
         warn = { warnings.add(it) },
     )
 
@@ -208,6 +242,50 @@ class SpotifyArtFetcherTest {
         val uploaded = textures.uploads.single()
         assertEquals(0, uploaded.getRGB(0, 0) ushr ALPHA_SHIFT)
         assertEquals(OPAQUE_WHITE, uploaded.getRGB(32, 32))
+    }
+
+    @Test
+    fun `a loaded cover recolors the widget from the image before its corners are rounded`() {
+        // Only the corner pixel is opaque: rounding clears it, so the rounded image has no palette.
+        val corner = BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB).apply { setRGB(0, 0, OPAQUE_RED) }
+        loader(fetch = { ArtFetchResult.Loaded(corner) }).ensure(A)
+        assertEquals(listOf(paletteOf(corner)), recolors)
+        assertNotEquals(FALLBACK_COLORS, recolors.single())
+    }
+
+    @Test
+    fun `a failed fetch recolors the widget to the fallback`() {
+        loader(fetch = { ArtFetchResult.Failed("HTTP 404") }).ensure(A)
+        assertEquals(listOf(FALLBACK_COLORS), recolors)
+    }
+
+    @Test
+    fun `null recolors the widget to the fallback`() {
+        val loader = loader(fetch = { ArtFetchResult.Loaded(solid(OPAQUE_RED)) })
+        loader.ensure(A)
+        loader.ensure(null)
+        assertEquals(listOf(paletteOf(solid(OPAQUE_RED)), FALLBACK_COLORS), recolors)
+    }
+
+    @Test
+    fun `a null replaced before its turn on the worker leaves the colors to the next load`() {
+        val queued = mutableListOf<Runnable>()
+        val loader = loader(worker = Executor { queued.add(it) }, fetch = { ArtFetchResult.Loaded(solid(OPAQUE_RED)) })
+        loader.ensure(A)
+        loader.ensure(null)
+        loader.ensure(B)
+        queued.forEach(Runnable::run)
+        assertEquals(listOf(paletteOf(solid(OPAQUE_RED))), recolors)
+    }
+
+    @Test
+    fun `a load whose url is no longer wanted does not recolor`() {
+        val queued = mutableListOf<Runnable>()
+        val loader = loader(worker = Executor { queued.add(it) })
+        loader.ensure(A)
+        loader.ensure(B)
+        queued.first().run()
+        assertEquals(emptyList(), recolors)
     }
 
     @Test
@@ -305,5 +383,9 @@ class SpotifyArtFetcherTest {
         const val B = "https://i.scdn.co/image/b"
         const val ALPHA_SHIFT = 24
         const val OPAQUE_WHITE = 0xFF_FF_FF_FF.toInt()
+        const val OPAQUE_RED = 0xFF_C0_39_2B.toInt()
+
+        /** Past [SpotifyConstants.ART_MAX_DIM_PX]; a 4096×1 PNG is tiny but declares it. */
+        const val OVERSIZE_PX = 4096
     }
 }
