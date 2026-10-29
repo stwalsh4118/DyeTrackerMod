@@ -2,6 +2,7 @@ package com.dyetracker.client
 
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.config.ConfigManager
+import com.dyetracker.discord.DiscordPresence
 import com.dyetracker.dyeprogress.DyeProgressHudFeature
 import com.dyetracker.dyeprogress.DyeProgressPoller
 import com.dyetracker.menu.MenuKeybind
@@ -53,6 +54,7 @@ class DyeTrackerModClient : ClientModInitializer {
         EditModeKeybind.register()
         MenuKeybind.register()
         DyeProgressPoller.start()
+        DiscordPresence.start()
 
         // Resume DVD-bounce mode in its persisted state before the first frame (PBI 38). Config is
         // already loaded by the common init; drift positions are seeded lazily on the first render.
@@ -67,6 +69,7 @@ class DyeTrackerModClient : ClientModInitializer {
             // thread but the executor drained early on stop.
             overlayLoadScope.cancel()
             DyeProgressPoller.stop()
+            DiscordPresence.stop()
             ImageTextureManager.releaseAll()
             HudWidgetHost.clearAllFirstRenderMarks()
         }

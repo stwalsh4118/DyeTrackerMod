@@ -6,6 +6,7 @@ import com.dyetracker.client.showScreen
 import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.PotionTier
 import com.dyetracker.data.RngDataStore
+import com.dyetracker.discord.DiscordPresence
 import com.dyetracker.dyeprogress.DyeProgressAdder
 import com.dyetracker.dyeprogress.DyeProgressPlacementEditor
 import com.dyetracker.menu.MenuKeybind
@@ -310,6 +311,28 @@ object DyeTrackerCommands {
                         }
                 )
                 .then(
+                    ClientCommands.literal("discord")
+                        .then(
+                            ClientCommands.literal("on")
+                                .executes { context ->
+                                    handleDiscordCommand(context.source, true)
+                                    1
+                                }
+                        )
+                        .then(
+                            ClientCommands.literal("off")
+                                .executes { context ->
+                                    handleDiscordCommand(context.source, false)
+                                    1
+                                }
+                        )
+                        // Bare `/dyetracker discord` prints the status.
+                        .executes { context ->
+                            handleDiscordCommand(context.source, null)
+                            1
+                        }
+                )
+                .then(
                     ClientCommands.literal("menu")
                         .executes { context ->
                             handleMenuCommand(context.source)
@@ -441,6 +464,41 @@ object DyeTrackerCommands {
             Component.literal("Bounce mode: ${if (newState) "ON" else "OFF"}")
                 .withStyle(if (newState) ChatFormatting.GREEN else ChatFormatting.YELLOW)
         )
+    }
+
+    /**
+     * Turn Discord Rich Presence on/off (PBI 77), or print its status when [enabled] is null. Only
+     * flips the persisted flag and wakes the presence worker: all Discord IPC runs on the worker,
+     * never on this (client) thread.
+     */
+    private fun handleDiscordCommand(source: FabricClientCommandSource, enabled: Boolean?) {
+        when (enabled) {
+            true -> {
+                ConfigManager.setDiscordEnabled(true)
+                DiscordPresence.wake()
+                source.sendFeedback(
+                    Component.literal("Discord presence on.").withStyle(ChatFormatting.GREEN)
+                )
+            }
+            false -> {
+                ConfigManager.setDiscordEnabled(false)
+                DiscordPresence.wake()
+                source.sendFeedback(
+                    Component.literal("Discord presence off.").withStyle(ChatFormatting.YELLOW)
+                )
+            }
+            null -> {
+                val on = ConfigManager.isDiscordEnabled()
+                source.sendFeedback(
+                    Component.literal("Discord presence: ")
+                        .withStyle(ChatFormatting.GRAY)
+                        .append(
+                            Component.literal(if (on) "ON" else "OFF")
+                                .withStyle(if (on) ChatFormatting.GREEN else ChatFormatting.YELLOW)
+                        )
+                )
+            }
+        }
     }
 
     private fun handleDyeListCommand(source: FabricClientCommandSource) {
@@ -1126,6 +1184,14 @@ object DyeTrackerCommands {
                 .withStyle(ChatFormatting.YELLOW)
                 .append(
                     Component.literal(" - DVD-bounce your HUD widgets around the screen")
+                        .withStyle(ChatFormatting.GRAY)
+                )
+        )
+        source.sendFeedback(
+            Component.literal("  /dyetracker discord <on|off>")
+                .withStyle(ChatFormatting.YELLOW)
+                .append(
+                    Component.literal(" - Show your dye stats on Discord")
                         .withStyle(ChatFormatting.GRAY)
                 )
         )

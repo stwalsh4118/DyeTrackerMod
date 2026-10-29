@@ -75,7 +75,12 @@ data class ModConfig(
      * it never prints again. Defaults to false so existing config files load unchanged and their
      * players get the hint once. See PBI-67.
      */
-    val menuHintShown: Boolean = false
+    val menuHintShown: Boolean = false,
+
+    /**
+     * Discord Rich Presence on/off (PBI 77). Defaults to false so existing config files load unchanged.
+     */
+    val discordEnabled: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_API_URL = "https://dye-tracker-api.seanwalsh4118-7a3.workers.dev"

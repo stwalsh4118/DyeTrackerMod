@@ -175,6 +175,19 @@ object ConfigManager {
     }
 
     /**
+     * Whether Discord Rich Presence is on (PBI 77). Read by the presence worker each tick.
+     */
+    fun isDiscordEnabled(): Boolean = config.discordEnabled
+
+    /**
+     * Persist the Discord Rich Presence on/off flag, flushing to disk immediately via the standard
+     * [update] path. The presence worker picks it up on its next tick.
+     */
+    fun setDiscordEnabled(enabled: Boolean) {
+        update { it.copy(discordEnabled = enabled) }
+    }
+
+    /**
      * Resets the configuration to default values and saves to disk.
      */
     fun reset() {
