@@ -5,6 +5,7 @@ import com.dyetracker.api.ApiClient
 import com.dyetracker.api.CollectionResponse
 import com.dyetracker.api.DyeProgressEntry
 import com.dyetracker.api.HistoryDyeGain
+import com.dyetracker.api.HistoryDyeSeriesResponse
 import com.dyetracker.api.HistoryResponse
 import com.dyetracker.api.PlayerAchievementEntry
 import com.dyetracker.api.ProfileSummary
@@ -90,11 +91,14 @@ import kotlin.math.roundToInt
  * The History tab keeps the profile strip and shows what that profile gained over a rolling period
  * ([HistoryTabView]), picked with its 1h / 24h / 7d / 30d pills (24h first, kept while the screen
  * is open). It is fetched like the achievements, per profile and period ([historyFetch]); picking
- * a period fetches that period.
+ * a period fetches that period. Clicking a row selects its dye (the first row until one is
+ * clicked, or when the selected dye isn't listed for the period), whose work per time slice shows
+ * as bars in a chart above the list, fetched per profile, period and dye ([historySeriesFetch]).
  * Like the dyes, every fetched collection, achievements and history goes into a session cache
- * ([COLLECTION_CACHE], [ACHIEVEMENTS_CACHE], [HISTORY_CACHE]); a profile's cached entry shows at once while it is
- * fetched again in the background, and a failed background fetch keeps it on screen. The strip's
- * status text is the shown tab's: how old its data is, "refreshing…" or "refresh failed". Refresh
+ * ([COLLECTION_CACHE], [ACHIEVEMENTS_CACHE], [HISTORY_CACHE], [HISTORY_SERIES_CACHE]); a profile's
+ * cached entry shows at once while it is fetched again in the background, and a failed background
+ * fetch keeps it on screen.
+ * The strip's status text is the shown tab's: how old its data is, "refreshing…" or "refresh failed". Refresh
  * fetches the shown tab's data again ([MenuRefresh]): on the Dyes tab the dyes and the collection,
  * on the Collection tab the collection (and the dyes while they aren't loaded).
  * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, the layout
@@ -282,6 +286,12 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     private var historyPeriod = HistoryPeriod.DEFAULT
 
     /**
+     * The dye whose History chart shows, as last resolved against the list ([syncHistorySelection]);
+     * `null` until a list shows.
+     */
+    private var historyDye: String? = null
+
+    /**
      * Refresh is ignored while the shown tab's fetch runs: on the Collection tab a collection fetch
      * or a dyes load behind Loading ([MenuRefresh.collectionTabBlocked]), on the Achievements tab an
      * achievements fetch, on the History tab a history fetch, else a dyes load ([fetchRunning]).
@@ -331,6 +341,19 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         post = { Minecraft.getInstance().execute(it) },
         shownProfileId = { strip?.profile?.id?.let { historyKey(it, historyPeriod) } },
         cache = HISTORY_CACHE,
+    )
+
+    /**
+     * The selected History dye's work per time slice on the profile the strip shows over
+     * [historyPeriod], keyed by all three ([historySeriesKey]) and cached in [HISTORY_SERIES_CACHE];
+     * a result posted after the screen closed, a newer series fetch started, or the selection,
+     * profile or period moved on is dropped.
+     */
+    private val historySeriesFetch = TabFetch<HistoryDyeSeriesResponse>(
+        scope,
+        post = { Minecraft.getInstance().execute(it) },
+        shownProfileId = ::shownHistorySeriesKey,
+        cache = HISTORY_SERIES_CACHE,
     )
 
     override fun init() {
@@ -490,6 +513,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
      * on the render thread and shows a [HISTORY_CACHE] entry meanwhile.
      * Before the first load gives the strip a profile there is nothing to fetch; [applyResult]
      * fetches once it lands. The History list's scroll resets for another profile or period.
+     * The selected dye's chart is fetched again with it when a cached list shows; once the list
+     * lands, the (maybe new) selection's chart unless it is loaded or loading ([ensureHistorySeries]).
      */
     private fun fetchHistory() {
         val target = strip ?: return
@@ -499,13 +524,62 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         if (historyFetch.state?.profileId != key) historyScroll = 0
         historyFetch.fetch(target.username, key, { ApiClient.fetchHistory(target.username, profileId, period.apiValue) }) {
             clampHistoryScroll()
+            ensureHistorySeries()
         }
+        fetchHistorySeries()
     }
 
-    /** [fetchHistory] unless the strip's profile has [historyPeriod]'s history loaded or loading ([TabFetch.needsFetch]). */
+    /**
+     * [fetchHistory] unless the strip's profile has [historyPeriod]'s history loaded or loading
+     * ([TabFetch.needsFetch]); then the selected dye's chart unless it is ([ensureHistorySeries]).
+     */
     private fun ensureHistory() {
         val profileId = strip?.profile?.id ?: return
-        if (historyFetch.needsFetch(historyKey(profileId, historyPeriod))) fetchHistory()
+        if (historyFetch.needsFetch(historyKey(profileId, historyPeriod))) fetchHistory() else ensureHistorySeries()
+    }
+
+    /**
+     * Fetches the selected History dye's work per time slice ([ApiClient.fetchHistoryDyeSeries]) on
+     * the profile the strip shows over [historyPeriod], on [Dispatchers.IO] via [historySeriesFetch],
+     * which drops a stale result on the render thread and shows a [HISTORY_SERIES_CACHE] entry
+     * meanwhile. Nothing to fetch while no History list shows (no selection).
+     */
+    private fun fetchHistorySeries() {
+        val target = strip ?: return
+        val dyeId = syncHistorySelection()?.dyeId ?: return
+        val profileId = target.profile.id
+        val period = historyPeriod
+        historySeriesFetch.fetch(target.username, historySeriesKey(profileId, period, dyeId), {
+            ApiClient.fetchHistoryDyeSeries(target.username, profileId, dyeId, period.apiValue)
+        })
+    }
+
+    /**
+     * [fetchHistorySeries] unless the selected dye's chart is loaded or loading
+     * ([TabFetch.needsFetch]); either way the selection is resolved against the list shown first.
+     */
+    private fun ensureHistorySeries() {
+        val profileId = strip?.profile?.id ?: return
+        val dyeId = syncHistorySelection()?.dyeId ?: return
+        if (historySeriesFetch.needsFetch(historySeriesKey(profileId, historyPeriod, dyeId))) fetchHistorySeries()
+    }
+
+    /**
+     * Resolves [historyDye] against the History list shown ([historySelection]) and keeps the
+     * result, so a dye no longer listed gives way to the first row; `null` while no list shows,
+     * leaving [historyDye] for the next list.
+     */
+    private fun syncHistorySelection(): HistoryDyeGain? {
+        val gain = historySelection(historyRows(), historyDye) ?: return null
+        historyDye = gain.dyeId
+        return gain
+    }
+
+    /** The [historySeriesKey] of the chart the History tab shows, else `null` (no list shows). */
+    private fun shownHistorySeriesKey(): String? {
+        val profileId = strip?.profile?.id ?: return null
+        val dyeId = historySelection(historyRows(), historyDye)?.dyeId ?: return null
+        return historySeriesKey(profileId, historyPeriod, dyeId)
     }
 
     /**
@@ -593,6 +667,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         collectionFetch.close()
         achievementsFetch.close()
         historyFetch.close()
+        historySeriesFetch.close()
         scope.cancel()
         super.removed()
     }
@@ -634,7 +709,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         }
         if (tab == MenuTab.COLLECTION) return clickCollectionPill(click.x(), click.y()) // its cards aren't clickable
         if (tab == MenuTab.ACHIEVEMENTS) return clickStatusPill(click.x(), click.y()) // never the hidden Dyes grid
-        if (tab == MenuTab.HISTORY) return clickPeriodPill(click.x(), click.y()) // never the hidden Dyes grid
+        if (tab == MenuTab.HISTORY) return clickPeriodPill(click.x(), click.y()) || clickHistoryRow(click.x(), click.y())
         val loaded = state as? ViewState.Loaded ?: return false // control pills and cards only show over loaded dyes
         val pill = pillAt(grid.pills, click.x(), click.y())
         if (pill != null) {
@@ -694,13 +769,27 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /**
      * Picks the History period pill at ([mouseX], [mouseY]) and fetches that period unless it is
      * loaded or loading ([ensureHistory]); a cached period shows at once. Returns whether a pill
-     * took the click; its rows aren't clickable, and no pill shows before the strip has a profile.
+     * took the click; no pill shows before the strip has a profile.
      */
     private fun clickPeriodPill(mouseX: Double, mouseY: Double): Boolean {
         if (strip == null) return false
         val pill = pillAt(periodPills(historyGeometry()), mouseX, mouseY) ?: return false
         historyPeriod = HistoryPeriod.valueOf(pill.key)
         ensureHistory()
+        return true
+    }
+
+    /**
+     * Selects the dye of the History row at ([mouseX], [mouseY]) and fetches its chart unless it is
+     * loaded or loading ([ensureHistorySeries]). Returns whether a row took the click; none shows
+     * until the history is loaded with gains.
+     */
+    private fun clickHistoryRow(mouseX: Double, mouseY: Double): Boolean {
+        val rows = historyRows()
+        val index = MenuLayout.historyRowIndexAt(mouseX, mouseY, historyGeometry().viewport, rows.size, historyScroll)
+            ?: return false
+        historyDye = rows[index].dyeId
+        ensureHistorySeries()
         return true
     }
 
@@ -928,7 +1017,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * Where the History tab's parts sit on the current screen size: below the profile strip, as
-     * wide as it, with the period pills and the [historyRows].
+     * wide as it, with the period pills, the chart (with rows only) and the [historyRows].
      */
     private fun historyGeometry(): HistoryGeometry {
         val stripRow = gridGeometry(0).stripRow
@@ -1393,9 +1482,9 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * The History tab: the profile strip, then the period pills and the strip profile's history over
-     * [historyPeriod] ([HistoryTabView]) once loaded, else its loading or failure message under the
-     * pills, so another period can still be picked. Before the first load gives the strip a
-     * profile, the Dyes tab's loading or failure message shows.
+     * [historyPeriod] ([HistoryTabView]) once loaded, with the selected dye's chart ([historyChart]),
+     * else its loading or failure message under the pills, so another period can still be picked.
+     * Before the first load gives the strip a profile, the Dyes tab's loading or failure message shows.
      */
     private fun drawHistoryTab(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
         val messageArea = drawStripArea(context, gridGeometry(0).stripRow, mouseX, mouseY)
@@ -1411,6 +1500,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             is FetchState.Loaded ->
                 historyStateMessage(current.data, historyPeriod)?.let { HistoryTabView.Message(it, UiTheme.Colors.TEXT_SUBTLE) }
         }
+        val rows = historyRows()
+        val selected = historySelection(rows, historyDye)
         val geometry = historyGeometry()
         HistoryTabView.draw(
             this,
@@ -1418,12 +1509,36 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             font,
             periodPills(geometry),
             message,
-            historyRows(),
+            selected?.let { historyChart(profileId, it) },
+            rows,
+            selected?.dyeId,
             geometry,
             historyScroll,
             mouseX,
             mouseY,
         )
+    }
+
+    /**
+     * The chart of [gain]'s work on [profileId] over [historyPeriod], in its color (the theme's
+     * accent when it doesn't parse): its bars once loaded, else its loading or failure message, or
+     * [chartMessage] when no slice has work.
+     */
+    private fun historyChart(profileId: String, gain: HistoryDyeGain): HistoryTabView.Chart {
+        val title = chartTitle(gain.name, historyPeriod)
+        val argb = DyeProgressWidgetView.parseAccentColor(gain.color)
+        val key = historySeriesKey(profileId, historyPeriod, gain.dyeId)
+        val (message, buckets) = when (val current = historySeriesFetch.stateFor(key)) {
+            null, is FetchState.Loading ->
+                HistoryTabView.Message(HISTORY_CHART_LOADING_TEXT, UiTheme.Colors.TEXT_SUBTLE) to emptyList()
+            is FetchState.Failed ->
+                HistoryTabView.Message(HISTORY_CHART_FAILED_TEXT, UiTheme.Colors.STATUS_ERROR) to emptyList()
+            is FetchState.Loaded -> {
+                val text = chartMessage(current.data.buckets)
+                text?.let { HistoryTabView.Message(it, UiTheme.Colors.TEXT_SUBTLE) } to current.data.buckets
+            }
+        }
+        return HistoryTabView.Chart(title, message, buckets, argb)
     }
 
     /**
@@ -1946,6 +2061,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         private const val ACHIEVEMENTS_FAILED_PREFIX = "Couldn't load achievements: "
         private const val HISTORY_LOADING_TEXT = "Loading history…"
         private const val HISTORY_FAILED_PREFIX = "Couldn't load history: "
+        private const val HISTORY_CHART_LOADING_TEXT = "Loading…"
+        private const val HISTORY_CHART_FAILED_TEXT = "Couldn't load the chart"
         private const val SORT_LABEL_PREFIX = "Sort: "
         private const val PROFILE_LABEL_PREFIX = "Profile: "
 
