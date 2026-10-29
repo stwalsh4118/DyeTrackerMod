@@ -117,7 +117,8 @@ internal fun decodeBounded(bytes: ByteArray): ArtFetchResult {
         if (!readers.hasNext()) return ArtFetchResult.Failed(ART_UNDECODABLE)
         val reader = readers.next()
         try {
-            reader.input = stream
+            // Seek forward only and skip metadata, as ImageIO.read does: no zTXt/iTXt inflation.
+            reader.setInput(stream, true, true)
             val max = SpotifyConstants.ART_MAX_DIM_PX
             if (reader.getWidth(0) > max || reader.getHeight(0) > max) {
                 return ArtFetchResult.Failed(ART_DIMENSIONS_TOO_LARGE)
