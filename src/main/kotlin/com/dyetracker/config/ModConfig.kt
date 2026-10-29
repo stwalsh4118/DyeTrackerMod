@@ -4,6 +4,7 @@ import com.dyetracker.data.DyeRotation
 import com.dyetracker.dyeprogress.DyeProgressWidgetConfig
 import com.dyetracker.overlay.GifOverlayConfig
 import com.dyetracker.rotation.RotationWidgetConfig
+import com.dyetracker.spotify.SpotifyWidgetConfig
 import kotlinx.serialization.Serializable
 
 /**
@@ -91,6 +92,20 @@ data class ModConfig(
      * Whether the one-time Discord setup hint was shown (PBI 77). Defaults to false so existing config files load unchanged.
      */
     val discordHintShown: Boolean = false,
+
+    /**
+     * Placement (position/scale/visibility) of the singleton Spotify now-playing HUD widget. Null
+     * until first seeded; the Spotify feature seeds a default on startup, and existing config
+     * files without this field load unchanged. See PBI-76.
+     */
+    val spotifyWidget: SpotifyWidgetConfig? = null,
+
+    /**
+     * Whether "Tint all widgets" is on: the rotation and dye-progress widgets take the album
+     * colors of the playing Spotify track. Defaults to false so existing config files load
+     * unchanged. See PBI-76.
+     */
+    val spotifyTintAll: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_API_URL = "https://dye-tracker-api.seanwalsh4118-7a3.workers.dev"

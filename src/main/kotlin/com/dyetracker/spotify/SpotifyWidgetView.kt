@@ -1,0 +1,145 @@
+package com.dyetracker.spotify
+
+import com.dyetracker.menu.MenuCards
+import com.dyetracker.ui.components.PanelWidget
+import com.dyetracker.ui.components.ProgressBarWidget
+import com.dyetracker.ui.components.SpriteWidget
+import com.dyetracker.ui.components.TextWidget
+import com.dyetracker.ui.core.HorizontalAlignment
+import com.dyetracker.ui.core.Widget
+import com.dyetracker.ui.layout.Column
+import com.dyetracker.ui.layout.Row
+import com.dyetracker.ui.texture.ImageTextureManager
+import com.dyetracker.ui.theme.UiTheme
+import net.minecraft.client.Minecraft
+
+/**
+ * Builds the Spotify now-playing widget from PBI 30 toolkit components, one layout per
+ * [SpotifyWidgetState] (task 76-4). A track or episode shows its cover at the left once loaded
+ * (task 76-5), then the title with the Spotify icon, the artists (or show), and a live progress
+ * bar with `m:ss / m:ss`. Its panel, border, bar fill and text take the cover's colors, fading on
+ * a track change, and the icon is green or white by contrast ([SpotifyColorStore], task 76-6).
+ * The border pulses toward white when the track changes and the bar's fill has a brighter head
+ * ([pulsedBorder], [glowHeadColor], task 76-7); neither touches the cover or the icon.
+ * Paused, the same layout is dimmed by [SpotifyConstants.PAUSED_ALPHA_FACTOR] (the icon and the
+ * cover never are) with `Paused · ` before the time. An ad shows [SpotifyConstants.AD_TITLE] in
+ * the store's colors (fading to [FALLBACK_COLORS], as an ad has no art); not set up, logged out
+ * and errors show a message panel; these and the edit placeholder use [FALLBACK_COLORS]. Text is
+ * fitted to [SpotifyConstants.TEXT_WIDTH_PX] with `…`, except a message's command hint.
+ */
+object SpotifyWidgetView {
+
+    private val font get() = Minecraft.getInstance().font
+
+    /**
+     * The widget for [state] at [nowMs] (the bar moves between polls), or null when there is
+     * nothing to draw. [editing] (the HUD edit screen is open) turns [SpotifyWidgetState.Hidden]
+     * into a [SpotifyConstants.EDIT_PLACEHOLDER] panel, so the widget can still be placed.
+     */
+    fun build(state: SpotifyWidgetState, nowMs: Long, editing: Boolean): Widget? = when (state) {
+        is SpotifyWidgetState.Playing -> track(state.s, nowMs, paused = false)
+        is SpotifyWidgetState.Paused -> track(state.s, nowMs, paused = true)
+        SpotifyWidgetState.Ad -> ad(nowMs)
+        SpotifyWidgetState.NotSetUp, SpotifyWidgetState.LoggedOut -> message(messageLines(state))
+        is SpotifyWidgetState.Error -> message(messageLines(state).map(::fit))
+        SpotifyWidgetState.Hidden -> if (editing) placeholder() else null
+    }
+
+    /** An ad has no art, so [SpotifyColorStore] is already fading to [FALLBACK_COLORS]. */
+    private fun ad(nowMs: Long): Widget {
+        val colors = SpotifyColorStore.colorsAt(nowMs)
+        return panel(listOf(titleRow(fit(SpotifyConstants.AD_TITLE), colors, SpotifyConstants.TEXT_WIDTH_PX)), colors)
+    }
+
+    private fun track(s: NowPlayingSnapshot, nowMs: Long, paused: Boolean): Widget {
+        val faded = SpotifyColorStore.colorsAt(nowMs)
+        // The pulse is on the border only, and dimmed with the rest when paused (panel tones it).
+        val colors = faded.copy(border = pulsedBorder(faded.border, nowMs - SpotifyNowPlayingStore.trackChangedAtMs))
+        val textWidth = SpotifyConstants.TEXT_WIDTH_PX
+        val time = timeText(s, nowMs, paused)
+        val barWidth = (textWidth - font.width(time) - UiTheme.Spacing.INNER_GAP).coerceAtLeast(0)
+        // The palette only guarantees contrast for its text color, so the subtitle uses it too.
+        val subtitle = TextWidget(fit(s.subtitle), color = tone(colors.text, paused))
+        val barRow = Row(
+            children = listOf(
+                ProgressBarWidget(
+                    value = progressPercent(s, nowMs),
+                    width = barWidth,
+                    trackColor = tone(UiTheme.Colors.PROGRESS_TRACK, paused),
+                    fillColor = tone(colors.accent, paused),
+                    headColor = tone(glowHeadColor(colors.accent), paused),
+                    headWidth = SpotifyConstants.GLOW_HEAD_WIDTH_PX,
+                ),
+                TextWidget(time, color = tone(colors.text, paused)),
+            ),
+            spacing = UiTheme.Spacing.INNER_GAP,
+        )
+        return panel(
+            listOf(titleRow(fit(s.title), colors, textWidth, paused), subtitle, barRow),
+            colors,
+            paused,
+            art(),
+        )
+    }
+
+    /**
+     * The cover, [SpotifyConstants.ART_DRAW_PX] wide, or null until it is loaded. Spotify's
+     * branding rules: it is never dimmed or tinted (a [SpriteWidget] takes no color) and nothing
+     * is drawn over it.
+     */
+    private fun art(): Widget? {
+        val width = ImageTextureManager.widthOf(SpotifyConstants.ART_TEXTURE_ID)
+        if (width <= 0) return null
+        return SpriteWidget(SpotifyConstants.ART_TEXTURE_ID, SpotifyConstants.ART_DRAW_PX / width.toFloat())
+    }
+
+    /** The first line with the icon, then any further lines (the command hint) in secondary text. */
+    private fun message(lines: List<String>): Widget {
+        val first = titleRow(lines.firstOrNull().orEmpty(), FALLBACK_COLORS)
+        val rest = lines.drop(1).map { TextWidget(it, color = UiTheme.Colors.TEXT_SECONDARY) }
+        return panel(listOf(first) + rest, FALLBACK_COLORS)
+    }
+
+    private fun placeholder(): Widget =
+        panel(listOf(titleRow(SpotifyConstants.EDIT_PLACEHOLDER, FALLBACK_COLORS)), FALLBACK_COLORS)
+
+    /** [text] (already fitted) in [colors]' text color, dimmed when [paused], then [colors]' icon, never dimmed. */
+    private fun titleRow(text: String, colors: SpotifyColors, minWidth: Int = 0, paused: Boolean = false): Widget = Row(
+        children = listOf(
+            TextWidget(text, color = tone(colors.text, paused), minWidth = minWidth),
+            SpriteWidget(iconId(colors.icon), SpotifyConstants.ICON_SCALE),
+        ),
+        spacing = UiTheme.Spacing.INNER_GAP,
+    )
+
+    private fun iconId(icon: SpotifyIcon): String = when (icon) {
+        SpotifyIcon.GREEN -> SpotifyConstants.ICON_GREEN_ID
+        SpotifyIcon.WHITE -> SpotifyConstants.ICON_WHITE_ID
+    }
+
+    /** [lines] in a column on [colors]' panel, with [art] at their left when there is one. */
+    private fun panel(
+        lines: List<Widget>,
+        colors: SpotifyColors,
+        paused: Boolean = false,
+        art: Widget? = null,
+    ): Widget {
+        val text = Column(
+            children = lines,
+            spacing = SpotifyConstants.LINE_GAP_PX,
+            crossAxisAlignment = HorizontalAlignment.START,
+        )
+        return PanelWidget(
+            child = if (art == null) text else Row(children = listOf(art, text), spacing = UiTheme.Spacing.INNER_GAP),
+            background = tone(colors.background, paused),
+            border = tone(colors.border, paused),
+        )
+    }
+
+    /** [color], dimmed when [paused]. */
+    private fun tone(color: Int, paused: Boolean): Int =
+        if (paused) dim(color, SpotifyConstants.PAUSED_ALPHA_FACTOR) else color
+
+    private fun fit(text: String): String =
+        MenuCards.fitText(text, SpotifyConstants.TEXT_WIDTH_PX) { font.width(it) }
+}

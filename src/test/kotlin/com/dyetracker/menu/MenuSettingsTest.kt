@@ -1,5 +1,6 @@
 package com.dyetracker.menu
 
+import com.dyetracker.spotify.SessionStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -8,7 +9,7 @@ import kotlin.test.assertTrue
 
 /**
  * Unit coverage for the menu's Settings tab logic: the group toggle state of a set of widgets,
- * the two-click unlink confirm, and the last-sync text (task 67-7).
+ * the two-click unlink confirm, the last-sync text (task 67-7), and the Spotify row's pill (76-9).
  */
 class MenuSettingsTest {
 
@@ -172,5 +173,20 @@ class MenuSettingsTest {
     @Test
     fun `lastSyncText says just now for a sync seconds ago`() {
         assertEquals("Last sync: just now", lastSyncText(63_000L, 60_000L))
+    }
+
+    @Test
+    fun `the Spotify pill offers an inactive Log in before a Client ID is set`() {
+        assertEquals("Log in" to false, spotifyRowPill(SessionStatus.NOT_SET_UP))
+    }
+
+    @Test
+    fun `the Spotify pill offers Log in when logged out`() {
+        assertEquals("Log in" to true, spotifyRowPill(SessionStatus.LOGGED_OUT))
+    }
+
+    @Test
+    fun `the Spotify pill offers Log out when connected`() {
+        assertEquals("Log out" to true, spotifyRowPill(SessionStatus.CONNECTED))
     }
 }

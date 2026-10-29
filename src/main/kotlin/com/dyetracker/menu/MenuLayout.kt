@@ -149,6 +149,9 @@ object MenuLayout {
     /** Height of one Settings row (label, detail line, control pill). */
     const val SETTINGS_ROW_HEIGHT = 28
 
+    /** Height of a Settings text field (the Spotify Client ID), as tall as the pill beside it. */
+    const val SETTINGS_FIELD_HEIGHT = PILL_HEIGHT
+
     /** Height of one Achievements row (tier pill, name, description, footer). */
     const val ACHIEVEMENT_ROW_HEIGHT = 30
 
@@ -364,6 +367,16 @@ object MenuLayout {
     /** [scroll] limited to `0..(contentHeight - viewportHeight)`; `0` when the content fits. */
     fun clampScroll(scroll: Int, contentHeight: Int, viewportHeight: Int): Int =
         scroll.coerceIn(0, max(0, contentHeight - viewportHeight))
+
+    /**
+     * How far the Settings panel scrolls: how much [rowCount] rows [rowHeight] tall overflow
+     * [availableHeight]; `0` when they fit.
+     */
+    fun settingsMaxScroll(rowCount: Int, rowHeight: Int, availableHeight: Int): Int =
+        max(0, rowCount * rowHeight - availableHeight)
+
+    /** [value] limited to `0..max`; `0` when [max] isn't positive. */
+    fun clampScroll(value: Int, max: Int): Int = value.coerceAtMost(max).coerceAtLeast(0)
 
     /**
      * Index of the card under ([mouseX], [mouseY]) in a [columns]-wide grid of [itemCount] cards

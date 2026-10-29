@@ -17,6 +17,11 @@ import com.dyetracker.overlay.OverlayAddPipeline
 import com.dyetracker.rotation.DyeSprites
 import com.dyetracker.rotation.RotationPlacementEditor
 import com.dyetracker.rotation.RotationWidgetConfig
+import com.dyetracker.spotify.SpotifyActions
+import com.dyetracker.spotify.SpotifyConstants
+import com.dyetracker.spotify.SpotifyHelpRenderer
+import com.dyetracker.spotify.SpotifyHudFeature
+import com.dyetracker.spotify.tintAllText
 import com.dyetracker.sync.SyncManager
 import com.dyetracker.ui.bounce.BounceController
 import com.dyetracker.ui.edit.WidgetEditScreen
@@ -46,6 +51,12 @@ object DyeTrackerCommands {
     private const val GIF_URL_TRUNCATE_AT = 57
     /** The `/dyetracker discord hunt` usage, shown in its status and in the help. */
     private const val DISCORD_HUNT_USAGE = "/dyetracker discord hunt <dye|clear>"
+    private const val SPOTIFY_USAGE =
+        "/dyetracker spotify help | clientid <id> | login | logout | now | toggle | edit | tint on|off|toggle"
+
+    /** The subcommands registered under `/dyetracker spotify`, in [SPOTIFY_USAGE] order. */
+    internal val SPOTIFY_SUBCOMMANDS = listOf("help", "clientid", "login", "logout", "now", "toggle", "edit", "tint")
+
     private val gifCommandScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** IO scope for the async dye-widget add command (profile resolution). */
@@ -371,6 +382,101 @@ object DyeTrackerCommands {
                             1
                         }
                 )
+                .then(
+                    ClientCommands.literal("spotify")
+                        .then(
+                            ClientCommands.literal("help")
+                                .executes { context ->
+                                    handleSpotifyHelpCommand(context.source)
+                                    1
+                                }
+                        )
+                        .then(
+                            ClientCommands.literal("clientid")
+                                .then(
+                                    ClientCommands.argument("id", StringArgumentType.word())
+                                        .executes { context ->
+                                            handleSpotifyClientIdCommand(
+                                                context.source,
+                                                StringArgumentType.getString(context, "id"),
+                                            )
+                                            1
+                                        }
+                                )
+                                .executes { context ->
+                                    sendSpotifyUsage(context.source)
+                                    1
+                                }
+                        )
+                        .then(
+                            ClientCommands.literal("login")
+                                .executes { context ->
+                                    handleSpotifyLoginCommand(context.source)
+                                    1
+                                }
+                        )
+                        .then(
+                            ClientCommands.literal("logout")
+                                .executes { context ->
+                                    handleSpotifyLogoutCommand(context.source)
+                                    1
+                                }
+                        )
+                        .then(
+                            ClientCommands.literal("now")
+                                .executes { context ->
+                                    handleSpotifyNowCommand(context.source)
+                                    1
+                                }
+                        )
+                        .then(
+                            ClientCommands.literal("toggle")
+                                .executes { context ->
+                                    handleSpotifyToggleCommand(context.source)
+                                    1
+                                }
+                        )
+                        .then(
+                            ClientCommands.literal("edit")
+                                .executes { context ->
+                                    handleSpotifyEditCommand(context.source)
+                                    1
+                                }
+                        )
+                        .then(
+                            ClientCommands.literal("tint")
+                                .then(
+                                    ClientCommands.literal("on")
+                                        .executes { context ->
+                                            handleSpotifyTintCommand(context.source, true)
+                                            1
+                                        }
+                                )
+                                .then(
+                                    ClientCommands.literal("off")
+                                        .executes { context ->
+                                            handleSpotifyTintCommand(context.source, false)
+                                            1
+                                        }
+                                )
+                                .then(
+                                    ClientCommands.literal("toggle")
+                                        .executes { context ->
+                                            handleSpotifyTintCommand(context.source, null)
+                                            1
+                                        }
+                                )
+                                // Bare `/dyetracker spotify tint` toggles.
+                                .executes { context ->
+                                    handleSpotifyTintCommand(context.source, null)
+                                    1
+                                }
+                        )
+                        .executes { context ->
+                            handleSpotifyStatusCommand(context.source)
+                            1
+                        }
+                )
                 .executes { context ->
                     showHelp(context.source)
                     1
@@ -463,6 +569,83 @@ object DyeTrackerCommands {
         // Opening it here would be undone at once: the chat screen closes itself after the
         // command runs. MenuKeybind opens it on the next tick instead. The screen is the feedback.
         MenuKeybind.requestOpen()
+    }
+
+    private fun sendSpotifyUsage(source: FabricClientCommandSource) {
+        source.sendFeedback(
+            Component.literal("Usage: $SPOTIFY_USAGE")
+                .withStyle(ChatFormatting.YELLOW)
+        )
+    }
+
+    /** Bare `/dyetracker spotify`: the status line, then the usage line. */
+    private fun handleSpotifyStatusCommand(source: FabricClientCommandSource) {
+        source.sendFeedback(Component.literal(SpotifyActions.status()).withStyle(ChatFormatting.WHITE))
+        sendSpotifyUsage(source)
+    }
+
+    /** `/dyetracker spotify help`: the setup steps, one chat line each, with clickable links. */
+    private fun handleSpotifyHelpCommand(source: FabricClientCommandSource) {
+        SpotifyHelpRenderer.lines().forEach { source.sendFeedback(it) }
+    }
+
+    private fun handleSpotifyClientIdCommand(source: FabricClientCommandSource, id: String) {
+        when (SpotifyActions.setClientId(id)) {
+            SpotifyActions.SetClientIdResult.Saved -> source.sendFeedback(
+                Component.literal("Spotify Client ID saved. Now run /dyetracker spotify login")
+                    .withStyle(ChatFormatting.GREEN)
+            )
+            SpotifyActions.SetClientIdResult.Invalid -> source.sendFeedback(
+                Component.literal(
+                    "That isn't a Spotify Client ID (32 hex characters). See ${SpotifyConstants.HELP_COMMAND}",
+                )
+                    .withStyle(ChatFormatting.RED)
+            )
+        }
+    }
+
+    private fun handleSpotifyLoginCommand(source: FabricClientCommandSource) {
+        SpotifyActions.login { source.sendFeedback(it) }
+    }
+
+    private fun handleSpotifyLogoutCommand(source: FabricClientCommandSource) {
+        SpotifyActions.logout { source.sendFeedback(it) }
+    }
+
+    private fun handleSpotifyNowCommand(source: FabricClientCommandSource) {
+        SpotifyActions.now { source.sendFeedback(it) }
+    }
+
+    private fun handleSpotifyToggleCommand(source: FabricClientCommandSource) {
+        val visible = SpotifyActions.toggleWidget()
+        source.sendFeedback(
+            Component.literal("Spotify widget ${if (visible) "shown" else "hidden"}.")
+                .withStyle(if (visible) ChatFormatting.GREEN else ChatFormatting.YELLOW)
+        )
+    }
+
+    /**
+     * Turn "Tint all widgets" on or off (PBI 76). [target] is the state for `on`/`off`, or null
+     * for the bare/`toggle` form, which flips the saved flag.
+     */
+    private fun handleSpotifyTintCommand(source: FabricClientCommandSource, target: Boolean?) {
+        val enabled = if (target == null) {
+            SpotifyActions.toggleTintAll()
+        } else {
+            SpotifyActions.setTintAll(target)
+            target
+        }
+        source.sendFeedback(
+            Component.literal(tintAllText(enabled))
+                .withStyle(if (enabled) ChatFormatting.GREEN else ChatFormatting.YELLOW)
+        )
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun handleSpotifyEditCommand(source: FabricClientCommandSource) {
+        // The same shared edit screen as `rotation edit`, opened on the next tick (the chat screen
+        // closes itself after the command). The screen is the feedback.
+        SpotifyHudFeature.requestEditScreen()
     }
 
     private fun handleRotationToggleCommand(source: FabricClientCommandSource) {
@@ -1283,6 +1466,14 @@ object DyeTrackerCommands {
                 .withStyle(ChatFormatting.YELLOW)
                 .append(
                     Component.literal(" - Open the DyeTracker menu")
+                        .withStyle(ChatFormatting.GRAY)
+                )
+        )
+        source.sendFeedback(
+            Component.literal("  $SPOTIFY_USAGE")
+                .withStyle(ChatFormatting.YELLOW)
+                .append(
+                    Component.literal(" - Show your Spotify now playing")
                         .withStyle(ChatFormatting.GRAY)
                 )
         )

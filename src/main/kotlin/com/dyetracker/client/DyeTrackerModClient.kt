@@ -13,6 +13,10 @@ import com.dyetracker.overlay.OverlayDecoder
 import com.dyetracker.overlay.OverlayDownloader
 import com.dyetracker.rotation.DyeSpriteLoader
 import com.dyetracker.rotation.RotationHudFeature
+import com.dyetracker.spotify.SpotifyHudFeature
+import com.dyetracker.spotify.SpotifyIconLoader
+import com.dyetracker.spotify.SpotifyPoller
+import com.dyetracker.spotify.SpotifyTintProvider
 import com.dyetracker.ui.bounce.BounceController
 import com.dyetracker.ui.edit.EditModeKeybind
 import com.dyetracker.ui.hud.HudWidgetHost
@@ -48,15 +52,20 @@ class DyeTrackerModClient : ClientModInitializer {
 
     override fun onInitializeClient() {
         HudWidgetHost.register()
+        // First provider: sets this frame's HUD tint before any widget is built (PBI 76).
+        SpotifyTintProvider.register()
         GifHudFeature.register()
         DyeSpriteLoader.register()
         RotationHudFeature.register()
         DyeProgressHudFeature.register()
+        SpotifyIconLoader.register()
+        SpotifyHudFeature.register()
         EditModeKeybind.register()
         MenuKeybind.register()
         DyeProgressPoller.start()
         SkyBlockTracker.register()
         DiscordPresence.start()
+        SpotifyPoller.start()
 
         // Resume DVD-bounce mode in its persisted state before the first frame (PBI 38). Config is
         // already loaded by the common init; drift positions are seeded lazily on the first render.
@@ -72,6 +81,7 @@ class DyeTrackerModClient : ClientModInitializer {
             overlayLoadScope.cancel()
             DyeProgressPoller.stop()
             DiscordPresence.stop()
+            SpotifyPoller.stop()
             ImageTextureManager.releaseAll()
             HudWidgetHost.clearAllFirstRenderMarks()
         }

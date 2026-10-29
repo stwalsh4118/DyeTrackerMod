@@ -8,6 +8,7 @@ A Fabric mod for Minecraft that integrates with the [DyeTracker](https://dyetrac
 - Automatically sync your player stats with the website
 - No API keys or passwords required - uses Minecraft's built-in authentication
 - Discord Rich Presence (26.x, opt-in): show your collection, total dyes dropped and the dye you're hunting on your Discord profile while you play SkyBlock.
+- Spotify now-playing widget (Minecraft 26.x): your current song on the HUD, colored by the album art
 
 ### Dyes the mod counts for you
 
@@ -65,6 +66,7 @@ New features ship for Minecraft **26.1.2**, **26.2** and **26.3**. The **1.21.10
 | `/dyetracker menu` | Open the in-game DyeTracker menu (Minecraft 26.1.2, 26.2 and 26.3 only) |
 | `/dyetracker discord <on\|off>` | Turn [Discord Rich Presence](#discord-rich-presence) on or off; `/dyetracker discord` on its own shows whether it's on (Minecraft 26.1.2, 26.2 and 26.3 only) |
 | `/dyetracker discord hunt <dye\|clear>` | Pick the dye your Discord card says you're hunting (Tab completes it), or clear it; `/dyetracker discord hunt` on its own shows the current pick (Minecraft 26.1.2, 26.2 and 26.3 only) |
+| `/dyetracker spotify …` | Set up and control the Spotify widget (see [Spotify widget](#spotify-widget); Minecraft 26.1.2, 26.2 and 26.3 only) |
 
 ### In-game menu
 
@@ -111,6 +113,7 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
   - The rotation widget shows the dyes on Vincent's Dyes screen and their boosts. When your account is linked, opening that screen also sends the rotation to DyeTracker (whether or not the widget is on), so it knows which dyes are boosted that SkyBlock year (Minecraft 26.1.2, 26.2 and 26.3).
 - **Discord presence** and **Discord hunt**: see [Discord Rich Presence](#discord-rich-presence).
 - **Edit layout**: move and resize your HUD widgets.
+- **Spotify**: log in or out, your Client ID, the Spotify widget and **Tint all widgets** (see [Spotify widget](#spotify-widget)). Scroll down the tab to reach it.
 
 ### Discord Rich Presence
 
@@ -158,6 +161,54 @@ Under the bar, the widget shows what you did toward the dye this rotation (the c
 - The line follows your stats as DyeTracker refreshes them, which can take a few minutes after you play.
 
 The line is on by default. To hide it on one widget, open **Edit layout**, click the widget, press **C** and untick **Rotation line**.
+
+### Spotify widget
+
+The Spotify widget is in the Minecraft **26.1.2**, **26.2** and **26.3** builds only.
+
+It shows the song you're playing on Spotify on your HUD, in the colors of its album art. It uses a Spotify app you create yourself, so it talks to Spotify as you.
+
+**Needs Spotify Premium** (Spotify requires it for apps in Development Mode) and about two minutes of one-time setup.
+
+**Setup**
+
+In game, `/dyetracker spotify help` prints these steps with clickable links.
+
+1. Go to [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard), log in, and click **Create app** (any name and description).
+2. Set the Redirect URI to exactly `http://127.0.0.1:43821/callback` (not `localhost`).
+3. Tick **Web API** and save.
+4. Open the app's **Settings** and copy the **Client ID**.
+5. In game, run `/dyetracker spotify clientid <id>` (or paste it in the menu's Settings tab and click **Save**), then `/dyetracker spotify login` and approve in the browser.
+6. If the widget says "Spotify refused", add your Spotify account's email under the app's **User Management**.
+
+If login says port 43821 is in use, close whatever is using it and run `/dyetracker spotify login` again.
+
+**What the widget shows**
+
+- The album art (with rounded corners), the song's title, its artists, and a progress bar with the time. A podcast shows the episode and its show; an ad shows "Advertisement".
+- Its colors come from the album art, and fade to the new cover's colors when the song changes. A new song makes the border pulse, and the front of the progress bar is brighter.
+- A paused song dims the widget and its time reads "Paused".
+- With nothing playing for 30 seconds, the widget hides until something plays again.
+- Press `G` (or run `/dyetracker spotify edit`) for edit mode: move or scale the widget, or click it and press **E** to hide it (press **E** again to bring it back).
+- **Tint all widgets** colors the rotation and dye progress widgets with the album colors too (GIF overlays keep their own look). It works with the Spotify widget hidden.
+
+No beat sync: Spotify no longer offers tempo or beat data to new apps.
+
+**Commands**
+
+| Command | Description |
+|---------|-------------|
+| `/dyetracker spotify` | Show your Spotify status |
+| `/dyetracker spotify help` | Print these setup steps in chat |
+| `/dyetracker spotify clientid <id>` | Save your Spotify app's Client ID |
+| `/dyetracker spotify login` | Log in to Spotify in your browser |
+| `/dyetracker spotify logout` | Log out of Spotify (your Client ID stays saved) |
+| `/dyetracker spotify now` | Print the song you're playing, with a LISTEN ON SPOTIFY link |
+| `/dyetracker spotify toggle` | Show or hide the widget |
+| `/dyetracker spotify edit` | Open edit mode to move or scale the widget |
+| `/dyetracker spotify tint on\|off\|toggle` | Turn **Tint all widgets** on or off |
+
+The menu's Settings tab does the same from its **Spotify** section: log in or out, paste your Client ID and click **Save**, and switch the **Spotify widget** and **Tint all widgets** on or off.
 
 ## Building from Source
 
@@ -240,10 +291,13 @@ The mod stores its configuration in `.minecraft/config/dyetracker.json`. This in
 | Dye collection from Vincent's Dye Guide (the dyes you own, how many, and when you got them) | Collection tab and the website | DyeTracker API |
 | Vincent's rotation (the dye ids on his Dyes screen, their boosts, and the SkyBlock year), linked accounts only | Knowing which dyes are boosted each SkyBlock year | DyeTracker API |
 | Your DyeTracker stats (read from the DyeTracker API the mod already uses), hunt dye, SkyBlock profile name, and a link to your DyeTracker profile page (which has your Minecraft UUID in it), only while [Discord Rich Presence](#discord-rich-presence) is on (off by default) | Shown on your Discord profile while enabled | The local Discord app (Discord shows it to people who can see your profile) |
+| **Spotify (your own app)**: your currently playing track (`user-read-currently-playing` only) | The [Spotify widget](#spotify-widget) | Spotify only: straight from Spotify to your game, nothing goes to DyeTracker's servers |
 
 Once you've linked your account, each time your dye progress is looked up (by the mod, the menu or the website), DyeTracker also saves the stat counters behind it on its server, at most once every 5 minutes and only when they changed. It uses them to show what you did this rotation (see [Dye widgets](#dye-widgets)), and keeps them to show your history in the in-game History tab and on your public history page on the website. This keeps happening after you unlink in the mod (see [Data storage](#data-storage)).
 
 Your Minecraft session token is **never** sent to DyeTracker servers - only to Mojang's official authentication servers.
+
+Your Spotify tokens are stored on your computer in `config/dyetracker/spotify.json`. Treat `spotify.json` like a password; don't share it.
 
 ### How verification works
 

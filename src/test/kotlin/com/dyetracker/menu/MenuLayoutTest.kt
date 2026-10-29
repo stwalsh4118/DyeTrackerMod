@@ -9,7 +9,8 @@ import kotlin.test.assertTrue
 /**
  * Unit coverage for the menu card-grid geometry (tasks 67-1, 67-2), the Collection tab layout
  * (68-2, 68-3, its drop timeline 68-4), a Dyes card's category line with its OBTAINED badge (68-5),
- * the Achievements tab layout (68-6), and the History tab layout (75-1) with its chart (75-2).
+ * the Achievements tab layout (68-6), the History tab layout (75-1) with its chart (75-2), and the
+ * Settings tab's scroll (76-9).
  */
 class MenuLayoutTest {
 
@@ -128,6 +129,31 @@ class MenuLayoutTest {
     @Test
     fun `scroll within range is unchanged`() {
         assertEquals(150, MenuLayout.clampScroll(150, 500, 200))
+    }
+
+    @Test
+    fun `eleven Settings rows overflow a 200px panel by 108px`() {
+        assertEquals(108, MenuLayout.settingsMaxScroll(11, 28, 200))
+    }
+
+    @Test
+    fun `Settings rows that fit the panel never scroll`() {
+        assertEquals(0, MenuLayout.settingsMaxScroll(7, 28, 300))
+    }
+
+    @Test
+    fun `a negative Settings scroll clamps to zero`() {
+        assertEquals(0, MenuLayout.clampScroll(-5, 108))
+    }
+
+    @Test
+    fun `a Settings scroll past the end clamps to the max`() {
+        assertEquals(108, MenuLayout.clampScroll(500, 108))
+    }
+
+    @Test
+    fun `a Settings scroll within range is unchanged`() {
+        assertEquals(50, MenuLayout.clampScroll(50, 108))
     }
 
     @Test
