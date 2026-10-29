@@ -14,6 +14,8 @@ import com.dyetracker.rotation.DyeSprites
 import com.dyetracker.rotation.RotationPlacementEditor
 import com.dyetracker.rotation.RotationWidgetConfig
 import com.dyetracker.spotify.SpotifyActions
+import com.dyetracker.spotify.SpotifyConstants
+import com.dyetracker.spotify.SpotifyHelpRenderer
 import com.dyetracker.spotify.SpotifyHudFeature
 import com.dyetracker.spotify.tintAllText
 import com.dyetracker.sync.SyncManager
@@ -43,7 +45,11 @@ object DyeTrackerCommands {
     private const val GIF_URL_DISPLAY_MAX = 60
     private const val GIF_URL_TRUNCATE_AT = 57
     private const val SPOTIFY_USAGE =
-        "/dyetracker spotify clientid <id> | login | logout | now | toggle | edit | tint on|off|toggle"
+        "/dyetracker spotify help | clientid <id> | login | logout | now | toggle | edit | tint on|off|toggle"
+
+    /** The subcommands registered under `/dyetracker spotify`, in [SPOTIFY_USAGE] order. */
+    internal val SPOTIFY_SUBCOMMANDS = listOf("help", "clientid", "login", "logout", "now", "toggle", "edit", "tint")
+
     private val gifCommandScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** IO scope for the async dye-widget add command (profile resolution). */
@@ -324,6 +330,13 @@ object DyeTrackerCommands {
                 .then(
                     ClientCommands.literal("spotify")
                         .then(
+                            ClientCommands.literal("help")
+                                .executes { context ->
+                                    handleSpotifyHelpCommand(context.source)
+                                    1
+                                }
+                        )
+                        .then(
                             ClientCommands.literal("clientid")
                                 .then(
                                     ClientCommands.argument("id", StringArgumentType.word())
@@ -516,6 +529,11 @@ object DyeTrackerCommands {
         sendSpotifyUsage(source)
     }
 
+    /** `/dyetracker spotify help`: the setup steps, one chat line each, with clickable links. */
+    private fun handleSpotifyHelpCommand(source: FabricClientCommandSource) {
+        SpotifyHelpRenderer.lines().forEach { source.sendFeedback(it) }
+    }
+
     private fun handleSpotifyClientIdCommand(source: FabricClientCommandSource, id: String) {
         when (SpotifyActions.setClientId(id)) {
             SpotifyActions.SetClientIdResult.Saved -> source.sendFeedback(
@@ -523,7 +541,9 @@ object DyeTrackerCommands {
                     .withStyle(ChatFormatting.GREEN)
             )
             SpotifyActions.SetClientIdResult.Invalid -> source.sendFeedback(
-                Component.literal("That isn't a Spotify Client ID (32 hex characters, from your app's Settings page).")
+                Component.literal(
+                    "That isn't a Spotify Client ID (32 hex characters). See ${SpotifyConstants.HELP_COMMAND}",
+                )
                     .withStyle(ChatFormatting.RED)
             )
         }

@@ -22,6 +22,15 @@ object SpotifyConstants {
     /** The redirect URI the player registers on their Spotify app, exactly. */
     const val REGISTERED_REDIRECT_URI = "http://127.0.0.1:43821/callback"
 
+    /** Where the player creates their Spotify app. */
+    const val DASHBOARD_URL = "https://developer.spotify.com/dashboard"
+
+    /** How many people a Development Mode Spotify app may add under User Management. */
+    const val FRIEND_USER_LIMIT = 5
+
+    /** The command that prints the setup steps; the "not set up" hints point at it. */
+    const val HELP_COMMAND = "/dyetracker spotify help"
+
     /** How long the login listener waits for the browser to come back. */
     const val LOGIN_TIMEOUT_MS = 300_000L
     const val HTTP_TIMEOUT_SECONDS = 10L

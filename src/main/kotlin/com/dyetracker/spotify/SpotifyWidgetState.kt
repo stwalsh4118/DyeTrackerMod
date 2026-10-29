@@ -15,7 +15,7 @@ private const val TIME_SEPARATOR = " / "
 private const val PAUSED_SEPARATOR = " · "
 
 private const val NOT_SET_UP_LINE = "Spotify: not set up"
-private const val NOT_SET_UP_HINT = "/dyetracker spotify clientid <id>"
+private const val NOT_SET_UP_HINT = SpotifyConstants.HELP_COMMAND
 private const val LOGGED_OUT_LINE = "Spotify: logged out"
 private const val LOGGED_OUT_HINT = "/dyetracker spotify login"
 

@@ -129,6 +129,8 @@ It shows the song you're playing on Spotify on your HUD, in the colors of its al
 
 **Setup**
 
+In game, `/dyetracker spotify help` prints these steps with clickable links.
+
 1. Go to [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard), log in, and click **Create app** (any name and description).
 2. Set the Redirect URI to exactly `http://127.0.0.1:43821/callback` (not `localhost`).
 3. Tick **Web API** and save.
@@ -154,6 +156,7 @@ No beat sync: Spotify no longer offers tempo or beat data to new apps.
 | Command | Description |
 |---------|-------------|
 | `/dyetracker spotify` | Show your Spotify status |
+| `/dyetracker spotify help` | Print these setup steps in chat |
 | `/dyetracker spotify clientid <id>` | Save your Spotify app's Client ID |
 | `/dyetracker spotify login` | Log in to Spotify in your browser |
 | `/dyetracker spotify logout` | Log out of Spotify (your Client ID stays saved) |

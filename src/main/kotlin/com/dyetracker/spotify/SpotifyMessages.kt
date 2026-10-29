@@ -17,7 +17,7 @@ fun failureText(f: SpotifyResult.Failure): String = when (f.status) {
 
 /** The one-line Spotify status, with the command that moves the player forward. */
 fun statusText(status: SessionStatus): String = when (status) {
-    SessionStatus.NOT_SET_UP -> "Spotify: not set up (/dyetracker spotify clientid <id>)"
+    SessionStatus.NOT_SET_UP -> "Spotify: not set up (${SpotifyConstants.HELP_COMMAND})"
     SessionStatus.LOGGED_OUT -> "Spotify: logged out (/dyetracker spotify login)"
     SessionStatus.CONNECTED -> "Spotify: connected"
 }

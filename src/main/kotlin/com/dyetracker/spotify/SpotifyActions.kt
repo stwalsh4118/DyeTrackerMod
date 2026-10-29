@@ -36,7 +36,7 @@ object SpotifyActions {
 
     private const val LOGIN_THREAD_NAME = "DyeTracker-SpotifyLogin"
 
-    private const val SET_CLIENT_ID_FIRST = "Set your Client ID first: /dyetracker spotify clientid <id>"
+    private const val SET_CLIENT_ID_FIRST = "Set up Spotify first: ${SpotifyConstants.HELP_COMMAND}"
     private const val LOGIN_FAILED_PREFIX = "Spotify login failed: "
     private const val CLIENT_ID_CHANGED = "Your Client ID changed during login. Run /dyetracker spotify login again."
 

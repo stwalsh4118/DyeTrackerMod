@@ -62,7 +62,7 @@ class SpotifyMessagesTest {
     @Test
     fun `NOT_SET_UP status line`() {
         assertEquals(
-            "Spotify: not set up (/dyetracker spotify clientid <id>)",
+            "Spotify: not set up (/dyetracker spotify help)",
             statusText(SessionStatus.NOT_SET_UP),
         )
     }

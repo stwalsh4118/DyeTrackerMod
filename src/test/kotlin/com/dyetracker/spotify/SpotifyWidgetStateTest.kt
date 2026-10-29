@@ -200,9 +200,9 @@ class SpotifyWidgetStateTest {
     }
 
     @Test
-    fun `not set up message says how to set it up`() {
+    fun `not set up message points at help`() {
         assertEquals(
-            listOf("Spotify: not set up", "/dyetracker spotify clientid <id>"),
+            listOf("Spotify: not set up", "/dyetracker spotify help"),
             messageLines(SpotifyWidgetState.NotSetUp),
         )
     }
