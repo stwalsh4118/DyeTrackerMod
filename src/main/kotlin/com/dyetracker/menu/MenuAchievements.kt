@@ -9,15 +9,19 @@ import java.time.ZoneId
 /** One category section of the Achievements tab: its [category] id, header [label] and [entries] in API order. */
 data class AchievementSection(val category: String, val label: String, val entries: List<PlayerAchievementEntry>)
 
+/** Which achievements the Achievements tab shows by status, like the website's status pills; [label] starts the pill. */
+enum class StatusFilter(val label: String) { ALL("All"), UNLOCKED("Unlocked"), LOCKED("Locked") }
+
 /** How many of the [total] achievements the player [unlocked]. */
 data class AchievementSummary(val unlocked: Int, val total: Int)
 
 /**
  * Pure logic for the in-game menu's Achievements tab, mirroring the website's Achievements page
  * (`AchievementsPage`, `AchievementCard`, `AchievementTierBadge`): the category sections in the
- * website's order, a locked secret's mask, the tier label and color, each row's footer, and the
- * `N of M Achievements` summary. An entry from an API that doesn't send the catalog fields yet
- * falls back: its category from its id prefix, its name from its id.
+ * website's order, a locked secret's mask, the tier label and color, each row's footer, the
+ * `N of M Achievements` summary, and the All / Unlocked / Locked status filter. An entry from an
+ * API that doesn't send the catalog fields yet falls back: its category from its id prefix, its
+ * name from its id.
  */
 object MenuAchievements {
     private const val DYE_DROP = "dye-drop"
@@ -98,9 +102,33 @@ object MenuAchievements {
         return order.map { category -> AchievementSection(category, sectionLabel(category), byCategory.getValue(category)) }
     }
 
-    /** A section's header, e.g. `Dye Drops  2 / 13`: how many of its entries are unlocked. */
-    fun sectionHeader(section: AchievementSection): String =
-        "${section.label}  ${section.entries.count { it.unlocked }} / ${section.entries.size}"
+    /** What the tab says when the status filter leaves no achievements, like the website. */
+    const val NO_MATCH_TEXT = "No achievements match these filters"
+
+    /** Whether [f] keeps [e]: everything under `ALL`, else by whether it is unlocked. */
+    fun matches(e: PlayerAchievementEntry, f: StatusFilter): Boolean = when (f) {
+        StatusFilter.ALL -> true
+        StatusFilter.UNLOCKED -> e.unlocked
+        StatusFilter.LOCKED -> !e.unlocked
+    }
+
+    /** [sections] of the [entries] that [f] keeps; a section left with none is omitted. */
+    fun filteredSections(entries: List<PlayerAchievementEntry>, f: StatusFilter): List<AchievementSection> =
+        sections(entries.filter { matches(it, f) })
+
+    /**
+     * A section's header. Under `ALL`, how many of its [sectionTotal] entries (all of its category,
+     * before filtering) are unlocked, e.g. `Dye Drops  2 / 13`; under a status filter, just how many
+     * it shows, e.g. `Dye Drops  11`, as the website counts a filtered section.
+     */
+    fun sectionHeader(s: AchievementSection, sectionTotal: Int, f: StatusFilter): String = when (f) {
+        StatusFilter.ALL -> "${s.label}  ${s.entries.count { it.unlocked }} / $sectionTotal"
+        StatusFilter.UNLOCKED, StatusFilter.LOCKED -> "${s.label}  ${s.entries.size}"
+    }
+
+    /** A status pill's text: [f]'s label and how many of [entries] it keeps, e.g. `Unlocked (2)`. */
+    fun statusPillLabel(f: StatusFilter, entries: List<PlayerAchievementEntry>): String =
+        "${f.label} (${entries.count { matches(it, f) }})"
 
     /** `???` for a locked secret; else [e]'s name, or its id without the prefix title-cased (`drop_brick_red` → `Brick Red`). */
     fun displayName(e: PlayerAchievementEntry): String = when {

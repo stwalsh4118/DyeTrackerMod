@@ -4,6 +4,7 @@ import com.dyetracker.api.AchievementsResponse
 import com.dyetracker.api.ApiClient
 import com.dyetracker.api.CollectionResponse
 import com.dyetracker.api.DyeProgressEntry
+import com.dyetracker.api.PlayerAchievementEntry
 import com.dyetracker.api.ProfileSummary
 import com.dyetracker.auth.AccountVerification
 import com.dyetracker.client.showScreen
@@ -79,7 +80,8 @@ import kotlin.math.roundToInt
  * Once loaded, the Dyes tab's cards of owned dyes show an OBTAINED badge and the strip's totals
  * count the obtained dyes; until then (or after a collection error) they show as without it.
  * The Achievements tab keeps the profile strip and shows that profile's achievements in category
- * sections, like the website's Achievements page ([AchievementsTabView]), scrolling on their own.
+ * sections, like the website's Achievements page ([AchievementsTabView]), scrolling on their own,
+ * with an All / Unlocked / Locked status filter of its own, kept while the screen is open.
  * They are fetched only for that tab: on opening it, on a profile switch or Refresh while it shows,
  * and when a load lands while it shows ([achievementsFetch], which drops a stale result likewise).
  * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, the layout
@@ -255,6 +257,9 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /** Pixels the Achievements list is scrolled up by; apart from the card grids' scrolls. */
     private var achievementsScroll = 0
+
+    /** Which Achievements show by status; apart from the Collection tab's [ownedFilter]. */
+    private var statusFilter = StatusFilter.ALL
 
     /**
      * Refresh is ignored: a dyes load runs, or on the Collection tab a collection fetch does, or on
@@ -521,7 +526,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             }
         }
         if (tab == MenuTab.COLLECTION) return clickCollectionPill(click.x(), click.y()) // its cards aren't clickable
-        if (tab == MenuTab.ACHIEVEMENTS) return false // its rows aren't clickable; never the hidden Dyes grid
+        if (tab == MenuTab.ACHIEVEMENTS) return clickStatusPill(click.x(), click.y()) // never the hidden Dyes grid
         val loaded = state as? ViewState.Loaded ?: return false // control pills and cards only show over loaded dyes
         val pill = pillAt(grid.pills, click.x(), click.y())
         if (pill != null) {
@@ -562,6 +567,19 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             else -> collectionCategory = pill.key
         }
         collectionScroll = 0
+        return true
+    }
+
+    /**
+     * Applies the Achievements status pill at ([mouseX], [mouseY]); the list scrolls back to the
+     * top. Returns whether a pill took the click; its rows aren't clickable, and no pill shows
+     * until the achievements are loaded.
+     */
+    private fun clickStatusPill(mouseX: Double, mouseY: Double): Boolean {
+        val entries = loadedAchievements()?.achievements ?: return false
+        val pill = pillAt(statusPills(entries, achievementsGeometry(entries)), mouseX, mouseY) ?: return false
+        statusFilter = StatusFilter.valueOf(pill.key)
+        achievementsScroll = 0
         return true
     }
 
@@ -689,8 +707,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             return true
         }
         if (tab == MenuTab.ACHIEVEMENTS) {
-            val geometry = loadedAchievements()?.let { achievementsGeometry(MenuAchievements.sections(it.achievements)) }
-                ?: return false // no list shows
+            val geometry = loadedAchievements()?.let { achievementsGeometry(it.achievements) } ?: return false // no list shows
             achievementsScroll = MenuLayout.clampScroll(
                 achievementsScroll - (vertical * MenuLayout.SCROLL_STEP).toInt(),
                 geometry.contentHeight,
@@ -717,18 +734,23 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /** Keeps [achievementsScroll] within the Achievements list; leaves it while no list shows. */
     private fun clampAchievementsScroll() {
         val response = loadedAchievements() ?: return
-        val geometry = achievementsGeometry(MenuAchievements.sections(response.achievements))
+        val geometry = achievementsGeometry(response.achievements)
         achievementsScroll = MenuLayout.clampScroll(achievementsScroll, geometry.contentHeight, geometry.viewport.height)
     }
 
     /** The achievements loaded for the profile the strip shows, else `null` (none shown, loading, failed). */
     private fun loadedAchievements(): AchievementsResponse? = strip?.profile?.id?.let(achievementsFetch::loadedFor)
 
+    /** The sections of [entries] that [statusFilter] keeps: what the Achievements list shows. */
+    private fun visibleAchievementSections(entries: List<PlayerAchievementEntry>): List<AchievementSection> =
+        MenuAchievements.filteredSections(entries, statusFilter)
+
     /**
-     * Where the Achievements tab's parts sit for [sections] on the current screen size: below the
-     * profile strip, as wide as it.
+     * Where the Achievements tab's parts sit for [entries] (all of them) on the current screen
+     * size: below the profile strip, as wide as it, with the status pills and the
+     * [visibleAchievementSections].
      */
-    private fun achievementsGeometry(sections: List<AchievementSection>): AchievementsGeometry {
+    private fun achievementsGeometry(entries: List<PlayerAchievementEntry>): AchievementsGeometry {
         val stripRow = gridGeometry(0).stripRow
         return MenuLayout.achievementsGeometry(
             top = stripRow.bottom + MenuLayout.STRIP_GAP,
@@ -736,9 +758,24 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             width = stripRow.width,
             screenHeight = height,
             lineHeight = font.lineHeight,
-            sectionSizes = sections.map { it.entries.size },
+            pillLabels = statusPillLabels(entries),
+            measure = { font.width(it) },
+            sectionSizes = visibleAchievementSections(entries).map { it.entries.size },
         )
     }
+
+    /**
+     * The All / Unlocked / Locked pills as `key to label` (the key is the [StatusFilter] name), each
+     * with its count over all [entries], so a click never reflows the row.
+     */
+    private fun statusPillLabels(entries: List<PlayerAchievementEntry>): List<Pair<String, String>> =
+        StatusFilter.entries.map { it.name to MenuAchievements.statusPillLabel(it, entries) }
+
+    /** [statusPillLabels] at [geometry]'s rects; the selected [statusFilter]'s pill is selected. */
+    private fun statusPills(entries: List<PlayerAchievementEntry>, geometry: AchievementsGeometry): List<MenuPill> =
+        statusPillLabels(entries).zip(geometry.pills) { (key, label), (_, rect) ->
+            MenuPill(key, label, rect, selected = key == statusFilter.name)
+        }
 
     /** Keeps [collectionScroll] within the Collection grid; leaves it while no grid shows. */
     private fun clampCollectionScroll() {
@@ -1133,15 +1170,20 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             is FetchState.Failed ->
                 drawMessage(context, "$ACHIEVEMENTS_FAILED_PREFIX${current.message}", UiTheme.Colors.STATUS_ERROR, messageArea)
             is FetchState.Loaded -> {
-                val sections = MenuAchievements.sections(current.data.achievements)
+                val entries = current.data.achievements
+                val geometry = achievementsGeometry(entries)
                 AchievementsTabView.draw(
                     this,
                     context,
                     font,
                     current.data,
-                    sections,
-                    achievementsGeometry(sections),
+                    visibleAchievementSections(entries),
+                    statusPills(entries, geometry),
+                    statusFilter,
+                    geometry,
                     achievementsScroll,
+                    mouseX,
+                    mouseY,
                 )
             }
         }

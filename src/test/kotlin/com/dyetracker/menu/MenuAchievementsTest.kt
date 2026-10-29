@@ -9,7 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/** Unit coverage for the Achievements tab's sections, masking, tier labels, footers and summary (68-6). */
+/** Unit coverage for the Achievements tab's sections, masking, tier labels, footers and summary (68-6) and its status filter (68-7). */
 class MenuAchievementsTest {
 
     private fun entry(
@@ -107,7 +107,95 @@ class MenuAchievementsTest {
             listOf(entry("drop_a", unlocked = true), entry("drop_b"), entry("drop_c", unlocked = true)),
         )
 
-        assertEquals("Dye Drops  2 / 3", MenuAchievements.sectionHeader(section))
+        assertEquals("Dye Drops  2 / 3", MenuAchievements.sectionHeader(section, sectionTotal = 3, StatusFilter.ALL))
+    }
+
+    /**
+     * API order, not grouped: Dye Drops has one of each, Milestones only a locked one (so it empties
+     * under UNLOCKED), Secrets one of each with the locked one first.
+     */
+    private val mixed = listOf(
+        entry("combo_y"),
+        entry("drop_a"),
+        entry("count_ten"),
+        entry("combo_x", unlocked = true),
+        entry("drop_b", unlocked = true),
+    )
+
+    @Test
+    fun `matches keeps everything under ALL, unlocked under UNLOCKED, locked under LOCKED`() {
+        val unlocked = entry("drop_a", unlocked = true)
+        val locked = entry("drop_b")
+
+        assertEquals(listOf(true, true), listOf(unlocked, locked).map { MenuAchievements.matches(it, StatusFilter.ALL) })
+        assertEquals(listOf(true, false), listOf(unlocked, locked).map { MenuAchievements.matches(it, StatusFilter.UNLOCKED) })
+        assertEquals(listOf(false, true), listOf(unlocked, locked).map { MenuAchievements.matches(it, StatusFilter.LOCKED) })
+    }
+
+    @Test
+    fun `filtered sections under ALL are every section`() {
+        val sections = MenuAchievements.filteredSections(mixed, StatusFilter.ALL)
+
+        assertEquals(MenuAchievements.sections(mixed), sections)
+        assertEquals(listOf("dye-drop", "count", "combo"), sections.map { it.category })
+    }
+
+    @Test
+    fun `filtered sections under UNLOCKED keep unlocked entries and omit a section left empty`() {
+        val sections = MenuAchievements.filteredSections(mixed, StatusFilter.UNLOCKED)
+
+        assertEquals(listOf("dye-drop", "combo"), sections.map { it.category })
+        assertEquals(listOf("Dye Drops", "Secrets"), sections.map { it.label })
+        assertEquals(listOf(listOf("drop_b"), listOf("combo_x")), sections.map { s -> s.entries.map { it.achievementId } })
+    }
+
+    @Test
+    fun `filtered sections under LOCKED keep locked entries`() {
+        val sections = MenuAchievements.filteredSections(mixed, StatusFilter.LOCKED)
+
+        assertEquals(listOf("dye-drop", "count", "combo"), sections.map { it.category })
+        assertEquals(
+            listOf(listOf("drop_a"), listOf("count_ten"), listOf("combo_y")),
+            sections.map { s -> s.entries.map { it.achievementId } },
+        )
+    }
+
+    @Test
+    fun `filtered sections of no entries are none`() {
+        assertEquals(emptyList(), MenuAchievements.filteredSections(emptyList(), StatusFilter.UNLOCKED))
+    }
+
+    @Test
+    fun `a section header under a status filter is its plain count`() {
+        val locked = AchievementSection("dye-drop", "Dye Drops", listOf(entry("drop_b")))
+        val unlocked = AchievementSection(
+            "dye-drop",
+            "Dye Drops",
+            listOf(entry("drop_a", unlocked = true), entry("drop_c", unlocked = true)),
+        )
+
+        assertEquals("Dye Drops  1", MenuAchievements.sectionHeader(locked, sectionTotal = 3, StatusFilter.LOCKED))
+        assertEquals("Dye Drops  2", MenuAchievements.sectionHeader(unlocked, sectionTotal = 3, StatusFilter.UNLOCKED))
+    }
+
+    @Test
+    fun `a section header under ALL counts against the section total`() {
+        val section = AchievementSection("count", "Milestones", listOf(entry("count_a", unlocked = true), entry("count_b")))
+
+        assertEquals("Milestones  1 / 4", MenuAchievements.sectionHeader(section, sectionTotal = 4, StatusFilter.ALL))
+    }
+
+    @Test
+    fun `status pill labels count the entries each filter keeps`() {
+        assertEquals("Unlocked (2)", MenuAchievements.statusPillLabel(StatusFilter.UNLOCKED, mixed))
+        assertEquals("Locked (3)", MenuAchievements.statusPillLabel(StatusFilter.LOCKED, mixed))
+        assertEquals("All (5)", MenuAchievements.statusPillLabel(StatusFilter.ALL, mixed))
+        assertEquals("All (0)", MenuAchievements.statusPillLabel(StatusFilter.ALL, emptyList()))
+    }
+
+    @Test
+    fun `no match text is the website's`() {
+        assertEquals("No achievements match these filters", MenuAchievements.NO_MATCH_TEXT)
     }
 
     @Test

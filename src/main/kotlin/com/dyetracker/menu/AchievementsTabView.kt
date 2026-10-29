@@ -15,17 +15,21 @@ import java.time.ZoneId
 /**
  * Draws the in-game menu's Achievements tab once its achievements are loaded, like the website's
  * Achievements page: the `N of M Achievements` summary and its percent over an emerald progress
- * bar, then each [AchievementSection]'s header (`label  unlocked / total`) and a row per
- * achievement, scrolling in the tab's own viewport. A row has its tier pill (when any shown
- * achievement has a tier), its name and description ([MenuAchievements.displayName], masked for a
- * locked secret) and its footer right-aligned on the name line, with a thin progress bar under a
- * locked achievement's `Progress n / m`. Rows aren't clickable and have no hover state.
+ * bar, the All / Unlocked / Locked status pills, then each [AchievementSection] the status filter
+ * keeps, its header (`label  unlocked / total`, or under a filter `label  count`) and a row per
+ * achievement, scrolling in the tab's own viewport, or [MenuAchievements.NO_MATCH_TEXT] when the
+ * filter keeps none. A row has its tier pill (when any shown achievement has a tier), its name and
+ * description ([MenuAchievements.displayName], masked for a locked secret) and its footer
+ * right-aligned on the name line, with a thin progress bar under a locked achievement's
+ * `Progress n / m`. Rows aren't clickable and have no hover state.
  */
 internal object AchievementsTabView {
 
     /**
-     * The summary of [response], then [sections] laid out by [geometry] (whose `sectionTops`
-     * follow [sections]) scrolled up by [scroll], skipping headers and rows outside the viewport.
+     * The summary of all of [response]'s achievements, the status [pills] (hover-styled under
+     * ([mouseX], [mouseY])), then the [sections] [statusFilter] keeps laid out by [geometry] (whose
+     * `sectionTops` follow [sections]) scrolled up by [scroll], skipping headers and rows outside
+     * the viewport. With no [sections], [MenuAchievements.NO_MATCH_TEXT] is centred in the viewport.
      */
     fun draw(
         screen: DyeTrackerMenuScreen,
@@ -33,8 +37,12 @@ internal object AchievementsTabView {
         font: Font,
         response: AchievementsResponse,
         sections: List<AchievementSection>,
+        pills: List<MenuPill>,
+        statusFilter: StatusFilter,
         geometry: AchievementsGeometry,
         scroll: Int,
+        mouseX: Int,
+        mouseY: Int,
     ) {
         val viewport = geometry.viewport
         val renderCtx = RenderContext(context, Util.getMillis(), false)
@@ -51,6 +59,17 @@ internal object AchievementsTabView {
             geometry.barY,
             viewport.width,
         )
+        val hoveredPill = pillAt(pills, mouseX.toDouble(), mouseY.toDouble())
+        for (pill in pills) screen.drawPill(context, pill, hovered = pill == hoveredPill)
+        if (sections.isEmpty()) {
+            // A tiny screen leaves no list area; centring in it would put the message on the pills.
+            if (viewport.height > 0) {
+                screen.drawMessage(context, MenuAchievements.NO_MATCH_TEXT, UiTheme.Colors.TEXT_SUBTLE, viewport)
+            }
+            return
+        }
+        // Each category's size before the filter, for the `unlocked / total` header under ALL.
+        val sectionTotals = response.achievements.groupingBy(MenuAchievements::categoryOf).eachCount()
         val tierColumn = tierColumnWidth(screen, sections)
         val zone = ZoneId.systemDefault()
         screen.drawScrolled(context, viewport, geometry.contentHeight, scroll) {
@@ -58,7 +77,8 @@ internal object AchievementsTabView {
                 val headerY = sectionTop - scroll
                 if (headerY >= viewport.bottom) break // sections run downwards, so every later one is below too
                 if (headerY + font.lineHeight > viewport.y) {
-                    val header = MenuCards.fitText(MenuAchievements.sectionHeader(section), viewport.width) { font.width(it) }
+                    val headerText = MenuAchievements.sectionHeader(section, sectionTotals.getValue(section.category), statusFilter)
+                    val header = MenuCards.fitText(headerText, viewport.width) { font.width(it) }
                     UiDraw.drawText(context, font, header, viewport.x, headerY, UiTheme.Colors.TEXT_PRIMARY)
                 }
                 for ((index, entry) in section.entries.withIndex()) {

@@ -28,13 +28,14 @@ data class CategoryLine(val badgeLeft: Int, val categoryWidth: Int)
 
 /**
  * Where the Achievements tab's parts sit below the profile strip: the summary line at [summaryY],
- * the progress bar at [barY], and the scrolling [viewport] with its [contentHeight]: one section
- * per [sectionTops] entry, its header at that unscrolled y and its rows below it
- * ([MenuLayout.achievementRowY]).
+ * the progress bar at [barY], the status [pills] (`key to rect`, as [layoutPills] places them),
+ * and the scrolling [viewport] with its [contentHeight]: one section per [sectionTops] entry, its
+ * header at that unscrolled y and its rows below it ([MenuLayout.achievementRowY]).
  */
 data class AchievementsGeometry(
     val summaryY: Int,
     val barY: Int,
+    val pills: List<Pair<String, Rect>>,
     val viewport: Rect,
     val contentHeight: Int,
     val sectionTops: List<Int>,
@@ -218,10 +219,11 @@ object MenuLayout {
 
     /**
      * The Achievements tab's layout from [top] down, [width] wide from [left]: the summary line
-     * ([lineHeight] tall), [TEXT_GAP] below it the progress bar, and [OUTER_MARGIN] below the bar
-     * the scrolling list down to [OUTER_MARGIN] above the [screenHeight]: a section per
-     * [sectionSizes] entry (a header line, then that many [ACHIEVEMENT_ROW_HEIGHT] rows), sections
-     * [ACHIEVEMENT_SECTION_GAP] apart.
+     * ([lineHeight] tall), [TEXT_GAP] below it the progress bar, [STRIP_GAP] below the bar the
+     * [pillLabels] wrapping within [width] ([layoutPills], widths by [measure]), and [OUTER_MARGIN]
+     * below the last pill row (or the bar, without pills) the scrolling list down to
+     * [OUTER_MARGIN] above the [screenHeight]: a section per [sectionSizes] entry (a header line,
+     * then that many [ACHIEVEMENT_ROW_HEIGHT] rows), sections [ACHIEVEMENT_SECTION_GAP] apart.
      */
     fun achievementsGeometry(
         top: Int,
@@ -229,10 +231,14 @@ object MenuLayout {
         width: Int,
         screenHeight: Int,
         lineHeight: Int,
+        pillLabels: List<Pair<String, String>>,
+        measure: (String) -> Int,
         sectionSizes: List<Int>,
     ): AchievementsGeometry {
         val barY = top + lineHeight + TEXT_GAP
-        val listTop = barY + UiTheme.Sizing.PROGRESS_BAR_HEIGHT + OUTER_MARGIN
+        val barBottom = barY + UiTheme.Sizing.PROGRESS_BAR_HEIGHT
+        val pills = layoutPills(pillLabels, measure, left, barBottom + STRIP_GAP, width)
+        val listTop = (pills.maxOfOrNull { it.second.bottom } ?: barBottom) + OUTER_MARGIN
         val sectionTops = mutableListOf<Int>()
         var bottom = listTop
         for (size in sectionSizes) {
@@ -243,6 +249,7 @@ object MenuLayout {
         return AchievementsGeometry(
             summaryY = top,
             barY = barY,
+            pills = pills,
             viewport = Rect(left, listTop, width, screenHeight - listTop - OUTER_MARGIN),
             contentHeight = bottom - listTop,
             sectionTops = sectionTops,

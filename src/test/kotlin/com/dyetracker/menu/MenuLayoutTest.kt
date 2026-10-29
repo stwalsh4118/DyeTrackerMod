@@ -347,15 +347,40 @@ class MenuLayoutTest {
         assertEquals(100 + 9 + 4 + 2 * 14, MenuLayout.timelineRowY(headingY = 100, lineHeight = 9, index = 2))
     }
 
-    /** The Achievements tab's layout from y=50, 328 wide from x=10, 9px text, with [sectionSizes] rows per section. */
-    private fun achievements(sectionSizes: List<Int>) = MenuLayout.achievementsGeometry(
-        top = 50,
-        left = 10,
-        width = 328,
-        screenHeight = 400,
-        lineHeight = 9,
-        sectionSizes = sectionSizes,
-    )
+    /**
+     * The Achievements tab's layout from y=50, 328 wide from x=10, 9px text, with [pills] for its
+     * status pill row and [sectionSizes] rows per section; every character measures 6px.
+     */
+    private fun achievements(sectionSizes: List<Int>, pills: List<Pair<String, String>> = emptyList()) =
+        MenuLayout.achievementsGeometry(
+            top = 50,
+            left = 10,
+            width = 328,
+            screenHeight = 400,
+            lineHeight = 9,
+            pillLabels = pills,
+            measure = { it.length * 6 },
+            sectionSizes = sectionSizes,
+        )
+
+    @Test
+    fun `achievements status pills go a strip gap below the bar and the list an outer margin below them`() {
+        val geometry = achievements(listOf(2), pills = listOf("ALL" to "All (5)", "LOCKED" to "Locked (3)"))
+
+        val pillTop = 63 + 4 + 8
+        assertEquals(
+            listOf("ALL" to Rect(10, pillTop, 7 * 6 + 16, 16), "LOCKED" to Rect(10 + 58 + 4, pillTop, 10 * 6 + 16, 16)),
+            geometry.pills,
+        )
+        val top = pillTop + 16 + 16
+        assertEquals(Rect(10, top, 328, 400 - top - 16), geometry.viewport)
+        assertEquals(listOf(top), geometry.sectionTops)
+    }
+
+    @Test
+    fun `achievements without pills have none`() {
+        assertEquals(emptyList(), achievements(listOf(2)).pills)
+    }
 
     @Test
     fun `achievements summary line is at the top and the bar a text gap below it`() {
