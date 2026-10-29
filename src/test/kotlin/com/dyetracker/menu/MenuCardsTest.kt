@@ -133,6 +133,15 @@ class MenuCardsTest {
     }
 
     @Test
+    fun `fit text never cuts a surrogate pair in half`() {
+        // "ab" + one emoji (a surrogate pair, 2 chars) + "cd". At 24px (4 chars) a cut after 3
+        // chars would leave the emoji's lone high surrogate, so the fit steps back to "ab…".
+        val text = "ab\uD83C\uDFB5cd"
+        assertEquals("ab\u2026", MenuCards.fitText(text, 24, measure))
+        assertEquals("ab\uD83C\uDFB5\u2026", MenuCards.fitText(text, 30, measure))
+    }
+
+    @Test
     fun `fit text of an empty string is empty`() {
         assertEquals("", MenuCards.fitText("", 0, measure))
     }

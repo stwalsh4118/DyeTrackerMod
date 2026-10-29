@@ -50,11 +50,12 @@ object MenuCards {
 
     /**
      * [text] if it fits in [maxWidth] (as measured by [measure]); else the longest prefix plus `…`
-     * that fits; `""` when not even `…` fits.
+     * that fits; `""` when not even `…` fits. Never cuts a surrogate pair (one code point) in half.
      */
     fun fitText(text: String, maxWidth: Int, measure: (String) -> Int): String {
         if (measure(text) <= maxWidth) return text
         for (length in text.length - 1 downTo 0) {
+            if (length > 0 && Character.isHighSurrogate(text[length - 1])) continue
             val candidate = text.substring(0, length) + ELLIPSIS
             if (measure(candidate) <= maxWidth) return candidate
         }
