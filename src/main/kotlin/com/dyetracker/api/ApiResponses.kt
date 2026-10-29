@@ -102,6 +102,28 @@ data class SyncDyeCollectionResponse(
 )
 
 /**
+ * Request body for POST /api/v1/rotation: the Vincent rotation captured from the "Dyes" screen.
+ * [boosts] holds only the dyes whose lore carries a boost line (dyeId → multiplier).
+ */
+@Serializable
+data class RotationPushRequest(
+    val dyeIds: List<String>,
+    val boosts: Map<String, Int>,
+    val skyblockYear: Int,
+    val capturedAt: Long
+)
+
+/**
+ * Response from POST /api/v1/rotation: whether the server [stored] the rotation, and the
+ * [skyblockYear] it is filed under.
+ */
+@Serializable
+data class RotationPushResponse(
+    val stored: Boolean = false,
+    val skyblockYear: Int = 0
+)
+
+/**
  * A profile id + its human-readable name (`cute_name` in the backend JSON, e.g. "Mango").
  * Used both standalone in [PlayerProfilesResponse] and as the `profile` field of
  * [DyeProgressResponse].
