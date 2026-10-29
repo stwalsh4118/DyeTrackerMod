@@ -48,12 +48,14 @@ class SpotifySession(
         if (status() != SessionStatus.CONNECTED) {
             return SpotifyResult.Failure(SpotifyConstants.HTTP_UNAUTHORIZED, NOT_LOGGED_IN)
         }
-        if (clock() >= store.get().expiresAtMs - SpotifyConstants.REFRESH_MARGIN_MS) {
-            refresh()?.let { return it }
+        val auth = store.get()
+        if (clock() >= auth.expiresAtMs - SpotifyConstants.REFRESH_MARGIN_MS) {
+            refresh(seen = auth.accessToken)?.let { return it }
         }
-        val first = http.currentlyPlaying(store.get().accessToken)
+        val token = store.get().accessToken
+        val first = http.currentlyPlaying(token)
         if (first !is SpotifyResult.Failure || first.status != SpotifyConstants.HTTP_UNAUTHORIZED) return first
-        refresh()?.let { return it }
+        refresh(seen = token)?.let { return it }
         return http.currentlyPlaying(store.get().accessToken)
     }
 
@@ -71,10 +73,21 @@ class SpotifySession(
      * The result is written only if the file still holds the session that was refreshed; when it
      * doesn't, the file is left alone and a stale success reports [NOT_LOGGED_IN], so the caller
      * never uses a token the file no longer holds.
+     *
+     * [seen] is the access token the caller used or was about to use. When the file holds another
+     * one, someone else already refreshed (or logged in) since: Spotify isn't called again and the
+     * caller uses the stored token, or gets [NOT_LOGGED_IN] when the file holds none.
      */
     @Synchronized
-    private fun refresh(): SpotifyResult.Failure? {
+    internal fun refresh(seen: String): SpotifyResult.Failure? {
         val auth = store.get()
+        if (auth.accessToken != seen) {
+            return if (auth.accessToken.isNotBlank()) {
+                null
+            } else {
+                SpotifyResult.Failure(SpotifyConstants.HTTP_UNAUTHORIZED, NOT_LOGGED_IN)
+            }
+        }
         if (auth.refreshToken.isBlank()) {
             store.update { it.withoutTokens() }
             return SpotifyResult.Failure(SpotifyConstants.HTTP_UNAUTHORIZED, NOT_LOGGED_IN)
@@ -118,5 +131,8 @@ private fun SpotifyAuthFile.withoutTokens(): SpotifyAuthFile =
 
 /** The one session the mod uses, over the real token file. */
 object SpotifySessions {
-    val default: SpotifySession by lazy { SpotifySession(SpotifyHttp(), SpotifyAuthStore) }
+    /** The one Spotify HTTP client (one JDK `HttpClient`), shared by the session and the login. */
+    val http: SpotifyHttp by lazy { SpotifyHttp() }
+
+    val default: SpotifySession by lazy { SpotifySession(http, SpotifyAuthStore) }
 }

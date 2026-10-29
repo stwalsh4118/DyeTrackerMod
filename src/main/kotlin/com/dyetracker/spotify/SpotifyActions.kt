@@ -10,7 +10,6 @@ import net.minecraft.util.Util
 import java.net.BindException
 import java.net.URI
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -30,12 +29,11 @@ fun shouldSaveLogin(startedWith: String, current: String): Boolean = startedWith
  * The player-facing Spotify actions (Client ID, login, logout, now playing, status), shared by the
  * `/dyetracker spotify` commands and, later, the Settings tab. Results go to a [feedback] function
  * on the client thread. A login runs on its own daemon thread, since it blocks on the browser;
- * Spotify API calls run on another, so they never queue behind an open login.
+ * Spotify API calls run on [SpotifyThreads.api], so they never queue behind an open login.
  */
 object SpotifyActions {
 
     private const val LOGIN_THREAD_NAME = "DyeTracker-SpotifyLogin"
-    private const val API_THREAD_NAME = "DyeTracker-SpotifyApi"
 
     private const val SET_CLIENT_ID_FIRST = "Set your Client ID first: /dyetracker spotify clientid <id>"
     private const val LOGIN_FAILED_PREFIX = "Spotify login failed: "
@@ -45,14 +43,9 @@ object SpotifyActions {
     private const val TITLE_SEPARATOR = " · "
 
     /** Runs logins only: one blocks on the browser for up to 5 minutes. */
-    private val loginWorker: ExecutorService = daemonWorker(LOGIN_THREAD_NAME)
-
-    /** Runs Spotify API calls (now playing), never behind a login. */
-    private val apiWorker: ExecutorService = daemonWorker(API_THREAD_NAME)
+    private val loginWorker: ExecutorService = SpotifyThreads.daemonWorker(LOGIN_THREAD_NAME)
 
     private val loginRunning = AtomicBoolean(false)
-
-    private val http = SpotifyHttp()
 
     sealed interface SetClientIdResult {
         data object Saved : SetClientIdResult
@@ -134,7 +127,7 @@ object SpotifyActions {
      * Client ID the login started with is still the saved one.
      */
     private fun exchange(clientId: String, code: String, redirectUri: String, verifier: String): Component =
-        when (val result = http.exchangeCode(clientId, code, redirectUri, verifier)) {
+        when (val result = SpotifySessions.http.exchangeCode(clientId, code, redirectUri, verifier)) {
             is SpotifyResult.Success -> {
                 val tokens = result.data
                 val expiresAtMs = System.currentTimeMillis() + tokens.expiresIn * SpotifyConstants.MS_PER_SECOND
@@ -170,7 +163,7 @@ object SpotifyActions {
             feedback(Component.literal(SET_CLIENT_ID_FIRST).withStyle(ChatFormatting.YELLOW))
             return
         }
-        apiWorker.execute {
+        SpotifyThreads.api.execute {
             val message = try {
                 when (val result = SpotifySessions.default.currentlyPlaying()) {
                     is SpotifyResult.Success -> nowPlayingLine(result.data)?.let(::nowPlayingComponent)
@@ -206,10 +199,6 @@ object SpotifyActions {
             )
         }
         return text
-    }
-
-    private fun daemonWorker(name: String): ExecutorService = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, name).apply { isDaemon = true }
     }
 
     private fun red(text: String): Component = Component.literal(text).withStyle(ChatFormatting.RED)

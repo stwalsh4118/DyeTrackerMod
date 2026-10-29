@@ -301,6 +301,29 @@ class SpotifySessionTest {
     }
 
     @Test
+    fun `two refreshes from the same seen token make one token POST`() {
+        val token = Endpoint(200 to REFRESH_ROTATED)
+        serve(token = token)
+
+        assertEquals(null, session.refresh(seen = "OLD_ACCESS"))
+        assertEquals(null, session.refresh(seen = "OLD_ACCESS"))
+
+        assertEquals(1, token.calls.get())
+        assertEquals("NEW_ACCESS", store.file.accessToken)
+        assertEquals("NEW_REFRESH", store.file.refreshToken)
+    }
+
+    @Test
+    fun `a refresh from a stale seen token after a logout reports not logged in`() {
+        store.file = SpotifyAuthFile(clientId = CLIENT_ID)
+        val token = Endpoint(200 to REFRESH_ROTATED)
+        serve(token = token)
+
+        assertEquals(SpotifyResult.Failure(401, "Not logged in"), session.refresh(seen = "OLD_ACCESS"))
+        assertEquals(0, token.calls.get())
+    }
+
+    @Test
     fun `logout clears the tokens and keeps the client ID`() {
         session.logout()
 
