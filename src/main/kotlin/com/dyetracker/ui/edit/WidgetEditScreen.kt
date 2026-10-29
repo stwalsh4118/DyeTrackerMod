@@ -203,7 +203,7 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
         if (vertical == 0.0) return false
         val entry = focusedEntry() ?: return super.mouseScrolled(mouseX, mouseY, horizontal, vertical)
         val editor = entry.editor ?: return super.mouseScrolled(mouseX, mouseY, horizontal, vertical)
-        val base = if (isShiftHeld()) SCALE_STEP_FINE else SCALE_STEP_COARSE
+        val base = if (Minecraft.getInstance().hasShiftDown()) SCALE_STEP_FINE else SCALE_STEP_COARSE
         val factor = base.pow(vertical.toFloat())
         val p = entry.placement
         val newScale = clamp(p.scale * factor, SCALE_MIN, SCALE_MAX)
@@ -272,8 +272,6 @@ class WidgetEditScreen : Screen(Component.literal(TITLE)) {
     }
 
     private fun clamp(value: Float, lo: Float, hi: Float): Float = max(lo, min(hi, value))
-
-    private fun isShiftHeld(): Boolean = Minecraft.getInstance().hasShiftDown()
 
     /**
      * Adapts a focused widget's [WidgetConfigPanel] (bound to [widgetId]) onto the existing modal
