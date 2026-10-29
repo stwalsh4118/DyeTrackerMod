@@ -77,6 +77,20 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 - Filter by category and change the sort order (progress or name).
 - Click a dye to pin it to your HUD as a progress widget.
 
+**Collection tab**
+
+- Shows every dye: the ones you own are highlighted with a check mark (or a count when you have more than one), and the ones you're missing are greyed out. A summary at the top says how many you own and the percentage.
+- Your collection comes from syncing Vincent's Dye Guide while your account is linked. Until then every dye is greyed and the tab tells you how to record it.
+- Filter by category (each chip shows how many of that category you own) and by **All / Owned / Unowned**.
+- The **Drop Timeline** below the grid lists the dyes you own with a drop date, newest first, with the date and how long ago it was.
+
+**Achievements tab**
+
+- Shows every achievement in sections (Dye Drops, Milestones, Sweeps, Progress and Secrets), with a count per section and your overall total at the top.
+- Each achievement shows its tier (Bronze, Silver, Gold, Platinum or Legendary), in that tier's color once unlocked, its description, and when you unlocked it or how far along you are.
+- Secret achievements show as **???** until you unlock them.
+- Filter by **All / Unlocked / Locked**.
+
 **Settings tab**
 
 - **Account**: see which account is linked, or unlink it (click Unlink, then Confirm unlink).
