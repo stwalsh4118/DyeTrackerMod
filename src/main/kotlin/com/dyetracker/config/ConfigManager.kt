@@ -175,6 +175,33 @@ object ConfigManager {
     }
 
     /**
+     * Whether Discord Rich Presence is on (PBI 77). Read by the presence worker each tick.
+     */
+    fun isDiscordEnabled(): Boolean = config.discordEnabled
+
+    /**
+     * Persist the Discord Rich Presence on/off flag, flushing to disk immediately via the standard
+     * [update] path. The presence worker picks it up on its next tick.
+     */
+    fun setDiscordEnabled(enabled: Boolean) {
+        update { it.copy(discordEnabled = enabled) }
+    }
+
+    /**
+     * The dye the Discord card shows as the hunt (PBI 77), blank for none. Read by the presence
+     * worker each tick.
+     */
+    fun discordHuntDyeId(): String = config.discordHuntDyeId
+
+    /**
+     * Persist the Discord hunt dye (blank clears it), flushing to disk immediately via the standard
+     * [update] path. The presence worker picks it up on its next tick.
+     */
+    fun setDiscordHuntDyeId(dyeId: String) {
+        update { it.copy(discordHuntDyeId = dyeId) }
+    }
+
+    /**
      * Resets the configuration to default values and saves to disk.
      */
     fun reset() {

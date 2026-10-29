@@ -4,12 +4,14 @@ import com.dyetracker.events.InventoryUtils
 import com.dyetracker.rotation.DyeSprites
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
  * Unit coverage for the offline dye picker catalog (task 34-6): it is derived from the single
  * source of truth ([InventoryUtils.dyeDisplayNameToId], which is kept in lock-step with
- * [DyeSprites.DYE_IDS]) and its filter matches by name and id, case-insensitively.
+ * [DyeSprites.DYE_IDS]) and its filter matches by name and id, case-insensitively. [DyeCatalog.byId] and
+ * [DyeCatalog.displayNameOr] look a dye up by its exact id (PBI 77).
  */
 class DyeCatalogTest {
 
@@ -51,5 +53,27 @@ class DyeCatalogTest {
     @Test
     fun `no match returns empty`() {
         assertTrue(DyeCatalog.filter("zzzznotadye").isEmpty())
+    }
+
+    @Test
+    fun `byId finds a known dye`() {
+        assertEquals(DyeOption("wild_strawberry", "Wild Strawberry"), DyeCatalog.byId("wild_strawberry"))
+    }
+
+    @Test
+    fun `byId is null for an unknown, blank or not-exact id`() {
+        assertNull(DyeCatalog.byId("zzzznotadye"))
+        assertNull(DyeCatalog.byId(""))
+        assertNull(DyeCatalog.byId("Wild_Strawberry"))
+    }
+
+    @Test
+    fun `displayNameOr gives a known dye's display name`() {
+        assertEquals("Brick Red", DyeCatalog.displayNameOr("brick_red"))
+    }
+
+    @Test
+    fun `displayNameOr gives the id itself for an unknown dye`() {
+        assertEquals("zzzznotadye", DyeCatalog.displayNameOr("zzzznotadye"))
     }
 }

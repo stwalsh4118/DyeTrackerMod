@@ -30,6 +30,12 @@ object DyeCatalog {
         return all.filter { it.displayName.lowercase().contains(q) || it.dyeId.lowercase().contains(q) }
     }
 
+    /** The option whose id is exactly [dyeId], or `null` when the dye isn't in the catalog. */
+    fun byId(dyeId: String): DyeOption? = all.firstOrNull { it.dyeId == dyeId }
+
+    /** [dyeId]'s display name, or [dyeId] itself when the dye isn't in the catalog. */
+    fun displayNameOr(dyeId: String): String = byId(dyeId)?.displayName ?: dyeId
+
     private fun titleCase(name: String): String =
         name.split(' ')
             .filter { it.isNotEmpty() }
