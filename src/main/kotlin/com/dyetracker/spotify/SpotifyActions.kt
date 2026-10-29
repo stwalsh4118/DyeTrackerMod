@@ -28,7 +28,7 @@ fun shouldSaveLogin(startedWith: String, current: String): Boolean = startedWith
 
 /**
  * The player-facing Spotify actions (Client ID, login, logout, now playing, tint, status), shared by the
- * `/dyetracker spotify` commands and, later, the Settings tab. Results go to a [feedback] function
+ * `/dyetracker spotify` commands and the menu's Settings tab. Results go to a [feedback] function
  * on the client thread. A login runs on its own daemon thread, since it blocks on the browser;
  * Spotify API calls run on [SpotifyThreads.api], so they never queue behind an open login.
  */
@@ -186,10 +186,13 @@ object SpotifyActions {
         feedback(Component.literal("Logged out of Spotify.").withStyle(ChatFormatting.GREEN))
     }
 
+    /** Whether the now-playing widget shows: its saved placement's flag, else the default's. */
+    fun isWidgetVisible(): Boolean =
+        ConfigManager.spotifyPlacements.all().firstOrNull()?.visible ?: SpotifyWidgetConfig().visible
+
     /** Show or hide the now-playing widget; returns whether it is now shown. */
     fun toggleWidget(): Boolean {
-        val current = ConfigManager.spotifyPlacements.all().firstOrNull()?.visible ?: SpotifyWidgetConfig().visible
-        val visible = !current
+        val visible = !isWidgetVisible()
         SpotifyPlacementEditor.setVisible(SpotifyConstants.WIDGET_ID, visible)
         return visible
     }

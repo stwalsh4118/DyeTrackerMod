@@ -20,6 +20,12 @@ import com.dyetracker.overlay.GifPlacementEditor
 import com.dyetracker.rotation.DyeSprites
 import com.dyetracker.rotation.RotationPlacementEditor
 import com.dyetracker.rotation.RotationWidgetConfig
+import com.dyetracker.spotify.SessionStatus
+import com.dyetracker.spotify.SpotifyActions
+import com.dyetracker.spotify.SpotifyAuthStore
+import com.dyetracker.spotify.SpotifyConstants
+import com.dyetracker.spotify.SpotifySessions
+import com.dyetracker.spotify.statusText
 import com.dyetracker.sync.SyncManager
 import com.dyetracker.ui.bounce.BounceController
 import com.dyetracker.ui.components.ProgressBarWidget
@@ -39,11 +45,14 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
+import net.minecraft.ChatFormatting
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.client.gui.components.EditBox
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
+import net.minecraft.network.chat.TextColor
 import net.minecraft.util.Util
 import org.lwjgl.glfw.GLFW
 import kotlin.math.max
@@ -91,9 +100,13 @@ import kotlin.math.roundToInt
  * status text is the shown tab's: how old its data is, "refreshing…" or "refresh failed". Refresh
  * fetches the shown tab's data again ([MenuRefresh]): on the Dyes tab the dyes and the collection,
  * on the Collection tab the collection (and the dyes while they aren't loaded).
- * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, the layout
- * editor), each control calling what its `/dyetracker` command calls. Settings state is read fresh
- * every frame, so a change made by a command meanwhile shows at once.
+ * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, Spotify, the
+ * layout editor), each control calling what its `/dyetracker` command calls. Settings state is read
+ * fresh every frame, so a change made by a command meanwhile shows at once. The panel scrolls when
+ * its rows don't fit ([settingsScroll]). The Spotify Client ID row holds a vanilla [EditBox]
+ * ([clientIdField]), there only while the Settings tab shows. The menu has no key handling of its
+ * own: vanilla routes keys to the focused field first, its Escape still closes the menu, and the
+ * open-menu keybind only acts while no screen is open ([MenuKeybind]).
  */
 class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
@@ -127,7 +140,19 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /** What a Settings row is about; picks what a click on its pill does. */
-    private enum class SettingsKey { ACCOUNT, SYNC, ROTATION, DYE_WIDGETS, GIFS, BOUNCE, EDIT_LAYOUT }
+    private enum class SettingsKey {
+        ACCOUNT,
+        SYNC,
+        ROTATION,
+        DYE_WIDGETS,
+        GIFS,
+        BOUNCE,
+        SPOTIFY,
+        SPOTIFY_CLIENT_ID,
+        SPOTIFY_WIDGET,
+        SPOTIFY_TINT,
+        EDIT_LAYOUT,
+    }
 
     /**
      * One Settings row as of now: its [label], an optional [detail] line under it, and an optional
@@ -143,6 +168,12 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /** A [row] placed in the Settings panel at [rect], its control [pill] right-aligned in it. */
     private data class PlacedRow(val row: SettingsRow, val rect: Rect, val pill: MenuPill?)
+
+    /**
+     * The Settings [panel] and its [rows] at least partly inside it after [settingsScroll], scrolled
+     * content [contentHeight] tall.
+     */
+    private data class SettingsLayout(val panel: Rect, val rows: List<PlacedRow>, val contentHeight: Int)
 
     /** A message replacing row [key]'s detail line until [untilMs] ([Util.getMillis] time). */
     private data class RowMessage(val key: SettingsKey, val text: String, val argb: Int, val untilMs: Long)
@@ -247,6 +278,15 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /** The last Settings click's message; `null` before one says anything. */
     private var rowMessage: RowMessage? = null
 
+    /** Pixels the Settings panel is scrolled up by, kept within [maxSettingsScroll]. */
+    private var settingsScroll = 0
+
+    /**
+     * The Spotify Client ID field, a widget only while the Settings tab shows ([addClientIdField],
+     * [removeClientIdField]); placed on its row every frame ([placeClientIdField]).
+     */
+    private var clientIdField: EditBox? = null
+
     /** Set by [removed]; a sync completing after the screen closed posts nothing. */
     private var closed = false
 
@@ -310,6 +350,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     override fun init() {
         super.init()
         clampScrollToContent() // a resize changes the viewport and column count
+        // A resize rebuilds the widgets, clearing them first: put the field back, with what was typed.
+        clientIdField?.let { addRenderableWidget(it) }
         if (started) return
         started = true
         startLoad()
@@ -531,6 +573,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     override fun removed() {
         epoch++
         closed = true
+        removeClientIdField()
         collectionFetch.close()
         achievementsFetch.close()
         scope.cancel()
@@ -544,7 +587,10 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false
         val tabPill = pillAt(tabPills(), click.x(), click.y())
         if (tabPill != null) {
-            tab = MenuTab.valueOf(tabPill.key)
+            val next = MenuTab.valueOf(tabPill.key)
+            if (next == MenuTab.SETTINGS && clientIdField == null) addClientIdField()
+            if (next != MenuTab.SETTINGS) removeClientIdField()
+            tab = next
             when (tab) {
                 MenuTab.COLLECTION -> ensureCollection() // reuses the Dyes tab's collection; retries a failed one
                 MenuTab.ACHIEVEMENTS -> ensureAchievements() // fetched once per profile; retries a failed one
@@ -666,12 +712,14 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * Runs the action of the Settings pill at ([mouseX], [mouseY]), as its `/dyetracker` command
-     * does; an inactive pill does nothing. A [doubled] click never confirms the unlink. Returns
-     * whether a pill took the click.
+     * does; an inactive pill does nothing, and neither does the part of a pill scrolled out of the
+     * panel. A [doubled] click never confirms the unlink. Returns whether a pill took the click.
      */
     private fun clickSettings(mouseX: Double, mouseY: Double, doubled: Boolean): Boolean {
         val now = Util.getMillis()
-        val clicked = placedSettingsRows(now).firstOrNull { placed ->
+        val layout = settingsLayout(now)
+        if (!layout.panel.contains(mouseX, mouseY)) return false
+        val clicked = layout.rows.firstOrNull { placed ->
             placed.row.pillStyle != PillStyle.INACTIVE && placed.pill?.rect?.contains(mouseX, mouseY) == true
         } ?: return false
         when (clicked.row.key) {
@@ -699,6 +747,15 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 BounceController.setEnabled(enabled)
                 ConfigManager.setBounceEnabled(enabled)
             }
+            // NOT_SET_UP's pill is inactive, so a click only gets here logged out or connected.
+            SettingsKey.SPOTIFY -> if (SpotifySessions.default.status() == SessionStatus.CONNECTED) {
+                SpotifyActions.logout(::showSpotifyMessage)
+            } else {
+                SpotifyActions.login(::loginFeedback)
+            }
+            SettingsKey.SPOTIFY_CLIENT_ID -> saveClientId()
+            SettingsKey.SPOTIFY_WIDGET -> SpotifyActions.toggleWidget()
+            SettingsKey.SPOTIFY_TINT -> SpotifyActions.toggleTintAll()
             SettingsKey.EDIT_LAYOUT -> Minecraft.getInstance().showScreen(WidgetEditScreen())
         }
         return true
@@ -736,12 +793,104 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         rowMessage = RowMessage(key, text, argb, Util.getMillis() + MenuLayout.SETTINGS_MESSAGE_MS)
     }
 
+    /**
+     * A Spotify login's [message], on the client thread: to chat, where its "click here" link
+     * works, and as the Spotify row's message unless the screen has closed meanwhile.
+     */
+    private fun loginFeedback(message: Component) {
+        Minecraft.getInstance().player?.sendSystemMessage(message)
+        if (!closed) showSpotifyMessage(message)
+    }
+
+    /** Shows a Spotify action's chat [message] as plain text in the Spotify row ([rowMessageArgb]). */
+    private fun showSpotifyMessage(message: Component) {
+        showRowMessage(SettingsKey.SPOTIFY, message.string, rowMessageArgb(message))
+    }
+
+    /** A row message's color for a chat [message]: a red one error-colored, a green one the success accent, else subtle. */
+    private fun rowMessageArgb(message: Component): Int = when (message.style.color) {
+        TextColor.fromLegacyFormat(ChatFormatting.RED) -> UiTheme.Colors.STATUS_ERROR
+        TextColor.fromLegacyFormat(ChatFormatting.GREEN) -> UiTheme.Colors.ACCENT_SECONDARY
+        else -> UiTheme.Colors.TEXT_SUBTLE
+    }
+
+    /** Saves the Client ID field's text, as `/dyetracker spotify clientid` does, and says how it went. */
+    private fun saveClientId() {
+        // The field exists while the Settings tab shows, and only that tab's pills are clicked.
+        when (SpotifyActions.setClientId(clientIdField!!.value)) {
+            SpotifyActions.SetClientIdResult.Saved ->
+                showRowMessage(SettingsKey.SPOTIFY_CLIENT_ID, CLIENT_ID_SAVED_TEXT, UiTheme.Colors.ACCENT_SECONDARY)
+            SpotifyActions.SetClientIdResult.Invalid ->
+                showRowMessage(SettingsKey.SPOTIFY_CLIENT_ID, CLIENT_ID_INVALID_TEXT, UiTheme.Colors.STATUS_ERROR)
+        }
+    }
+
+    /**
+     * Adds the Spotify Client ID field, prefilled with the saved ID; hidden until
+     * [placeClientIdField] puts it on its row.
+     */
+    private fun addClientIdField() {
+        val field = EditBox(font, 0, 0, 0, MenuLayout.SETTINGS_FIELD_HEIGHT, Component.literal(SPOTIFY_CLIENT_ID_LABEL))
+        field.setMaxLength(SpotifyConstants.CLIENT_ID_LENGTH)
+        field.setValue(SpotifyAuthStore.get().clientId)
+        field.setHint(Component.literal(CLIENT_ID_HINT))
+        field.visible = false
+        clientIdField = addRenderableWidget(field)
+    }
+
+    /** Removes the Client ID field, if it is there; vanilla drops its focus with it. */
+    private fun removeClientIdField() {
+        val field = clientIdField ?: return
+        removeWidget(field)
+        clientIdField = null
+    }
+
+    /**
+     * Puts the Client ID field where the Spotify Client ID row's detail line would be, left of its
+     * Save pill ([clientIdFieldRect]). While the field isn't wholly inside the panel it is hidden,
+     * so it takes no clicks, and unfocused, so keys stop going to it.
+     */
+    private fun placeClientIdField(layout: SettingsLayout) {
+        val field = clientIdField ?: return
+        val rect = layout.rows.firstOrNull { it.row.key == SettingsKey.SPOTIFY_CLIENT_ID }?.let(::clientIdFieldRect)
+        if (rect == null || rect.width <= 0 || rect.y < layout.panel.y || rect.bottom > layout.panel.bottom) {
+            field.visible = false
+            if (field.isFocused) setFocused(null)
+            return
+        }
+        field.visible = true
+        field.setX(rect.x)
+        field.setY(rect.y)
+        field.setWidth(rect.width)
+    }
+
+    /** Where the Client ID field goes in its [placed] row: under the label, from the text's left to [settingsTextRight]. */
+    private fun clientIdFieldRect(placed: PlacedRow): Rect {
+        val x = placed.rect.x + MenuLayout.CARD_PADDING
+        val y = settingsLabelY(placed.rect, MenuLayout.SETTINGS_FIELD_HEIGHT) + font.lineHeight
+        return Rect(x, y, settingsTextRight(placed) - x, MenuLayout.SETTINGS_FIELD_HEIGHT)
+    }
+
+    /** The right end of a [placed] Settings row's text: a gap before its pill, else its padding. */
+    private fun settingsTextRight(placed: PlacedRow): Int =
+        placed.pill?.let { it.rect.x - MenuLayout.TEXT_GAP } ?: (placed.rect.right - MenuLayout.CARD_PADDING)
+
+    /** The label's top in a Settings row at [rect] whose label has [belowHeight] of detail or field under it, centred. */
+    private fun settingsLabelY(rect: Rect, belowHeight: Int): Int =
+        rect.y + (rect.height - font.lineHeight - belowHeight) / 2
+
     /** Whether the dye rotation widget shows, read as `/dyetracker rotation toggle` reads it. */
     private fun rotationVisible(): Boolean =
         ConfigManager.rotationPlacements.all().firstOrNull()?.visible ?: RotationWidgetConfig().visible
 
     override fun mouseScrolled(mouseX: Double, mouseY: Double, horizontal: Double, vertical: Double): Boolean {
-        if (tab == MenuTab.SETTINGS) return false // the hidden card grids keep their scroll
+        if (tab == MenuTab.SETTINGS) { // one row per notch; the hidden card grids keep their scroll
+            settingsScroll = MenuLayout.clampScroll(
+                settingsScroll - (vertical * MenuLayout.SETTINGS_ROW_HEIGHT).toInt(),
+                maxSettingsScroll(settingsRows(Util.getMillis()).size),
+            )
+            return true
+        }
         if (tab == MenuTab.COLLECTION) {
             val geometry = collectionCells()?.let(::collectionGeometry) ?: return false // no grid shows
             collectionScroll = MenuLayout.clampScroll(
@@ -774,6 +923,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         scroll = MenuLayout.clampScroll(scroll, grid.contentHeight, grid.viewport.height)
         clampCollectionScroll()
         clampAchievementsScroll()
+        settingsScroll = MenuLayout.clampScroll(settingsScroll, maxSettingsScroll(settingsRows(Util.getMillis()).size))
     }
 
     /** Keeps [achievementsScroll] within the Achievements list; leaves it while no list shows. */
@@ -1091,7 +1241,27 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 NO_GIFS_TEXT,
             ),
             switchRow(SettingsKey.BOUNCE, BOUNCE_LABEL, BounceController.isEnabled()),
+            spotifyRow(),
+            SettingsRow(SettingsKey.SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_ID_LABEL, pillLabel = SAVE_LABEL),
+            switchRow(SettingsKey.SPOTIFY_WIDGET, SPOTIFY_WIDGET_LABEL, SpotifyActions.isWidgetVisible()),
+            switchRow(SettingsKey.SPOTIFY_TINT, SPOTIFY_TINT_LABEL, ConfigManager.isSpotifyTintAll()),
             SettingsRow(SettingsKey.EDIT_LAYOUT, EDIT_LAYOUT_LABEL, pillLabel = EDIT_LAYOUT_LABEL),
+        )
+    }
+
+    /**
+     * The Spotify row: the status line ([statusText]) without its `Spotify: ` prefix, and the
+     * [spotifyRowPill] for the same status, read once so the two agree.
+     */
+    private fun spotifyRow(): SettingsRow {
+        val status = SpotifySessions.default.status()
+        val (pillLabel, active) = spotifyRowPill(status)
+        return SettingsRow(
+            SettingsKey.SPOTIFY,
+            SPOTIFY_LABEL,
+            statusText(status).removePrefix(SPOTIFY_STATUS_PREFIX),
+            pillLabel,
+            if (active) PillStyle.UNSELECTED else PillStyle.INACTIVE,
         )
     }
 
@@ -1116,22 +1286,37 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             },
         )
 
+    /** Top of the Settings panel: [MenuLayout.OUTER_MARGIN] below the header. */
+    private val settingsTop: Int get() = MenuLayout.HEADER_HEIGHT + MenuLayout.OUTER_MARGIN
+
+    /** How tall the Settings panel may get: down to [MenuLayout.OUTER_MARGIN] above the screen's bottom. */
+    private val settingsAvailableHeight: Int get() = height - settingsTop - MenuLayout.OUTER_MARGIN
+
+    /** How far [rowCount] Settings rows scroll on the current screen size ([MenuLayout.settingsMaxScroll]). */
+    private fun maxSettingsScroll(rowCount: Int): Int =
+        MenuLayout.settingsMaxScroll(rowCount, MenuLayout.SETTINGS_ROW_HEIGHT, settingsAvailableHeight)
+
     /**
      * The Settings panel: [MenuLayout.SETTINGS_WIDTH] wide (narrower on a narrow screen), centred,
-     * below the header, one [MenuLayout.SETTINGS_ROW_HEIGHT] row per [rowCount].
+     * below the header, as tall as [rowCount] [MenuLayout.SETTINGS_ROW_HEIGHT] rows or
+     * [settingsAvailableHeight], whichever is less.
      */
     private fun settingsPanel(rowCount: Int): Rect {
         val panelWidth = minOf(MenuLayout.SETTINGS_WIDTH, width - 2 * MenuLayout.OUTER_MARGIN)
-        val top = MenuLayout.HEADER_HEIGHT + MenuLayout.OUTER_MARGIN
-        return Rect((width - panelWidth) / 2, top, panelWidth, rowCount * MenuLayout.SETTINGS_ROW_HEIGHT)
+        val panelHeight = minOf(rowCount * MenuLayout.SETTINGS_ROW_HEIGHT, settingsAvailableHeight).coerceAtLeast(0)
+        return Rect((width - panelWidth) / 2, settingsTop, panelWidth, panelHeight)
     }
 
-    /** [settingsRows] placed top to bottom in [settingsPanel], each pill right-aligned and vertically centred. */
-    private fun placedSettingsRows(nowMs: Long): List<PlacedRow> {
+    /**
+     * [settingsRows] placed top to bottom in [settingsPanel], scrolled up by [settingsScroll], each
+     * pill right-aligned and vertically centred; rows wholly outside the panel are left out.
+     */
+    private fun settingsLayout(nowMs: Long): SettingsLayout {
         val rows = settingsRows(nowMs)
         val panel = settingsPanel(rows.size)
-        return rows.mapIndexed { index, row ->
-            val rect = Rect(panel.x, panel.y + index * MenuLayout.SETTINGS_ROW_HEIGHT, panel.width, MenuLayout.SETTINGS_ROW_HEIGHT)
+        val placed = rows.mapIndexed { index, row ->
+            val rowY = panel.y + index * MenuLayout.SETTINGS_ROW_HEIGHT - settingsScroll
+            val rect = Rect(panel.x, rowY, panel.width, MenuLayout.SETTINGS_ROW_HEIGHT)
             val pill = row.pillLabel?.let { label ->
                 val pillWidth = pillWidth(label) { font.width(it) }
                 MenuPill(
@@ -1148,6 +1333,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             }
             PlacedRow(row, rect, pill)
         }
+        val shown = placed.filter { it.rect.bottom > panel.y && it.rect.y < panel.bottom }
+        return SettingsLayout(panel, shown, rows.size * MenuLayout.SETTINGS_ROW_HEIGHT)
     }
 
     override fun onClose() {
@@ -1160,7 +1347,6 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     override fun extractRenderState(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
-        super.extractRenderState(context, mouseX, mouseY, delta)
         drawHeader(context, mouseX, mouseY)
         when (tab) {
             MenuTab.DYES -> drawDyesTab(context, mouseX, mouseY)
@@ -1168,6 +1354,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             MenuTab.ACHIEVEMENTS -> drawAchievementsTab(context, mouseX, mouseY)
             MenuTab.SETTINGS -> drawSettings(context, mouseX, mouseY)
         }
+        // The widgets (the Settings tab's Client ID field) go over the panel, once it has placed them.
+        super.extractRenderState(context, mouseX, mouseY, delta)
         drawPinMessage(context)
     }
 
@@ -1280,11 +1468,14 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         }
     }
 
-    /** The Settings tab: [placedSettingsRows] in one card-styled panel. */
+    /**
+     * The Settings tab: the [settingsLayout] rows in one card-styled panel, clipped to it, with a
+     * scrollbar when they overflow; then the Client ID field placed on its row.
+     */
     private fun drawSettings(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
         val now = Util.getMillis()
-        val placed = placedSettingsRows(now)
-        val panel = settingsPanel(placed.size)
+        val layout = settingsLayout(now)
+        val panel = layout.panel
         UiDraw.filledBox(
             context,
             panel.x,
@@ -1296,13 +1487,21 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         )
         val message = rowMessage?.takeIf { now < it.untilMs }
         if (message == null) rowMessage = null
-        for (row in placed) drawSettingsRow(context, row, message?.takeIf { it.key == row.row.key }, mouseX, mouseY)
+        val inPanel = panel.contains(mouseX, mouseY)
+        drawScrolled(context, panel, layout.contentHeight, settingsScroll) {
+            for (row in layout.rows) {
+                drawSettingsRow(context, row, message?.takeIf { it.key == row.row.key }, mouseX, mouseY, inPanel)
+            }
+        }
+        placeClientIdField(layout)
     }
 
     /**
      * One Settings row: its label on the left, its detail line (or [message], which replaces it)
      * under the label in small text, both shortened to end before the pill; the pill right-aligned,
-     * hover-styled unless inactive. The text is vertically centred in the row.
+     * hover-styled unless inactive or the mouse is outside the panel ([inPanel]). The text is
+     * vertically centred in the row. The Client ID row keeps its detail line's place for the field,
+     * so its [message] goes after the label instead.
      */
     private fun drawSettingsRow(
         context: GuiGraphicsExtractor,
@@ -1310,18 +1509,39 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         message: RowMessage?,
         mouseX: Int,
         mouseY: Int,
+        inPanel: Boolean,
     ) {
         val row = placed.row
         val rect = placed.rect
         val pill = placed.pill
+        val hasField = row.key == SettingsKey.SPOTIFY_CLIENT_ID
         val textX = rect.x + MenuLayout.CARD_PADDING
-        val textRight = pill?.let { it.rect.x - MenuLayout.TEXT_GAP } ?: (rect.right - MenuLayout.CARD_PADDING)
-        val detail = message?.text ?: row.detail
+        val textRight = settingsTextRight(placed)
+        val detail = if (hasField) null else message?.text ?: row.detail
         val detailArgb = message?.argb ?: UiTheme.Colors.TEXT_MUTED
-        val textHeight = font.lineHeight + if (detail != null) scaledLineHeight(MenuLayout.SMALL_TEXT_SCALE) else 0
-        val labelY = rect.y + (rect.height - textHeight) / 2
+        val belowHeight = when {
+            hasField -> MenuLayout.SETTINGS_FIELD_HEIGHT
+            detail != null -> scaledLineHeight(MenuLayout.SMALL_TEXT_SCALE)
+            else -> 0
+        }
+        val labelY = settingsLabelY(rect, belowHeight)
         val label = MenuCards.fitText(row.label, textRight - textX) { font.width(it) }
         UiDraw.drawText(context, font, label, textX, labelY, UiTheme.Colors.TEXT_PRIMARY)
+        if (hasField && message != null) {
+            val messageX = textX + font.width(label) + MenuLayout.TEXT_GAP
+            val fitted = MenuCards.fitText(message.text, textRight - messageX) {
+                scaledWidth(it, MenuLayout.SMALL_TEXT_SCALE)
+            }
+            UiDraw.drawText(
+                context,
+                font,
+                fitted,
+                messageX,
+                labelY + font.lineHeight - scaledLineHeight(MenuLayout.SMALL_TEXT_SCALE), // level with the label's foot
+                message.argb,
+                scale = MenuLayout.SMALL_TEXT_SCALE,
+            )
+        }
         if (detail != null) {
             val fitted = MenuCards.fitText(detail, textRight - textX) { scaledWidth(it, MenuLayout.SMALL_TEXT_SCALE) }
             UiDraw.drawText(
@@ -1335,7 +1555,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             )
         }
         if (pill != null) {
-            val hovered = row.pillStyle != PillStyle.INACTIVE && pill.rect.contains(mouseX.toDouble(), mouseY.toDouble())
+            val hovered = inPanel && row.pillStyle != PillStyle.INACTIVE &&
+                pill.rect.contains(mouseX.toDouble(), mouseY.toDouble())
             drawPill(context, pill, hovered, row.pillStyle)
         }
     }
@@ -1857,6 +2078,26 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
         /** The Sync row's message after a successful sync. */
         private const val SYNCED_TEXT = "Synced."
+
+        private const val SPOTIFY_LABEL = "Spotify"
+        private const val SPOTIFY_CLIENT_ID_LABEL = "Spotify Client ID"
+        private const val SPOTIFY_WIDGET_LABEL = "Spotify widget"
+        private const val SPOTIFY_TINT_LABEL = "Tint all widgets"
+
+        /** The Spotify Client ID row's pill. */
+        private const val SAVE_LABEL = "Save"
+
+        /** The Client ID field's hint while it is empty. */
+        private const val CLIENT_ID_HINT = "Paste your Client ID"
+
+        /** What the Spotify status line ([statusText]) starts with; the Spotify row's label says it already. */
+        private const val SPOTIFY_STATUS_PREFIX = "Spotify: "
+
+        /** The Spotify Client ID row's message after Save saved the ID. */
+        private const val CLIENT_ID_SAVED_TEXT = "Saved. Now press Log in."
+
+        /** The Spotify Client ID row's message after Save found no Client ID in the field. */
+        private const val CLIENT_ID_INVALID_TEXT = "Not a Client ID (32 hex characters)."
 
         /** The Dye widgets row's detail when no dye widget is configured. */
         private const val NO_DYE_WIDGETS_TEXT = "Pin dyes from the Dyes tab"

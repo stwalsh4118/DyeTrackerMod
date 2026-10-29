@@ -32,8 +32,11 @@ object SpotifyConstants {
     /** RFC 7636 unreserved characters, for the PKCE verifier and the state. */
     const val VERIFIER_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
 
-    /** A Spotify Client ID: 32 hex characters. */
-    val CLIENT_ID_REGEX = Regex("^[0-9a-fA-F]{32}$")
+    /** How many characters a Spotify Client ID has. */
+    const val CLIENT_ID_LENGTH = 32
+
+    /** A Spotify Client ID: [CLIENT_ID_LENGTH] hex characters. */
+    val CLIENT_ID_REGEX = Regex("^[0-9a-fA-F]{$CLIENT_ID_LENGTH}$")
 
     /** Token file, next to `config.json` in `config/dyetracker/`. */
     const val AUTH_FILE_NAME = "spotify.json"
