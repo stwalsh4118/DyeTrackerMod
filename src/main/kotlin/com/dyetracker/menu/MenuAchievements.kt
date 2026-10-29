@@ -50,6 +50,15 @@ object MenuAchievements {
         "combo_" to COMBO,
     )
 
+    /** Each tier's color, from the website's `AchievementTierBadge`. */
+    private val TIER_COLORS = mapOf(
+        "bronze" to UiTheme.Colors.TIER_BRONZE,
+        "silver" to UiTheme.Colors.TIER_SILVER,
+        "gold" to UiTheme.Colors.TIER_GOLD,
+        "platinum" to UiTheme.Colors.TIER_PLATINUM,
+        "legendary" to UiTheme.Colors.TIER_LEGENDARY,
+    )
+
     /** Separates an achievement id's prefix from the rest, and the words of an unknown category. */
     private const val ID_SEPARATOR = '_'
     private const val CATEGORY_SEPARATOR = '-'
@@ -107,13 +116,16 @@ object MenuAchievements {
     fun tierLabel(tier: String?): String = tier?.uppercase() ?: ""
 
     /** [tier]'s color from the website's tier badge; an unknown or missing tier is muted. */
-    fun tierColor(tier: String?): Int = when (tier) {
-        "bronze" -> UiTheme.Colors.TIER_BRONZE
-        "silver" -> UiTheme.Colors.TIER_SILVER
-        "gold" -> UiTheme.Colors.TIER_GOLD
-        "platinum" -> UiTheme.Colors.TIER_PLATINUM
-        "legendary" -> UiTheme.Colors.TIER_LEGENDARY
-        else -> UiTheme.Colors.TEXT_MUTED
+    fun tierColor(tier: String?): Int = TIER_COLORS[tier] ?: UiTheme.Colors.TEXT_MUTED
+
+    /**
+     * [e]'s name color: its tier's when unlocked, [TEXT_PRIMARY][UiTheme.Colors.TEXT_PRIMARY] (the
+     * website's white) when unlocked without a known tier, [TEXT_SUBTLE][UiTheme.Colors.TEXT_SUBTLE] when locked.
+     */
+    fun nameColor(e: PlayerAchievementEntry): Int = when {
+        !e.unlocked -> UiTheme.Colors.TEXT_SUBTLE
+        e.tier in TIER_COLORS -> tierColor(e.tier)
+        else -> UiTheme.Colors.TEXT_PRIMARY
     }
 
     /** A tier pill's fill: [color] at [TIER_FILL_ALPHA]. */

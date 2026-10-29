@@ -164,6 +164,23 @@ class MenuAchievementsTest {
     }
 
     @Test
+    fun `an unlocked name takes its tier color`() {
+        assertEquals(UiTheme.Colors.TIER_GOLD, MenuAchievements.nameColor(entry("drop_a", tier = "gold", unlocked = true)))
+    }
+
+    @Test
+    fun `an unlocked name without a known tier is primary, like the website's white`() {
+        assertEquals(UiTheme.Colors.TEXT_PRIMARY, MenuAchievements.nameColor(entry("drop_a", unlocked = true)))
+        assertEquals(UiTheme.Colors.TEXT_PRIMARY, MenuAchievements.nameColor(entry("drop_a", tier = "mythic", unlocked = true)))
+    }
+
+    @Test
+    fun `a locked name is subtle whatever its tier`() {
+        assertEquals(UiTheme.Colors.TEXT_SUBTLE, MenuAchievements.nameColor(entry("drop_a", tier = "gold")))
+        assertEquals(UiTheme.Colors.TEXT_SUBTLE, MenuAchievements.nameColor(entry("drop_a")))
+    }
+
+    @Test
     fun `a tier pill's fill is its color at the pill alpha`() {
         assertEquals(0x26_FF_D7_00, MenuAchievements.tierFill(UiTheme.Colors.TIER_GOLD))
     }

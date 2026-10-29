@@ -84,8 +84,7 @@ internal object AchievementsTabView {
 
     /**
      * One achievement in [row]: its tier pill at the left (in [TIER_LOCKED][UiTheme.Colors.TIER_LOCKED]
-     * when locked) in a [tierColumn]-wide column; the name (tier color when unlocked, subtle when
-     * locked) with the small muted description under it, both vertically centred and fitted to end
+     * when locked) in a [tierColumn]-wide column; the name ([MenuAchievements.nameColor]) with the small muted description under it, both vertically centred and fitted to end
      * before the footer; the small footer right-aligned on the name line (emerald when unlocked,
      * muted otherwise), with a thin bar in the tier color under it for a locked achievement's progress.
      */
@@ -146,7 +145,7 @@ internal object AchievementsTabView {
             name,
             textX,
             nameY,
-            if (entry.unlocked) tierColor else UiTheme.Colors.TEXT_SUBTLE,
+            MenuAchievements.nameColor(entry),
         )
         val description = MenuCards.fitText(MenuAchievements.displayDescription(entry), textWidth) {
             screen.scaledWidth(it, scale)

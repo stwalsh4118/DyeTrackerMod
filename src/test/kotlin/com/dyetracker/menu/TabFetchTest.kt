@@ -11,7 +11,8 @@ import kotlin.test.assertTrue
 
 /**
  * Unit coverage for a menu tab's per-profile fetch (68-5): its state, the stale-result drop by
- * request, shown profile and close, and the should-fetch and busy decisions.
+ * request, shown profile and close, and the should-fetch and busy decisions; and clearing the
+ * state when the newest result is dropped for a profile no longer shown (68-6).
  */
 class TabFetchTest {
 
@@ -100,14 +101,57 @@ class TabFetchTest {
     }
 
     @Test
-    fun `a result for a profile the strip no longer shows is dropped`() {
+    fun `the newest result for a profile the strip no longer shows is dropped and clears the state`() {
         var applied = 0
         fetch.fetch(P1, { ApiClient.ApiResult.Success("owned") }) { applied++ }
         shown = P2
         runPosted()
 
-        assertEquals(FetchState.Loading(P1), fetch.state)
+        assertNull(fetch.state)
+        assertFalse(fetch.busy)
+        assertTrue(fetch.needsFetch(P1))
         assertEquals(0, applied)
+    }
+
+    @Test
+    fun `switching back to a profile whose result was dropped fetches it again`() {
+        fetch.fetch(P1, { ApiClient.ApiResult.Success("stale") })
+        shown = P2
+        runPosted()
+        shown = P1
+
+        assertTrue(fetch.needsFetch(P1))
+        fetch.fetch(P1, { ApiClient.ApiResult.Success("fresh") })
+        runPosted()
+        assertEquals(FetchState.Loaded(P1, "fresh"), fetch.state)
+    }
+
+    @Test
+    fun `a superseded result for a profile no longer shown leaves the newer fetch's state`() {
+        fetch.fetch(P1, { ApiClient.ApiResult.Success("old") })
+        fetch.fetch(P2, { ApiClient.ApiResult.Success("new") })
+        shown = P2
+        val (older, newer) = posted.toList()
+        posted.clear()
+
+        older()
+        assertEquals(FetchState.Loading(P2), fetch.state)
+        newer()
+        assertEquals(FetchState.Loaded(P2, "new"), fetch.state)
+    }
+
+    @Test
+    fun `a posted result applies, clears or is dropped by request, shown profile and close`() {
+        fetch.fetch(P1, { ApiClient.ApiResult.Success("a") })
+        fetch.fetch(P1, { ApiClient.ApiResult.Success("b") })
+
+        assertEquals(PostedResult.APPLY, fetch.dispositionOf(request = 2, profileId = P1))
+        assertEquals(PostedResult.CLEAR, fetch.dispositionOf(request = 2, profileId = P2))
+        assertEquals(PostedResult.DROP, fetch.dispositionOf(request = 1, profileId = P1))
+        assertEquals(PostedResult.DROP, fetch.dispositionOf(request = 1, profileId = P2))
+        fetch.close()
+        assertEquals(PostedResult.DROP, fetch.dispositionOf(request = 2, profileId = P1))
+        assertEquals(PostedResult.DROP, fetch.dispositionOf(request = 2, profileId = P2))
     }
 
     @Test
@@ -119,18 +163,6 @@ class TabFetchTest {
 
         assertEquals(FetchState.Loading(P1), fetch.state)
         assertEquals(0, applied)
-    }
-
-    @Test
-    fun `accepts only the latest request for the shown profile while open`() {
-        fetch.fetch(P1, { ApiClient.ApiResult.Success("a") })
-        fetch.fetch(P1, { ApiClient.ApiResult.Success("b") })
-
-        assertTrue(fetch.accepts(request = 2, profileId = P1))
-        assertFalse(fetch.accepts(request = 1, profileId = P1))
-        assertFalse(fetch.accepts(request = 2, profileId = P2))
-        fetch.close()
-        assertFalse(fetch.accepts(request = 2, profileId = P1))
     }
 
     @Test

@@ -13,6 +13,21 @@ private const val UNEXPECTED_ERROR_PREFIX = "Unexpected error: "
 internal fun unexpectedErrorMessage(e: Throwable): String =
     "$UNEXPECTED_ERROR_PREFIX${e.message ?: e.javaClass.simpleName}"
 
+/** What [TabFetch] does with a posted result ([TabFetch.dispositionOf]). */
+enum class PostedResult {
+    /** The newest fetch, for the profile shown, while open: it becomes Loaded or Failed. */
+    APPLY,
+
+    /**
+     * The newest fetch, but the strip moved to another profile meanwhile: dropped, and the state
+     * cleared so that profile is fetched again when next needed instead of staying Loading.
+     */
+    CLEAR,
+
+    /** Closed, or a newer fetch started: dropped, the state left to the newer fetch. */
+    DROP,
+}
+
 /** A [TabFetch]'s last fetch, for the profile [profileId]. */
 sealed class FetchState<out T> {
     abstract val profileId: String
@@ -26,7 +41,8 @@ sealed class FetchState<out T> {
  * One menu tab's fetch of per-profile data (the Collection tab's collection): the blocking call
  * runs on [scope] and its result is handed to [post] (the render thread), where it is dropped
  * when this was [close]d, a newer [fetch] started meanwhile, or the profile [shownProfileId] gives
- * is no longer the one fetched. Only the latest fetch's state is kept.
+ * is no longer the one fetched; in that last case the state is cleared ([PostedResult.CLEAR]).
+ * Only the latest fetch's state is kept.
  */
 class TabFetch<T>(
     private val scope: CoroutineScope,
@@ -66,8 +82,8 @@ class TabFetch<T>(
 
     /**
      * Starts fetching [profileId]'s data with the blocking [call], cancelling a running fetch, and
-     * shows Loading. Once posted and [accepts]ed the result becomes Loaded or Failed (a thrown
-     * exception too) and [onApplied] runs.
+     * shows Loading. Once posted, as [dispositionOf] says: the result becomes Loaded or Failed (a
+     * thrown exception too) and [onApplied] runs, or the state is cleared, or it is dropped.
      */
     fun fetch(profileId: String, call: () -> ApiClient.ApiResult<T>, onApplied: () -> Unit = {}) {
         val myRequest = ++request
@@ -82,7 +98,14 @@ class TabFetch<T>(
                 ApiClient.ApiResult.Error(unexpectedErrorMessage(e))
             }
             post {
-                if (!accepts(myRequest, profileId)) return@post
+                when (dispositionOf(myRequest, profileId)) {
+                    PostedResult.DROP -> return@post
+                    PostedResult.CLEAR -> {
+                        state = null
+                        return@post
+                    }
+                    PostedResult.APPLY -> Unit
+                }
                 state = when (result) {
                     is ApiClient.ApiResult.Success -> FetchState.Loaded(profileId, result.data)
                     is ApiClient.ApiResult.Error -> FetchState.Failed(profileId, result.message)
@@ -93,11 +116,14 @@ class TabFetch<T>(
     }
 
     /**
-     * Whether a result of [request] for [profileId] is applied: not [close]d, no newer fetch
-     * started, and the profile is still the one shown.
+     * What happens to a posted result of [request] for [profileId]: dropped when [close]d or a
+     * newer fetch started; else cleared when the profile shown is no longer [profileId]; else applied.
      */
-    internal fun accepts(request: Int, profileId: String): Boolean =
-        !closed && request == this.request && shownProfileId() == profileId
+    internal fun dispositionOf(request: Int, profileId: String): PostedResult = when {
+        closed || request != this.request -> PostedResult.DROP
+        shownProfileId() != profileId -> PostedResult.CLEAR
+        else -> PostedResult.APPLY
+    }
 
     /** Drops every result posted from now on and cancels the running fetch (the screen closed). */
     fun close() {
