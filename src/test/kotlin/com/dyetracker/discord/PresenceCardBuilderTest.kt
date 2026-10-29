@@ -154,6 +154,13 @@ class PresenceCardBuilderTest {
     }
 
     @Test
+    fun `odds that would round to 100 percent read 100 percent`() {
+        assertEquals("100%", huntOddsText(99.97))
+        assertEquals("100%", huntOddsText(99.95))
+        assertEquals("99.9%", huntOddsText(99.94))
+    }
+
+    @Test
     fun `dyeImageUrl points at the website's dye art`() {
         assertEquals("https://dyetracker.xyz/dyes/brick_red.webp", dyeImageUrl("brick_red"))
     }

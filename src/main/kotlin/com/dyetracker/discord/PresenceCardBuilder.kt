@@ -9,15 +9,19 @@ private const val MS_PER_SECOND = 1_000L
 /** The hunt odds from [HUNT_COMPLETE_PERCENT] up. */
 private const val HUNT_COMPLETE_TEXT = "100%"
 
+/** What [rotationPercentText] prints for odds just under [HUNT_COMPLETE_PERCENT] (99.95 up). */
+private const val ROUNDED_COMPLETE_TEXT = "100.0%"
+
 /**
  * The hunt line's odds for a dye's [progress] (percent): `null` without odds, [HUNT_COMPLETE_TEXT]
- * from [HUNT_COMPLETE_PERCENT] up, else the rotation line's [rotationPercentText] (`42.0%`,
- * `0.03%`, `0.0027%`).
+ * from [HUNT_COMPLETE_PERCENT] up and for odds that round up to it, else the rotation line's
+ * [rotationPercentText] (`42.0%`, `0.03%`, `0.0027%`).
  */
-fun huntOddsText(progress: Double?): String? = when {
-    progress == null -> null
-    progress >= HUNT_COMPLETE_PERCENT -> HUNT_COMPLETE_TEXT
-    else -> rotationPercentText(progress)
+fun huntOddsText(progress: Double?): String? {
+    if (progress == null) return null
+    if (progress >= HUNT_COMPLETE_PERCENT) return HUNT_COMPLETE_TEXT
+    val text = rotationPercentText(progress)
+    return if (text == ROUNDED_COMPLETE_TEXT) HUNT_COMPLETE_TEXT else text
 }
 
 /** The website's art for [dyeId], e.g. `https://dyetracker.xyz/dyes/nadeshiko.webp`. */
