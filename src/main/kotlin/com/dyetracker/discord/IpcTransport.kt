@@ -17,8 +17,11 @@ import java.util.Objects
 /** File name of the Discord IPC socket or pipe, before its index `0`..`9`. */
 private const val IPC_NAME = "discord-ipc-"
 
-/** Windows named-pipe namespace the Discord app listens in. */
-private const val WINDOWS_PIPE_DIR = """\\?\pipe\"""
+/**
+ * Windows named-pipe namespace the Discord app listens in. The `\\.\` device form, not `\\?\`:
+ * Java on Windows rewrites `\\?\pipe\x` to the relative path `pipe\x`, so that form never opens.
+ */
+private const val WINDOWS_PIPE_DIR = """\\.\pipe\"""
 
 /** Prefix of `os.name` on every Windows JVM. */
 private const val WINDOWS_OS_PREFIX = "Windows"

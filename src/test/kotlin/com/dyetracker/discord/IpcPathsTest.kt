@@ -19,14 +19,14 @@ class IpcPathsTest {
     fun `Windows lists the ten named pipes in order`() {
         val paths = ipcCandidatePaths("Windows 11", emptyMap())
         assertEquals(IPC_PIPE_COUNT, paths.size)
-        assertEquals("""\\?\pipe\discord-ipc-0""", paths.first())
-        assertEquals("""\\?\pipe\discord-ipc-9""", paths.last())
+        assertEquals("""\\.\pipe\discord-ipc-0""", paths.first())
+        assertEquals("""\\.\pipe\discord-ipc-9""", paths.last())
     }
 
     @Test
     fun `the Windows check ignores case and the env`() {
         val paths = ipcCandidatePaths("windows 10", mapOf("TMPDIR" to "/x"))
-        assertEquals(List(IPC_PIPE_COUNT) { """\\?\pipe\discord-ipc-$it""" }, paths)
+        assertEquals(List(IPC_PIPE_COUNT) { """\\.\pipe\discord-ipc-$it""" }, paths)
     }
 
     @Test
