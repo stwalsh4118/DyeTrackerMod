@@ -15,6 +15,7 @@ import com.dyetracker.ui.layout.Column
 import com.dyetracker.ui.layout.Row
 import com.dyetracker.ui.layout.Stack
 import com.dyetracker.ui.layout.StackChild
+import com.dyetracker.ui.theme.HudTint
 import com.dyetracker.ui.theme.UiTheme
 import java.util.Locale
 
@@ -148,12 +149,13 @@ object DyeProgressWidgetView {
     data class CardChrome(val background: Int, val border: Int?)
 
     /**
-     * The card fill/border for the [showBackground]/[showBorder] flags: the neutral
-     * `PANEL_BACKGROUND`/`PANEL_BORDER` when on, a transparent fill / no border when off.
+     * The card fill/border for the [showBackground]/[showBorder] flags: the [HudTint] panel
+     * colors when on (the neutral `PANEL_BACKGROUND`/`PANEL_BORDER` with no tint), a transparent
+     * fill / no border when off.
      */
     fun cardChrome(showBackground: Boolean, showBorder: Boolean): CardChrome = CardChrome(
-        background = if (showBackground) UiTheme.Colors.PANEL_BACKGROUND else UiTheme.Colors.TRANSPARENT,
-        border = if (showBorder) UiTheme.Colors.PANEL_BORDER else null,
+        background = if (showBackground) HudTint.panelBackground() else UiTheme.Colors.TRANSPARENT,
+        border = if (showBorder) HudTint.panelBorder() else null,
     )
 
     /**

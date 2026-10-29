@@ -15,6 +15,7 @@ import com.dyetracker.rotation.RotationPlacementEditor
 import com.dyetracker.rotation.RotationWidgetConfig
 import com.dyetracker.spotify.SpotifyActions
 import com.dyetracker.spotify.SpotifyHudFeature
+import com.dyetracker.spotify.tintAllText
 import com.dyetracker.sync.SyncManager
 import com.dyetracker.ui.bounce.BounceController
 import com.dyetracker.ui.edit.WidgetEditScreen
@@ -41,7 +42,8 @@ object DyeTrackerCommands {
 
     private const val GIF_URL_DISPLAY_MAX = 60
     private const val GIF_URL_TRUNCATE_AT = 57
-    private const val SPOTIFY_USAGE = "/dyetracker spotify clientid <id> | login | logout | now | toggle | edit"
+    private const val SPOTIFY_USAGE =
+        "/dyetracker spotify clientid <id> | login | logout | now | toggle | edit | tint on|off|toggle"
     private val gifCommandScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** IO scope for the async dye-widget add command (profile resolution). */
@@ -373,6 +375,35 @@ object DyeTrackerCommands {
                                     1
                                 }
                         )
+                        .then(
+                            ClientCommands.literal("tint")
+                                .then(
+                                    ClientCommands.literal("on")
+                                        .executes { context ->
+                                            handleSpotifyTintCommand(context.source, true)
+                                            1
+                                        }
+                                )
+                                .then(
+                                    ClientCommands.literal("off")
+                                        .executes { context ->
+                                            handleSpotifyTintCommand(context.source, false)
+                                            1
+                                        }
+                                )
+                                .then(
+                                    ClientCommands.literal("toggle")
+                                        .executes { context ->
+                                            handleSpotifyTintCommand(context.source, null)
+                                            1
+                                        }
+                                )
+                                // Bare `/dyetracker spotify tint` toggles.
+                                .executes { context ->
+                                    handleSpotifyTintCommand(context.source, null)
+                                    1
+                                }
+                        )
                         .executes { context ->
                             handleSpotifyStatusCommand(context.source)
                             1
@@ -515,6 +546,23 @@ object DyeTrackerCommands {
         source.sendFeedback(
             Component.literal("Spotify widget ${if (visible) "shown" else "hidden"}.")
                 .withStyle(if (visible) ChatFormatting.GREEN else ChatFormatting.YELLOW)
+        )
+    }
+
+    /**
+     * Turn "Tint all widgets" on or off (PBI 76). [target] is the state for `on`/`off`, or null
+     * for the bare/`toggle` form, which flips the saved flag.
+     */
+    private fun handleSpotifyTintCommand(source: FabricClientCommandSource, target: Boolean?) {
+        val enabled = if (target == null) {
+            SpotifyActions.toggleTintAll()
+        } else {
+            SpotifyActions.setTintAll(target)
+            target
+        }
+        source.sendFeedback(
+            Component.literal(tintAllText(enabled))
+                .withStyle(if (enabled) ChatFormatting.GREEN else ChatFormatting.YELLOW)
         )
     }
 

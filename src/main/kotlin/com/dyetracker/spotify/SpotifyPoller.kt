@@ -10,8 +10,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-/** Whether the poller asks Spotify this tick: only while connected and the widget is shown. */
-fun shouldPoll(connected: Boolean, widgetVisible: Boolean): Boolean = connected && widgetVisible
+/**
+ * Whether the poller asks Spotify this tick: only while connected, and the widget is shown or
+ * "Tint all widgets" is on (the tint follows the music with the widget hidden).
+ */
+fun shouldPoll(connected: Boolean, widgetVisible: Boolean, tintAll: Boolean): Boolean =
+    connected && (widgetVisible || tintAll)
 
 /**
  * The record after a poll that returned [result] at [nowMs]. A track, an episode or an ad marks
@@ -48,8 +52,9 @@ internal fun artUrlFor(rec: PollRecord, connected: Boolean): String? =
 /**
  * Keeps [SpotifyNowPlayingStore] current for the HUD widget (PBI 76). Every
  * [SpotifyConstants.POLL_INTERVAL_MS] (longer after a 429, see [pollDelayMs]) it asks Spotify
- * what's playing, but only while the player is connected and the widget is visible. Not connected
- * clears the record with no call; hidden leaves it alone. Runs on [SpotifyThreads.apiDispatcher],
+ * what's playing, but only while the player is connected and the widget is visible or "Tint all
+ * widgets" is on (see [shouldPoll]). Not connected clears the record with no call; hidden leaves
+ * it alone. Runs on [SpotifyThreads.apiDispatcher],
  * the one Spotify API thread. Failures are logged at debug and never reach gameplay.
  */
 object SpotifyPoller {
@@ -95,7 +100,7 @@ object SpotifyPoller {
         val session = SpotifySessions.default
         val connected = session.status() == SessionStatus.CONNECTED
         val visible = ConfigManager.spotifyPlacements.all().firstOrNull()?.visible ?: SpotifyWidgetConfig().visible
-        if (!shouldPoll(connected, visible)) {
+        if (!shouldPoll(connected, visible, ConfigManager.isSpotifyTintAll())) {
             publish(recordWithoutPoll(SpotifyNowPlayingStore.record, connected), System.currentTimeMillis())
             return null
         }

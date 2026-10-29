@@ -1,7 +1,7 @@
 package com.dyetracker.spotify
 
 /*
- * Player-facing Spotify text (PBI 76): failure lines and the status line. Pure, so it is
+ * Player-facing Spotify text (PBI 76): failure lines, the status line and the tint line. Pure, so it is
  * unit-tested without a client.
  */
 
@@ -21,3 +21,6 @@ fun statusText(status: SessionStatus): String = when (status) {
     SessionStatus.LOGGED_OUT -> "Spotify: logged out (/dyetracker spotify login)"
     SessionStatus.CONNECTED -> "Spotify: connected"
 }
+
+/** The chat line after "Tint all widgets" is set to [enabled]. */
+fun tintAllText(enabled: Boolean): String = "Tint all widgets: ${if (enabled) "on" else "off"}."

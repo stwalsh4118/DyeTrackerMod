@@ -6,12 +6,14 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Pure-JVM serialization tests for the PBI 76 `spotifyWidget` placement: config files that predate
  * it load with no placement (back-compat), and a placement round-trips through JSON so it survives
- * a restart. Mirrors [ConfigManager]'s JSON settings; no Minecraft runtime.
+ * a restart; the task 76-8 `spotifyTintAll` flag defaults to off and persists. Mirrors [ConfigManager]'s JSON settings; no Minecraft runtime.
  */
 class ModConfigSpotifyWidgetTest {
 
@@ -41,5 +43,17 @@ class ModConfigSpotifyWidgetTest {
             SpotifyWidgetConfig(id = SpotifyConstants.WIDGET_ID, x = 0.85f, y = 0.1f, scale = 1.0f, visible = true),
             SpotifyWidgetConfig(),
         )
+    }
+
+    @Test
+    fun `config files predating tint all load with it off`() {
+        val legacy = """{ "apiUrl": "https://example.test", "authToken": "", "bounceEnabled": true }"""
+        assertFalse(json.decodeFromString<ModConfig>(legacy).spotifyTintAll, "missing flag defaults to off")
+    }
+
+    @Test
+    fun `tint all round-trips through JSON so it survives a restart`() {
+        val reloaded = json.decodeFromString<ModConfig>(json.encodeToString(ModConfig(spotifyTintAll = true)))
+        assertTrue(reloaded.spotifyTintAll)
     }
 }

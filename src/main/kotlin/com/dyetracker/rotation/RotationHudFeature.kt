@@ -11,6 +11,7 @@ import com.dyetracker.ui.hud.HudWidgetEntry
 import com.dyetracker.ui.hud.HudWidgetRegistry
 import com.dyetracker.ui.layout.Row
 import com.dyetracker.ui.layout.Column
+import com.dyetracker.ui.theme.HudTint
 import com.dyetracker.ui.theme.UiTheme
 
 /**
@@ -64,7 +65,11 @@ object RotationHudFeature {
 
     private fun rotationWidget(rotation: DyeRotation): Widget {
         val tiles = rotation.dyeIds.map { dyeId -> tile(dyeId, rotation.boosts?.get(dyeId)) }
-        return PanelWidget(child = Row(children = tiles, spacing = UiTheme.Spacing.INNER_GAP))
+        return PanelWidget(
+            child = Row(children = tiles, spacing = UiTheme.Spacing.INNER_GAP),
+            background = HudTint.panelBackground(),
+            border = HudTint.panelBorder(),
+        )
     }
 
     private fun tile(dyeId: String, boost: Int?): Widget {

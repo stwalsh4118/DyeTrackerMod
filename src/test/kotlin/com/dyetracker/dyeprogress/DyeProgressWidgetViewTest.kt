@@ -2,7 +2,10 @@ package com.dyetracker.dyeprogress
 
 import com.dyetracker.api.DyeProgressEntry
 import com.dyetracker.dyeprogress.DyeProgressWidgetView.RenderState
+import com.dyetracker.ui.theme.HudTint
+import com.dyetracker.ui.theme.TintColors
 import com.dyetracker.ui.theme.UiTheme
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -17,6 +20,11 @@ import kotlin.test.assertTrue
  * `DrawContext`/`TextRenderer` and is verified in-client in 34-8 / 36-6.
  */
 class DyeProgressWidgetViewTest {
+
+    @AfterTest
+    fun resetTint() {
+        HudTint.colors = null
+    }
 
     private fun entry(progress: Double?, color: String = "#e225f4") = DyeProgressEntry(
         dyeId = "matcha",
@@ -181,6 +189,22 @@ class DyeProgressWidgetViewTest {
         assertNull(chrome.border)
     }
 
+    @Test
+    fun `cardChrome with both on takes the HUD tint when one is set`() {
+        HudTint.colors = TintColors(TINT_BACKGROUND, TINT_BORDER)
+        val chrome = DyeProgressWidgetView.cardChrome(showBackground = true, showBorder = true)
+        assertEquals(TINT_BACKGROUND, chrome.background)
+        assertEquals(TINT_BORDER, chrome.border)
+    }
+
+    @Test
+    fun `cardChrome with both off stays transparent and borderless under a HUD tint`() {
+        HudTint.colors = TintColors(TINT_BACKGROUND, TINT_BORDER)
+        val chrome = DyeProgressWidgetView.cardChrome(showBackground = false, showBorder = false)
+        assertEquals(UiTheme.Colors.TRANSPARENT, chrome.background)
+        assertNull(chrome.border)
+    }
+
     // --- readyLayout (piece composition + percent placement) ----------------
 
     @Test
@@ -309,5 +333,10 @@ class DyeProgressWidgetViewTest {
         val layout = DyeProgressWidgetView.readyLayout(cfg(showSource = false), hasSource = false, hasRotation = true)
         assertFalse(layout.showSource)
         assertTrue(layout.showRotation)
+    }
+
+    private companion object {
+        const val TINT_BACKGROUND = 0xC8_20_40_60.toInt()
+        const val TINT_BORDER = 0xFF_A0_B0_C0.toInt()
     }
 }

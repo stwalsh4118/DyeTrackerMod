@@ -27,7 +27,7 @@ fun normalizeClientId(raw: String): String? =
 fun shouldSaveLogin(startedWith: String, current: String): Boolean = startedWith.equals(current, ignoreCase = true)
 
 /**
- * The player-facing Spotify actions (Client ID, login, logout, now playing, status), shared by the
+ * The player-facing Spotify actions (Client ID, login, logout, now playing, tint, status), shared by the
  * `/dyetracker spotify` commands and, later, the Settings tab. Results go to a [feedback] function
  * on the client thread. A login runs on its own daemon thread, since it blocks on the browser;
  * Spotify API calls run on [SpotifyThreads.api], so they never queue behind an open login.
@@ -192,6 +192,18 @@ object SpotifyActions {
         val visible = !current
         SpotifyPlacementEditor.setVisible(SpotifyConstants.WIDGET_ID, visible)
         return visible
+    }
+
+    /** Turn "Tint all widgets" on or off (saved in the config). */
+    fun setTintAll(enabled: Boolean) {
+        ConfigManager.setSpotifyTintAll(enabled)
+    }
+
+    /** Flip "Tint all widgets"; returns whether it is now on. */
+    fun toggleTintAll(): Boolean {
+        val enabled = !ConfigManager.isSpotifyTintAll()
+        setTintAll(enabled)
+        return enabled
     }
 
     /** The one-line Spotify status. A cheap read of the saved file, safe on the client thread. */

@@ -84,6 +84,13 @@ data class ModConfig(
      * files without this field load unchanged. See PBI-76.
      */
     val spotifyWidget: SpotifyWidgetConfig? = null,
+
+    /**
+     * Whether "Tint all widgets" is on: the rotation and dye-progress widgets take the album
+     * colors of the playing Spotify track. Defaults to false so existing config files load
+     * unchanged. See PBI-76.
+     */
+    val spotifyTintAll: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_API_URL = "https://dye-tracker-api.seanwalsh4118-7a3.workers.dev"

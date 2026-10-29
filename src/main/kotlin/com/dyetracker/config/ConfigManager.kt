@@ -189,6 +189,17 @@ object ConfigManager {
     }
 
     /**
+     * Whether "Tint all widgets" is on (PBI 76): the rotation and dye-progress widgets take the
+     * playing Spotify track's album colors.
+     */
+    fun isSpotifyTintAll(): Boolean = config.spotifyTintAll
+
+    /** Persist the "Tint all widgets" flag, flushing to disk immediately via the standard [update] path. */
+    fun setSpotifyTintAll(enabled: Boolean) {
+        update { it.copy(spotifyTintAll = enabled) }
+    }
+
+    /**
      * Resets the configuration to default values and saves to disk.
      */
     fun reset() {

@@ -14,6 +14,7 @@ import com.dyetracker.rotation.RotationHudFeature
 import com.dyetracker.spotify.SpotifyHudFeature
 import com.dyetracker.spotify.SpotifyIconLoader
 import com.dyetracker.spotify.SpotifyPoller
+import com.dyetracker.spotify.SpotifyTintProvider
 import com.dyetracker.ui.bounce.BounceController
 import com.dyetracker.ui.edit.EditModeKeybind
 import com.dyetracker.ui.hud.HudWidgetHost
@@ -49,6 +50,8 @@ class DyeTrackerModClient : ClientModInitializer {
 
     override fun onInitializeClient() {
         HudWidgetHost.register()
+        // First provider: sets this frame's HUD tint before any widget is built (PBI 76).
+        SpotifyTintProvider.register()
         GifHudFeature.register()
         DyeSpriteLoader.register()
         RotationHudFeature.register()

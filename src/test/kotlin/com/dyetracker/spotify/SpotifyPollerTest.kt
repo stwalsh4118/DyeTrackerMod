@@ -2,36 +2,37 @@ package com.dyetracker.spotify
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertSame
-import kotlin.test.assertTrue
 
 /**
  * Unit coverage for [SpotifyPoller]'s pure parts (task 76-3): it polls only while connected and
- * the widget is visible, how a poll result changes the record (task 76-4), and which art it
+ * the widget is visible or "Tint all widgets" is on (task 76-8), how a poll result changes the record (task 76-4), and which art it
  * shows (none once logged out, task 76-6).
  */
 class SpotifyPollerTest {
 
     @Test
-    fun `connected and visible polls`() {
-        assertTrue(shouldPoll(connected = true, widgetVisible = true))
-    }
-
-    @Test
-    fun `connected and hidden does not poll`() {
-        assertFalse(shouldPoll(connected = true, widgetVisible = false))
-    }
-
-    @Test
-    fun `not connected and visible does not poll`() {
-        assertFalse(shouldPoll(connected = false, widgetVisible = true))
-    }
-
-    @Test
-    fun `not connected and hidden does not poll`() {
-        assertFalse(shouldPoll(connected = false, widgetVisible = false))
+    fun `polls only while connected and the widget is visible or tint all is on`() {
+        // connected, widgetVisible, tintAll -> polls
+        val table = listOf(
+            Triple(true, true, true) to true,
+            Triple(true, true, false) to true,
+            Triple(true, false, true) to true,
+            Triple(true, false, false) to false,
+            Triple(false, true, true) to false,
+            Triple(false, true, false) to false,
+            Triple(false, false, true) to false,
+            Triple(false, false, false) to false,
+        )
+        for ((input, polls) in table) {
+            val (connected, widgetVisible, tintAll) = input
+            assertEquals(
+                polls,
+                shouldPoll(connected, widgetVisible, tintAll),
+                "connected=$connected widgetVisible=$widgetVisible tintAll=$tintAll",
+            )
+        }
     }
 
     @Test
