@@ -258,3 +258,65 @@ data class AchievementsResponse(
     val unlockedCount: Int = 0,
     val totalCount: Int = 0
 )
+
+/**
+ * One dye the player made progress on in a [HistoryResponse]'s period: its [work] over the period
+ * (e.g. `1,000 skeletons`) and the [chance] (percent) of dropping it from that work, `null` when the
+ * dye has no drop chance.
+ */
+@Serializable
+data class HistoryDyeGain(
+    val dyeId: String = "",
+    val name: String = "",
+    val color: String = "",
+    val work: String = "",
+    val chance: Double? = null
+)
+
+/**
+ * Response from `GET /api/v1/player/:username/profile/:profileId/history?period=` (public
+ * endpoint): what the player gained over the [period] between the snapshots at [from] and [to]
+ * (epoch ms, `null` without any), from [snapshotCount] snapshots. History is recorded only for a
+ * [linked] player. [dyes] come sorted by chance (highest first, none last), then name. The JSON's
+ * `counters` are dropped by the client's `ignoreUnknownKeys` Json.
+ */
+@Serializable
+data class HistoryResponse(
+    val uuid: String = "",
+    val profileId: String = "",
+    val period: String = "",
+    val linked: Boolean = false,
+    val from: Long? = null,
+    val to: Long? = null,
+    val snapshotCount: Int = 0,
+    val dyes: List<HistoryDyeGain> = emptyList()
+)
+
+/**
+ * One time slice of a [HistoryDyeSeriesResponse], from [start] to [end] (epoch ms): the dye's
+ * [work] in it and the [cumulativeChance] of dropping it by its end, both `null` without
+ * snapshots to tell.
+ */
+@Serializable
+data class HistoryBucket(
+    val start: Long = 0,
+    val end: Long = 0,
+    val work: Double? = null,
+    val cumulativeChance: Double? = null
+)
+
+/**
+ * Response from `GET /api/v1/player/:username/profile/:profileId/history/dye/:dyeId?period=`
+ * (public endpoint): the dye [dyeId]'s work per time slice over the [period], oldest first
+ * (1h: 12 of 5 min, 24h: 24 of 1 h, 7d: 28 of 6 h, 30d: 30 of 1 day). [buckets] are empty for an
+ * unlinked player or without snapshots.
+ */
+@Serializable
+data class HistoryDyeSeriesResponse(
+    val uuid: String = "",
+    val profileId: String = "",
+    val period: String = "",
+    val dyeId: String = "",
+    val linked: Boolean = false,
+    val buckets: List<HistoryBucket> = emptyList()
+)

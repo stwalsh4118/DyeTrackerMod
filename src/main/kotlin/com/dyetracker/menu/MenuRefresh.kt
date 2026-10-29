@@ -1,7 +1,7 @@
 package com.dyetracker.menu
 
-/** What one click on the strip's Refresh pill fetches again: the [dyes], the [collection], the [achievements]. */
-data class RefreshPlan(val dyes: Boolean, val collection: Boolean, val achievements: Boolean)
+/** What one click on the strip's Refresh pill fetches again: the [dyes], the [collection], the [achievements], the [history]. */
+data class RefreshPlan(val dyes: Boolean, val collection: Boolean, val achievements: Boolean, val history: Boolean = false)
 
 /** What a landed dyes load does with one tab's data ([LoadFollowUp]). */
 enum class FollowUp {
@@ -26,6 +26,9 @@ object MenuRefresh {
     /** On the Achievements tab: only the achievements. */
     val ACHIEVEMENTS_TAB = RefreshPlan(dyes = false, collection = false, achievements = true)
 
+    /** On the History tab: only the history of the period shown. */
+    val HISTORY_TAB = RefreshPlan(dyes = false, collection = false, achievements = false, history = true)
+
     /**
      * On the Collection tab, built from the dyes and the collection: the collection, and the dyes
      * too unless [dyesLoaded], so a failed dyes load can be retried from this tab.
@@ -46,14 +49,19 @@ object MenuRefresh {
      * what it pushed, so the collection is fetched again, and the achievements too when the tab
      * shows or holds them for that profile ([achievementsHeld]).
      */
-    fun afterLoad(syncedFirst: Boolean, achievementsHeld: Boolean, onAchievementsTab: Boolean): LoadFollowUp = when {
-        syncedFirst -> LoadFollowUp(
-            collection = FollowUp.FETCH,
-            achievements = if (achievementsHeld || onAchievementsTab) FollowUp.FETCH else FollowUp.NONE,
+    fun afterLoad(syncedFirst: Boolean, achievementsHeld: Boolean, onAchievementsTab: Boolean): LoadFollowUp =
+        LoadFollowUp(
+            collection = if (syncedFirst) FollowUp.FETCH else FollowUp.ENSURE,
+            achievements = tabFollowUp(syncedFirst, held = achievementsHeld, onTab = onAchievementsTab),
         )
-        else -> LoadFollowUp(
-            collection = FollowUp.ENSURE,
-            achievements = if (onAchievementsTab) FollowUp.ENSURE else FollowUp.NONE,
-        )
+
+    /**
+     * What a loaded dyes result does next with one tab's data for its profile (the achievements,
+     * the history): without a sync first, it is fetched only when needed and only on its tab
+     * ([onTab]); when the load [syncedFirst], it is fetched again when the tab shows or [held] it.
+     */
+    fun tabFollowUp(syncedFirst: Boolean, held: Boolean, onTab: Boolean): FollowUp = when {
+        syncedFirst -> if (held || onTab) FollowUp.FETCH else FollowUp.NONE
+        else -> if (onTab) FollowUp.ENSURE else FollowUp.NONE
     }
 }
