@@ -21,25 +21,34 @@ fun normalizeClientId(raw: String): String? =
     raw.trim().takeIf { SpotifyConstants.CLIENT_ID_REGEX.matches(it) }?.lowercase()
 
 /**
- * The player-facing Spotify actions (Client ID, login, now playing), shared by the
+ * Whether a finished login may save its tokens: only when the saved Client ID is still the one
+ * the login [startedWith]. Case-insensitive, since IDs are stored lowercase.
+ */
+fun shouldSaveLogin(startedWith: String, current: String): Boolean = startedWith.equals(current, ignoreCase = true)
+
+/**
+ * The player-facing Spotify actions (Client ID, login, logout, now playing, status), shared by the
  * `/dyetracker spotify` commands and, later, the Settings tab. Results go to a [feedback] function
- * on the client thread; every Spotify call runs on one daemon worker thread.
+ * on the client thread. A login runs on its own daemon thread, since it blocks on the browser;
+ * Spotify API calls run on another, so they never queue behind an open login.
  */
 object SpotifyActions {
 
-    private const val WORKER_THREAD_NAME = "DyeTracker-SpotifyLogin"
-    private const val MS_PER_SECOND = 1000L
+    private const val LOGIN_THREAD_NAME = "DyeTracker-SpotifyLogin"
+    private const val API_THREAD_NAME = "DyeTracker-SpotifyApi"
 
     private const val SET_CLIENT_ID_FIRST = "Set your Client ID first: /dyetracker spotify clientid <id>"
     private const val LOGIN_FAILED_PREFIX = "Spotify login failed: "
+    private const val CLIENT_ID_CHANGED = "Your Client ID changed during login. Run /dyetracker spotify login again."
 
     /** Separates the title from the subtitle in the now-playing line. */
     private const val TITLE_SEPARATOR = " · "
 
-    /** One worker for the login (which blocks on the browser) and the now-playing call. */
-    private val worker: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, WORKER_THREAD_NAME).apply { isDaemon = true }
-    }
+    /** Runs logins only: one blocks on the browser for up to 5 minutes. */
+    private val loginWorker: ExecutorService = daemonWorker(LOGIN_THREAD_NAME)
+
+    /** Runs Spotify API calls (now playing), never behind a login. */
+    private val apiWorker: ExecutorService = daemonWorker(API_THREAD_NAME)
 
     private val loginRunning = AtomicBoolean(false)
 
@@ -73,7 +82,7 @@ object SpotifyActions {
             feedback(Component.literal("A Spotify login is already running.").withStyle(ChatFormatting.YELLOW))
             return
         }
-        worker.execute {
+        loginWorker.execute {
             try {
                 runLogin(clientId, feedback)
             } catch (e: Exception) {
@@ -120,47 +129,53 @@ object SpotifyActions {
         post(feedback, message)
     }
 
-    /** Exchange the code, save the tokens, and say how it went. */
+    /**
+     * Exchange the code, save the tokens, and say how it went. The tokens are saved only if the
+     * Client ID the login started with is still the saved one.
+     */
     private fun exchange(clientId: String, code: String, redirectUri: String, verifier: String): Component =
         when (val result = http.exchangeCode(clientId, code, redirectUri, verifier)) {
             is SpotifyResult.Success -> {
                 val tokens = result.data
-                val expiresAtMs = System.currentTimeMillis() + tokens.expiresIn * MS_PER_SECOND
+                val expiresAtMs = System.currentTimeMillis() + tokens.expiresIn * SpotifyConstants.MS_PER_SECOND
+                var saved = false
                 SpotifyAuthStore.update {
-                    it.copy(
-                        accessToken = tokens.accessToken,
-                        refreshToken = tokens.refreshToken.orEmpty(),
-                        expiresAtMs = expiresAtMs,
-                    )
+                    if (shouldSaveLogin(clientId, it.clientId)) {
+                        saved = true
+                        it.copy(
+                            accessToken = tokens.accessToken,
+                            refreshToken = tokens.refreshToken.orEmpty(),
+                            expiresAtMs = expiresAtMs,
+                        )
+                    } else {
+                        it
+                    }
                 }
-                DyeTrackerMod.info(
-                    "Spotify connected (access token present, refresh token {})",
-                    if (tokens.refreshToken.isNullOrEmpty()) "absent" else "present",
-                )
-                Component.literal("Spotify connected.").withStyle(ChatFormatting.GREEN)
+                if (saved) {
+                    DyeTrackerMod.info(
+                        "Spotify connected (access token present, refresh token {})",
+                        if (tokens.refreshToken.isNullOrEmpty()) "absent" else "present",
+                    )
+                    Component.literal("Spotify connected.").withStyle(ChatFormatting.GREEN)
+                } else {
+                    Component.literal(CLIENT_ID_CHANGED).withStyle(ChatFormatting.YELLOW)
+                }
             }
             is SpotifyResult.Failure -> red("$LOGIN_FAILED_PREFIX${result.message}")
         }
 
-    /** Print what's playing, with a link back to Spotify. */
+    /** Print what's playing, with a link back to Spotify. The session refreshes the token as needed. */
     fun now(feedback: (Component) -> Unit) {
-        val auth = SpotifyAuthStore.get()
-        val notReady = when {
-            auth.clientId.isBlank() -> SET_CLIENT_ID_FIRST
-            auth.accessToken.isBlank() -> "Not logged in: /dyetracker spotify login"
-            auth.expiresAtMs <= System.currentTimeMillis() -> "Spotify session expired: /dyetracker spotify login"
-            else -> null
-        }
-        if (notReady != null) {
-            feedback(Component.literal(notReady).withStyle(ChatFormatting.YELLOW))
+        if (SpotifySessions.default.status() == SessionStatus.NOT_SET_UP) {
+            feedback(Component.literal(SET_CLIENT_ID_FIRST).withStyle(ChatFormatting.YELLOW))
             return
         }
-        worker.execute {
+        apiWorker.execute {
             val message = try {
-                when (val result = http.currentlyPlaying(auth.accessToken)) {
+                when (val result = SpotifySessions.default.currentlyPlaying()) {
                     is SpotifyResult.Success -> nowPlayingLine(result.data)?.let(::nowPlayingComponent)
                         ?: Component.literal("Nothing playing on Spotify.").withStyle(ChatFormatting.GRAY)
-                    is SpotifyResult.Failure -> red("Spotify error: ${result.message}")
+                    is SpotifyResult.Failure -> red(failureText(result))
                 }
             } catch (e: Exception) {
                 DyeTrackerMod.error("Spotify now-playing failed", e)
@@ -169,6 +184,15 @@ object SpotifyActions {
             post(feedback, message)
         }
     }
+
+    /** Forget the Spotify tokens (the Client ID stays). */
+    fun logout(feedback: (Component) -> Unit) {
+        SpotifySessions.default.logout()
+        feedback(Component.literal("Logged out of Spotify.").withStyle(ChatFormatting.GREEN))
+    }
+
+    /** The one-line Spotify status. A cheap read of the saved file, safe on the client thread. */
+    fun status(): String = statusText(SpotifySessions.default.status())
 
     /** `<title> · <subtitle> [LISTEN ON SPOTIFY]`, the link only when Spotify gave a URL. */
     private fun nowPlayingComponent(line: NowPlayingLine): Component {
@@ -182,6 +206,10 @@ object SpotifyActions {
             )
         }
         return text
+    }
+
+    private fun daemonWorker(name: String): ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, name).apply { isDaemon = true }
     }
 
     private fun red(text: String): Component = Component.literal(text).withStyle(ChatFormatting.RED)

@@ -44,7 +44,7 @@ class SpotifyAuthFileStore(
  * The one Spotify token file, `config/dyetracker/spotify.json`. Loaded once, then served from
  * memory; [update] writes through under a lock.
  */
-object SpotifyAuthStore {
+object SpotifyAuthStore : AuthStorePort {
 
     private val store: SpotifyAuthFileStore by lazy {
         SpotifyAuthFileStore(
@@ -58,14 +58,14 @@ object SpotifyAuthStore {
     private var cached: SpotifyAuthFile? = null
 
     /** The current auth file (loaded from disk on first use). */
-    fun get(): SpotifyAuthFile = cached ?: synchronized(lock) {
+    override fun get(): SpotifyAuthFile = cached ?: synchronized(lock) {
         cached ?: store.load().also { cached = it }
     }
 
-    /** Apply [change] to the current file and save it. A failed write is logged; memory keeps the change. */
-    fun update(change: (SpotifyAuthFile) -> SpotifyAuthFile) {
+    /** Apply [f] to the current file and save it. A failed write is logged; memory keeps the change. */
+    override fun update(f: (SpotifyAuthFile) -> SpotifyAuthFile) {
         synchronized(lock) {
-            val next = change(get())
+            val next = f(get())
             cached = next
             try {
                 store.save(next)

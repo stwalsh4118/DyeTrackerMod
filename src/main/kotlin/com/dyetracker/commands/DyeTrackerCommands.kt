@@ -40,7 +40,7 @@ object DyeTrackerCommands {
 
     private const val GIF_URL_DISPLAY_MAX = 60
     private const val GIF_URL_TRUNCATE_AT = 57
-    private const val SPOTIFY_USAGE = "/dyetracker spotify clientid <id> | login | now"
+    private const val SPOTIFY_USAGE = "/dyetracker spotify clientid <id> | login | logout | now"
     private val gifCommandScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** IO scope for the async dye-widget add command (profile resolution). */
@@ -345,6 +345,13 @@ object DyeTrackerCommands {
                                 }
                         )
                         .then(
+                            ClientCommands.literal("logout")
+                                .executes { context ->
+                                    handleSpotifyLogoutCommand(context.source)
+                                    1
+                                }
+                        )
+                        .then(
                             ClientCommands.literal("now")
                                 .executes { context ->
                                     handleSpotifyNowCommand(context.source)
@@ -352,7 +359,7 @@ object DyeTrackerCommands {
                                 }
                         )
                         .executes { context ->
-                            sendSpotifyUsage(context.source)
+                            handleSpotifyStatusCommand(context.source)
                             1
                         }
                 )
@@ -457,6 +464,12 @@ object DyeTrackerCommands {
         )
     }
 
+    /** Bare `/dyetracker spotify`: the status line, then the usage line. */
+    private fun handleSpotifyStatusCommand(source: FabricClientCommandSource) {
+        source.sendFeedback(Component.literal(SpotifyActions.status()).withStyle(ChatFormatting.WHITE))
+        sendSpotifyUsage(source)
+    }
+
     private fun handleSpotifyClientIdCommand(source: FabricClientCommandSource, id: String) {
         when (SpotifyActions.setClientId(id)) {
             SpotifyActions.SetClientIdResult.Saved -> source.sendFeedback(
@@ -472,6 +485,10 @@ object DyeTrackerCommands {
 
     private fun handleSpotifyLoginCommand(source: FabricClientCommandSource) {
         SpotifyActions.login { source.sendFeedback(it) }
+    }
+
+    private fun handleSpotifyLogoutCommand(source: FabricClientCommandSource) {
+        SpotifyActions.logout { source.sendFeedback(it) }
     }
 
     private fun handleSpotifyNowCommand(source: FabricClientCommandSource) {
