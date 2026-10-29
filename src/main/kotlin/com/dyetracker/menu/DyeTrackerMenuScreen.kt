@@ -1322,10 +1322,11 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /**
      * One card, like the website's `DyeCard`: icon box with the sprite, name and category, a
      * status badge top-right, and a label/value line over the progress bar. A dye the player owns
-     * ([obtainedCount] above 0) has its [MenuCollection.obtainedBadge] left of the status badge,
-     * the name ending before it. The border takes the dye's accent when [hovered]. A [hint] goes at
-     * the right end of the label/value line, the value moving left of it, or dropped when the
-     * label, value and hint don't all fit.
+     * ([obtainedCount] above 0) has its [MenuCollection.obtainedBadge] right-aligned on the category
+     * line, its top level with the category text's ([MenuLayout.categoryLine]), the category ending
+     * before it. The border takes the dye's accent when [hovered]. A [hint] goes at the right end of
+     * the label/value line, the value moving left of it, or dropped when the label, value and hint
+     * don't all fit.
      */
     private fun drawCard(
         context: GuiGraphicsExtractor,
@@ -1350,17 +1351,24 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             if (hovered) accent else UiTheme.Colors.CARD_BORDER,
         )
         drawIconBox(context, renderCtx, entry.dyeId, x + padding, y + padding)
-        val statusLeft = drawBadge(context, MenuCards.badgeFor(entry), x + MenuLayout.CARD_WIDTH - padding, y + padding)
-        val badgeLeft = MenuCollection.obtainedBadge(obtainedCount)?.let {
-            drawBadge(context, it, OWNED_BADGE_COLORS, statusLeft - MenuLayout.TEXT_GAP, y + padding)
-        } ?: statusLeft
+        val badgeLeft = drawBadge(context, MenuCards.badgeFor(entry), x + MenuLayout.CARD_WIDTH - padding, y + padding)
 
         val textX = x + padding + MenuLayout.ICON_BOX + MenuLayout.TEXT_GAP
         val nameY = y + padding + MenuLayout.NAME_TOP_OFFSET
         val name = MenuCards.fitText(entry.name, badgeLeft - MenuLayout.TEXT_GAP - textX) { font.width(it) }
         UiDraw.drawText(context, font, name, textX, nameY, UiTheme.Colors.TEXT_PRIMARY)
         val textRight = x + MenuLayout.CARD_WIDTH - padding
-        val category = MenuCards.fitText(MenuCards.formatCategory(entry.category), textRight - textX) {
+        val categoryY = nameY + font.lineHeight
+        val obtained = MenuCollection.obtainedBadge(obtainedCount)
+        val categoryWidth = if (obtained == null) {
+            textRight - textX
+        } else {
+            val obtainedWidth = badgeWidth(obtained)
+            val line = MenuLayout.categoryLine(textX, textRight, obtainedWidth)
+            drawBadge(context, obtained, OWNED_BADGE_COLORS, line.badgeLeft + obtainedWidth, categoryY)
+            line.categoryWidth
+        }
+        val category = MenuCards.fitText(MenuCards.formatCategory(entry.category), categoryWidth) {
             scaledWidth(it, MenuLayout.SMALL_TEXT_SCALE)
         }
         UiDraw.drawText(
@@ -1368,7 +1376,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             font,
             category,
             textX,
-            nameY + font.lineHeight,
+            categoryY,
             UiTheme.Colors.TEXT_MUTED,
             scale = MenuLayout.SMALL_TEXT_SCALE,
         )
@@ -1461,7 +1469,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /** Draws a badge reading [label] in [colors], right-aligned to [right] with its top at [top]; returns its left edge. */
     internal fun drawBadge(context: GuiGraphicsExtractor, label: String, colors: BadgeColors, right: Int, top: Int): Int {
         val pad = MenuLayout.BADGE_PADDING
-        val boxWidth = scaledWidth(label, MenuLayout.BADGE_SCALE) + 2 * pad
+        val boxWidth = badgeWidth(label)
         val boxHeight = scaledLineHeight(MenuLayout.BADGE_SCALE) + 2 * pad
         val left = right - boxWidth
         UiDraw.filledBox(context, left, top, boxWidth, boxHeight, colors.background, colors.border)
@@ -1476,6 +1484,9 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         )
         return left
     }
+
+    /** Width of a badge reading [label], its padding included. */
+    private fun badgeWidth(label: String): Int = scaledWidth(label, MenuLayout.BADGE_SCALE) + 2 * MenuLayout.BADGE_PADDING
 
     /** A card badge's label [text] color, its [background] fill and its [border]. */
     internal data class BadgeColors(val text: Int, val background: Int, val border: Int)

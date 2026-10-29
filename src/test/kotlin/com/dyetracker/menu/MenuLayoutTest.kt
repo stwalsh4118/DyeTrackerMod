@@ -6,10 +6,36 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 /**
- * Unit coverage for the menu card-grid geometry (tasks 67-1, 67-2) and the Collection tab layout
- * (68-2, 68-3, its drop timeline 68-4).
+ * Unit coverage for the menu card-grid geometry (tasks 67-1, 67-2), the Collection tab layout
+ * (68-2, 68-3, its drop timeline 68-4), and a Dyes card's category line with its OBTAINED badge (68-5).
  */
 class MenuLayoutTest {
+
+    /** A Dyes card's text column: right of the icon box to the card's right padding. */
+    private val textLeft = 38
+    private val textRight = 154
+
+    @Test
+    fun `a category-line badge sits right-aligned and the category ends a gap before it`() {
+        val line = MenuLayout.categoryLine(textLeft, textRight, badgeWidth = 50)
+
+        assertEquals(CategoryLine(badgeLeft = 104, categoryWidth = 62), line)
+    }
+
+    @Test
+    fun `a badge as wide as the text column starts at its left edge and leaves no category`() {
+        assertEquals(CategoryLine(badgeLeft = 38, categoryWidth = 0), MenuLayout.categoryLine(textLeft, textRight, 116))
+    }
+
+    @Test
+    fun `a badge wider than the text column (OBTAINED x100) clamps to its left edge`() {
+        assertEquals(CategoryLine(badgeLeft = 38, categoryWidth = 0), MenuLayout.categoryLine(textLeft, textRight, 200))
+    }
+
+    @Test
+    fun `a badge leaving less than the gap gives the category no width, never negative`() {
+        assertEquals(CategoryLine(badgeLeft = 40, categoryWidth = 0), MenuLayout.categoryLine(textLeft, textRight, 114))
+    }
 
     @Test
     fun `one card width fits one column`() {

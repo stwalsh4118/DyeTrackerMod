@@ -23,6 +23,9 @@ data class CollectionGeometry(
     val timelineY: Int?,
 )
 
+/** Where a Dyes card's category-line badge starts ([badgeLeft]) and how wide the category text may be ([categoryWidth]). */
+data class CategoryLine(val badgeLeft: Int, val categoryWidth: Int)
+
 /** Sizes (GUI pixels) and card-grid geometry for the in-game DyeTracker menu. */
 object MenuLayout {
     /** Gap between the screen edges / header and the content. */
@@ -174,6 +177,16 @@ object MenuLayout {
             gridHeight = gridHeight,
             timelineY = timelineY,
         )
+    }
+
+    /**
+     * A Dyes card's category line in the text column [textLeft]..[textRight] with a badge
+     * [badgeWidth] wide: the badge right-aligned at [textRight] but never left of [textLeft], and
+     * the category text up to [TEXT_GAP] before it (`0` when nothing is left).
+     */
+    fun categoryLine(textLeft: Int, textRight: Int, badgeWidth: Int): CategoryLine {
+        val badgeLeft = max(textLeft, textRight - badgeWidth)
+        return CategoryLine(badgeLeft, categoryWidth = max(0, badgeLeft - TEXT_GAP - textLeft))
     }
 
     /** Top of drop timeline row [index] under a heading line ([lineHeight] tall) at [headingY]. */
