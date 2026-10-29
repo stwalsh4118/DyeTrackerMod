@@ -74,9 +74,9 @@ import kotlin.math.roundToInt
  * Achievements tab and the Settings tab. The Collection tab keeps the profile strip and shows which of the Dyes tab's
  * dyes the player owns on that profile, like the website's Collection page ([CollectionTabView]),
  * with category chips (owned/total each) and an All / Owned / Unowned filter of its own, kept while
- * the screen is open. The collection is fetched alongside the dyes (each load landing on a profile
- * without one, each profile switch, Refresh on the Dyes or Collection tab; and opening the
- * Collection tab after a failure), dropping a result for another profile or one a newer request
+ * the screen is open. The collection is fetched alongside the dyes (cached dyes shown on opening,
+ * each load landing on a profile without one, each profile switch, Refresh on the Dyes or
+ * Collection tab; and opening the Collection tab after a failure), dropping a result for another profile or one a newer request
  * superseded ([collectionFetch]).
  * Once loaded, the Dyes tab's cards of owned dyes show an OBTAINED badge and the strip's totals
  * count the obtained dyes; until then (or after a collection error) they show as without it.
@@ -89,7 +89,8 @@ import kotlin.math.roundToInt
  * ([COLLECTION_CACHE], [ACHIEVEMENTS_CACHE]); a profile's cached entry shows at once while it is
  * fetched again in the background, and a failed background fetch keeps it on screen. The strip's
  * status text is the shown tab's: how old its data is, "refreshing…" or "refresh failed". Refresh
- * fetches the shown tab's data again: on the Dyes tab the dyes and the collection.
+ * fetches the shown tab's data again ([MenuRefresh]): on the Dyes tab the dyes and the collection,
+ * on the Collection tab the collection (and the dyes while they aren't loaded).
  * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, the layout
  * editor), each control calling what its `/dyetracker` command calls. Settings state is read fresh
  * every frame, so a change made by a command meanwhile shows at once.
@@ -268,12 +269,13 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     private var statusFilter = StatusFilter.ALL
 
     /**
-     * Refresh is ignored while the shown tab's fetch runs: on the Collection tab a collection fetch,
-     * on the Achievements tab an achievements fetch, else a dyes load ([fetchRunning]).
+     * Refresh is ignored while the shown tab's fetch runs: on the Collection tab a collection fetch
+     * or a dyes load behind Loading ([MenuRefresh.collectionTabBlocked]), on the Achievements tab an
+     * achievements fetch, else a dyes load ([fetchRunning]).
      */
     private val refreshBlocked: Boolean
         get() = when (tab) {
-            MenuTab.COLLECTION -> collectionFetch.busy
+            MenuTab.COLLECTION -> MenuRefresh.collectionTabBlocked(collectionFetch.busy, state is ViewState.Loading)
             MenuTab.ACHIEVEMENTS -> achievementsFetch.busy
             MenuTab.DYES, MenuTab.SETTINGS -> fetchRunning
         }
@@ -327,12 +329,28 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         }
     }
 
-    /** Shows [cached]'s dyes and profile, and its fetch time for the age text. */
+    /**
+     * Shows [cached]'s dyes and profile, and its fetch time for the age text; its collection too
+     * ([ensureCollection]), at once when [COLLECTION_CACHE] has it, for the OBTAINED badges and totals.
+     */
     private fun showCached(cached: CachedMenu) {
         val result = cached.result
         strip = StripState(result.username, result.profiles, result.profile)
         state = ViewState.Loaded(result)
         fetchedAtMs = cached.fetchedAtMs
+        ensureCollection()
+    }
+
+    /** Fetches again what Refresh fetches on the shown tab ([MenuRefresh]), for [current]'s profile. */
+    private fun refresh(current: StripState) {
+        val plan = when (tab) {
+            MenuTab.COLLECTION -> MenuRefresh.collectionTab(dyesLoaded = state is ViewState.Loaded)
+            MenuTab.ACHIEVEMENTS -> MenuRefresh.ACHIEVEMENTS_TAB
+            MenuTab.DYES, MenuTab.SETTINGS -> MenuRefresh.DYES_TAB
+        }
+        if (plan.dyes) fetchProfile(current)
+        if (plan.collection) fetchCollection()
+        if (plan.achievements) fetchAchievements()
     }
 
     /**
@@ -530,16 +548,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 return true
             }
             if (layout.refreshPill?.rect?.contains(click.x(), click.y()) == true) {
-                if (!refreshBlocked) {
-                    when (tab) {
-                        MenuTab.COLLECTION -> fetchCollection()
-                        MenuTab.ACHIEVEMENTS -> fetchAchievements()
-                        MenuTab.DYES, MenuTab.SETTINGS -> {
-                            fetchProfile(currentStrip)
-                            fetchCollection() // the Dyes tab's OBTAINED badges and totals
-                        }
-                    }
-                }
+                if (!refreshBlocked) refresh(currentStrip)
                 return true
             }
         }
