@@ -307,7 +307,7 @@ object DyeProgressWidgetView {
         // Formatted only when the line shows, so a widget with it toggled off does no work per frame.
         val rotationText = entry.rotation
             ?.takeIf { layout.showRotation }
-            ?.let { rotationLineText(it, System.currentTimeMillis()) }
+            ?.let { rotationLineText(it) }
             .orEmpty()
 
         // Column width: spans the widest present piece so the header pins to the bar's edges.

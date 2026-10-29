@@ -5,17 +5,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Unit coverage for the single-dye widget's rotation line (task 72-4): the rotation chance
- * percent, the "since" age text, and the composed line for each combination of a known chance
- * (with/without `progress`) and a full or partial rotation (`since` null or set).
+ * Unit coverage for the single-dye widget's rotation line (tasks 72-4, 72-7): the rotation chance
+ * percent and the composed line, which always reads `this rotation` (the API's `since` is ignored)
+ * and tags a boosted chance with its multiplier, e.g. `(2x)`.
  */
 class RotationLineTest {
 
-    private val now = 1_800_000_000_000L
-    private val second = 1_000L
-    private val minute = 60 * second
-    private val hour = 60 * minute
-    private val day = 24 * hour
+    /** A `since` timestamp (ms): counting began partway through the rotation. */
+    private val since = 1_800_000_000_000L
 
     // --- rotationPercentText -------------------------------------------------
 
@@ -34,66 +31,43 @@ class RotationLineTest {
         assertEquals("1.2%", rotationPercentText(1.234))
     }
 
-    // --- sinceAgoText --------------------------------------------------------
-
-    @Test
-    fun `sinceAgoText under a minute is just now`() {
-        assertEquals("just now", sinceAgoText(now - 59 * second, now))
-    }
-
-    @Test
-    fun `sinceAgoText at one minute is 1m ago`() {
-        assertEquals("1m ago", sinceAgoText(now - 60 * second, now))
-    }
-
-    @Test
-    fun `sinceAgoText at 59 minutes is 59m ago`() {
-        assertEquals("59m ago", sinceAgoText(now - 59 * minute, now))
-    }
-
-    @Test
-    fun `sinceAgoText at one hour is 1h ago`() {
-        assertEquals("1h ago", sinceAgoText(now - hour, now))
-    }
-
-    @Test
-    fun `sinceAgoText at 23 hours is 23h ago`() {
-        assertEquals("23h ago", sinceAgoText(now - 23 * hour, now))
-    }
-
-    @Test
-    fun `sinceAgoText at 24 hours is 1d ago`() {
-        assertEquals("1d ago", sinceAgoText(now - day, now))
-    }
-
-    @Test
-    fun `sinceAgoText with a since in the future is just now`() {
-        assertEquals("just now", sinceAgoText(now + hour, now))
-    }
-
     // --- rotationLineText ----------------------------------------------------
 
     @Test
-    fun `rotationLineText with progress over the full rotation`() {
-        val r = DyeRotationStats(493, "1,234 skeletons", 0.04, 2, null)
-        assertEquals("1,234 skeletons · 0.04% this rotation", rotationLineText(r, now))
+    fun `rotationLineText with progress at a 2x boost tags the chance`() {
+        val r = DyeRotationStats(523, "16 skeletons", 0.0027, 2, null)
+        assertEquals("16 skeletons · 0.00% this rotation (2x)", rotationLineText(r))
     }
 
     @Test
-    fun `rotationLineText with progress over a partial rotation`() {
-        val r = DyeRotationStats(493, "1,234 skeletons", 1.234, 2, now - 2 * day)
-        assertEquals("1,234 skeletons · 1.2% since 2d ago", rotationLineText(r, now))
+    fun `rotationLineText with progress at a 3x boost tags the chance`() {
+        val r = DyeRotationStats(523, "16 skeletons", 0.0027, 3, null)
+        assertEquals("16 skeletons · 0.00% this rotation (3x)", rotationLineText(r))
     }
 
     @Test
-    fun `rotationLineText without progress over the full rotation`() {
-        val r = DyeRotationStats(493, "12 runs", null, 1, null)
-        assertEquals("12 runs this rotation", rotationLineText(r, now))
+    fun `rotationLineText with progress and no boost has no tag`() {
+        val r = DyeRotationStats(523, "16 skeletons", 0.0027, 1, null)
+        assertEquals("16 skeletons · 0.00% this rotation", rotationLineText(r))
     }
 
     @Test
-    fun `rotationLineText without progress over a partial rotation`() {
-        val r = DyeRotationStats(493, "12 runs", null, 1, now - 3 * hour)
-        assertEquals("12 runs since 3h ago", rotationLineText(r, now))
+    fun `rotationLineText ignores since`() {
+        val partial = DyeRotationStats(523, "16 skeletons", 0.0027, 2, since)
+        val full = DyeRotationStats(523, "16 skeletons", 0.0027, 2, null)
+        assertEquals(rotationLineText(full), rotationLineText(partial))
+        assertEquals("16 skeletons · 0.00% this rotation (2x)", rotationLineText(partial))
+    }
+
+    @Test
+    fun `rotationLineText without progress shows the count only`() {
+        val r = DyeRotationStats(523, "12 runs", null, 1, 123L)
+        assertEquals("12 runs this rotation", rotationLineText(r))
+    }
+
+    @Test
+    fun `rotationLineText without progress has no boost tag`() {
+        val r = DyeRotationStats(523, "12 runs", null, 2, 123L)
+        assertEquals("12 runs this rotation", rotationLineText(r))
     }
 }
