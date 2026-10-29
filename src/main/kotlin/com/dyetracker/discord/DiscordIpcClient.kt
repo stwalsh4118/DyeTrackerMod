@@ -10,6 +10,11 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 
 /** JSON keys and values of the Discord RPC messages this client sends and reads. */
 private const val KEY_EVT = "evt"
@@ -18,20 +23,46 @@ private const val EVT_READY = "READY"
 private const val EVT_ERROR = "ERROR"
 private const val CMD_SET_ACTIVITY = "SET_ACTIVITY"
 
+/** Name of the client's watchdog thread, which closes a connection Discord stopped answering. */
+private const val WATCHDOG_THREAD_NAME = "DyeTracker-DiscordWatchdog"
+
 /**
- * A minimal Discord IPC client: handshake, then SET_ACTIVITY requests, each answered before the
- * next is sent. Strictly request/response on the caller's thread and **not thread-safe**: only the
- * presence worker uses it (see [DiscordPresence]). Every failure comes back as `false`, never as
- * an exception; an I/O failure or a CLOSE from Discord also drops the connection.
+ * A minimal Discord IPC client: handshake, then SET_ACTIVITY and PING requests, each answered
+ * before the next is sent. Strictly request/response on the caller's thread and **not
+ * thread-safe**: only the presence worker uses it (see [DiscordPresence]). Every failure comes
+ * back as `false`, never as an exception; an I/O failure, a CLOSE from Discord or no answer within
+ * [responseTimeoutMs] also drops the connection. A PING from Discord while a reply is awaited is
+ * answered with a PONG.
+ *
+ * Every wait for a reply is guarded by a watchdog thread that closes the channel at
+ * [responseTimeoutMs]; on Unix that unblocks the read. On Windows the pipe input itself gives up
+ * by then (see [WindowsPipeConnector]), since closing a pipe there does not cancel a read.
  *
  * @param connector opens the channel to the Discord app.
  * @param applicationId the Discord application id; blank means [connect] always fails.
+ * @param responseTimeoutMs how long a request may wait for Discord's answer.
  */
-class DiscordIpcClient(private val connector: IpcConnector, private val applicationId: String) {
+class DiscordIpcClient(
+    private val connector: IpcConnector,
+    private val applicationId: String,
+    private val responseTimeoutMs: Long = IPC_RESPONSE_TIMEOUT_MS,
+) {
 
     /** Volatile only so [close] from another thread (game shutdown) is seen by the worker. */
     @Volatile
     private var channel: IpcChannel? = null
+
+    /** Guards [channel] being set against [close], and [closes]. */
+    private val channelLock = Any()
+
+    /** Counts [close] calls, so a connect that a close overtook can tell (see [connect]). */
+    private var closes = 0L
+
+    /** Guards [watchdog]. */
+    private val watchdogLock = Any()
+
+    /** Created on first use and again after [shutdownWatchdog], so the client stays usable. */
+    private var watchdog: ScheduledExecutorService? = null
 
     /** Whether a handshaken connection is open. */
     val isConnected: Boolean get() = channel != null
@@ -39,18 +70,27 @@ class DiscordIpcClient(private val connector: IpcConnector, private val applicat
     /**
      * Opens the connection and handshakes, returning `true` once Discord answers READY (or at once
      * when already connected). A blank [applicationId] returns `false` without calling the
-     * connector; no Discord, a CLOSE, EOF or an I/O error return `false` with nothing left open.
+     * connector; no Discord, a CLOSE, EOF, a timeout or an I/O error return `false` with nothing
+     * left open. A [close] that lands while the connector runs (game shutdown) wins: the channel it
+     * returns is closed and `false` returned.
      */
     fun connect(): Boolean {
         if (applicationId.isBlank()) return false
         if (isConnected) return true
+        val closesBefore = synchronized(channelLock) { closes }
         val opened = connector.connect() ?: return false
-        channel = opened
+        val kept = synchronized(channelLock) {
+            (closes == closesBefore).also { if (it) channel = opened }
+        }
+        if (!kept) {
+            closeQuietly(opened)
+            return false
+        }
         val handshake = buildJsonObject {
             put("v", IPC_VERSION)
             put("client_id", applicationId)
         }
-        return exchange(opened, IpcOp.HANDSHAKE, handshake) { it.string(KEY_EVT) == EVT_READY } != null
+        return exchange(opened, IpcOp.HANDSHAKE, handshake.toString(), IpcOp.FRAME) { it.string(KEY_EVT) == EVT_READY } != null
     }
 
     /**
@@ -69,45 +109,118 @@ class DiscordIpcClient(private val connector: IpcConnector, private val applicat
             }
             put(KEY_NONCE, nonce)
         }
-        val reply = exchange(open, IpcOp.FRAME, request) { it.string(KEY_NONCE) == nonce } ?: return false
+        val reply = exchange(open, IpcOp.FRAME, request.toString(), IpcOp.FRAME) { it.string(KEY_NONCE) == nonce } ?: return false
         return reply.string(KEY_EVT) != EVT_ERROR
     }
 
     /**
-     * Closes the connection, ignoring errors. [isConnected] is `false` afterwards. The one call that
-     * may come from another thread: closing the channel unblocks a read the worker is stuck in.
+     * Checks the connection is alive: sends a PING carrying a fresh nonce and waits for the PONG,
+     * skipping other frames. Returns `true` on the PONG and `false` when not connected or on a
+     * CLOSE, EOF, timeout or I/O error (which also close the connection).
+     */
+    fun ping(): Boolean {
+        val open = channel ?: return false
+        val request = buildJsonObject { put(KEY_NONCE, UUID.randomUUID().toString()) }
+        return exchange(open, IpcOp.PING, request.toString(), IpcOp.PONG) { true } != null
+    }
+
+    /** Clears the card for process [pid] when connected (a failure is ignored), then closes. */
+    fun clearAndClose(pid: Long) {
+        if (isConnected) setActivity(pid, null)
+        close()
+    }
+
+    /**
+     * Closes the connection, ignoring errors. [isConnected] is `false` afterwards, and a [connect]
+     * whose connector is still running when this lands fails. The one call that may come from
+     * another thread: on Unix closing the channel also unblocks a read the worker is in.
      */
     fun close() {
-        val open = channel ?: return
-        channel = null
+        val open = synchronized(channelLock) {
+            closes++
+            channel.also { channel = null }
+        } ?: return
+        closeQuietly(open)
+    }
+
+    /** Stops the watchdog thread (game shutdown). A later request starts a new one. */
+    fun shutdownWatchdog() {
+        synchronized(watchdogLock) {
+            watchdog?.shutdownNow()
+            watchdog = null
+        }
+    }
+
+    /**
+     * Sends [request] as an [op] frame, then reads frames until a [replyOp] frame whose JSON
+     * [matches], answering PINGs and skipping the rest. Returns that JSON, or `null` after closing
+     * the connection on a CLOSE frame, EOF, an I/O error or no match within [responseTimeoutMs].
+     */
+    private fun exchange(
+        open: IpcChannel,
+        op: IpcOp,
+        request: String,
+        replyOp: IpcOp,
+        matches: (JsonObject) -> Boolean,
+    ): JsonObject? {
+        val timer = scheduleClose(open)
+        if (timer == null) {
+            close()
+            return null
+        }
+        val reply = try {
+            send(open, op, request)
+            awaitReply(open, replyOp, matches)
+        } catch (_: IOException) {
+            // Broken pipe, a bad frame or the watchdog's close: handled as a dropped connection below.
+            null
+        }
+        // A timer that can no longer be cancelled has fired: the channel is gone even if a reply slipped in.
+        val timedOut = !timer.cancel(false)
+        if (reply == null || timedOut) {
+            close()
+            return null
+        }
+        return reply
+    }
+
+    private fun send(open: IpcChannel, op: IpcOp, json: String) {
+        open.output.write(IpcCodec.encode(op, json))
+        open.output.flush()
+    }
+
+    /** Reads until a [replyOp] frame whose JSON [matches]; `null` on a CLOSE frame or EOF. */
+    private fun awaitReply(open: IpcChannel, replyOp: IpcOp, matches: (JsonObject) -> Boolean): JsonObject? {
+        while (true) {
+            val frame = IpcCodec.read(open.input) ?: return null
+            when (frame.op) {
+                IpcOp.CLOSE.code -> return null
+                IpcOp.PING.code -> send(open, IpcOp.PONG, frame.json)
+                replyOp.code -> parseObject(frame.json)?.takeIf(matches)?.let { return it }
+            }
+        }
+    }
+
+    /** Closes [open] after [responseTimeoutMs] unless cancelled; `null` when the watchdog can't take it. */
+    private fun scheduleClose(open: IpcChannel): ScheduledFuture<*>? = try {
+        watchdog().schedule({ closeQuietly(open) }, responseTimeoutMs, TimeUnit.MILLISECONDS)
+    } catch (_: RejectedExecutionException) {
+        // Shut down between watchdog() and schedule(): game shutdown, so no request is guarded.
+        null
+    }
+
+    private fun watchdog(): ScheduledExecutorService = synchronized(watchdogLock) {
+        watchdog ?: Executors.newSingleThreadScheduledExecutor { task ->
+            Thread(task, WATCHDOG_THREAD_NAME).apply { isDaemon = true }
+        }.also { watchdog = it }
+    }
+
+    private fun closeQuietly(open: IpcChannel) {
         try {
             open.close()
         } catch (_: IOException) {
             // Already broken; nothing more to release.
         }
-    }
-
-    /**
-     * Sends [request] as an [op] frame, then reads frames until a FRAME whose JSON [matches],
-     * skipping the rest. Returns that JSON, or `null` after closing the connection on a CLOSE
-     * frame, EOF or an I/O error.
-     */
-    private fun exchange(open: IpcChannel, op: IpcOp, request: JsonObject, matches: (JsonObject) -> Boolean): JsonObject? {
-        try {
-            open.output.write(IpcCodec.encode(op, request.toString()))
-            open.output.flush()
-            while (true) {
-                val frame = IpcCodec.read(open.input) ?: break
-                if (frame.op == IpcOp.CLOSE.code) break
-                if (frame.op != IpcOp.FRAME.code) continue
-                val json = parseObject(frame.json) ?: continue
-                if (matches(json)) return json
-            }
-        } catch (_: IOException) {
-            // Broken pipe or a bad frame: handled as a dropped connection below.
-        }
-        close()
-        return null
     }
 
     /** [json] as an object, or `null` when it isn't one (such a frame is skipped). */

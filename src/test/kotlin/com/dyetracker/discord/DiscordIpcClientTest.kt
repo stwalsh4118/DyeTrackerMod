@@ -13,6 +13,7 @@ import org.junit.jupiter.api.condition.EnabledOnOs
 import org.junit.jupiter.api.condition.OS
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -34,14 +35,17 @@ class DiscordIpcClientTest {
         server = FakeDiscordServer(socket)
     }
 
+    private val clients = mutableListOf<DiscordIpcClient>()
+
     @AfterEach
     fun tearDown() {
+        clients.forEach { it.close(); it.shutdownWatchdog() }
         server.close()
         dir.toFile().deleteRecursively()
     }
 
-    private fun client(appId: String = APP_ID) =
-        DiscordIpcClient(UnixIpcConnector { listOf(socket.toString()) }, appId)
+    private fun client(appId: String = APP_ID, responseTimeoutMs: Long = IPC_RESPONSE_TIMEOUT_MS) =
+        DiscordIpcClient(UnixIpcConnector { listOf(socket.toString()) }, appId, responseTimeoutMs).also { clients += it }
 
     @Test
     fun `connect handshakes with version 1 and the client id`() {
@@ -148,5 +152,135 @@ class DiscordIpcClientTest {
         assertFalse(client.connect())
         assertFalse(client.isConnected)
         assertTrue(server.awaitClientClosed(), "the client closed its end")
+    }
+
+    @Test
+    fun `a Discord that never answers the handshake times out`() {
+        server.silent = true
+        val client = client(responseTimeoutMs = SHORT_TIMEOUT_MS)
+
+        val started = System.nanoTime()
+        assertFalse(client.connect())
+        val elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
+
+        assertFalse(client.isConnected)
+        assertTrue(elapsedMs < SHORT_TIMEOUT_MS + TIMEOUT_SLACK_MS, "gave up after ${elapsedMs}ms")
+        assertTrue(server.awaitClientClosed(), "the timed-out socket was closed")
+    }
+
+    @Test
+    fun `a Discord that never answers SET_ACTIVITY times out and disconnects`() {
+        val client = client(responseTimeoutMs = SHORT_TIMEOUT_MS)
+        assertTrue(client.connect())
+        server.silent = true
+
+        assertFalse(client.setActivity(PID, null))
+        assertFalse(client.isConnected)
+    }
+
+    @Test
+    fun `a PING before READY is answered with a PONG of the same JSON`() {
+        server.pingBeforeReady = """{"x":1}"""
+        val client = client(responseTimeoutMs = SHORT_TIMEOUT_MS)
+
+        assertTrue(client.connect(), "READY only comes after the PONG")
+
+        val pong = server.received.single { it.op == IpcOp.PONG.code }
+        assertEquals("""{"x":1}""", pong.json)
+    }
+
+    @Test
+    fun `a CLOSE instead of a SET_ACTIVITY reply returns false and disconnects`() {
+        server.closeOnSetActivity = true
+        val client = client()
+        assertTrue(client.connect())
+
+        assertFalse(client.setActivity(PID, buildJsonObject { put("details", "x") }))
+        assertFalse(client.isConnected)
+        assertTrue(server.awaitClientClosed())
+    }
+
+    @Test
+    fun `ping is true when Discord answers PONG`() {
+        val client = client()
+        assertTrue(client.connect())
+
+        assertTrue(client.ping())
+        assertTrue(client.isConnected)
+        val ping = server.payloads(IpcOp.PING).single()
+        assertTrue(ping.getValue("nonce").jsonPrimitive.content.isNotBlank(), "the PING carries a nonce")
+    }
+
+    @Test
+    fun `ping is false and disconnects when Discord answers CLOSE`() {
+        server.closeOnPing = true
+        val client = client()
+        assertTrue(client.connect())
+
+        assertFalse(client.ping())
+        assertFalse(client.isConnected)
+    }
+
+    @Test
+    fun `ping is false when Discord went away`() {
+        val client = client(responseTimeoutMs = SHORT_TIMEOUT_MS)
+        assertTrue(client.connect())
+        server.dropClient()
+
+        assertFalse(client.ping())
+        assertFalse(client.isConnected)
+    }
+
+    @Test
+    fun `ping is false without a connection`() {
+        assertFalse(client().ping())
+        assertTrue(server.received.isEmpty())
+    }
+
+    @Test
+    fun `clearAndClose clears the card then closes`() {
+        val client = client()
+        assertTrue(client.connect())
+
+        client.clearAndClose(PID)
+
+        assertEquals(JsonNull, server.setActivityArgs().single()["activity"])
+        assertFalse(client.isConnected)
+        assertTrue(server.awaitClientClosed())
+    }
+
+    @Test
+    fun `clearAndClose without a connection sends nothing`() {
+        client().clearAndClose(PID)
+        assertTrue(server.received.isEmpty())
+    }
+
+    @Test
+    fun `a close during the connector call closes the socket it returns`() {
+        lateinit var client: DiscordIpcClient
+        val unix = UnixIpcConnector { listOf(socket.toString()) }
+        // stop() lands while the worker is inside the connector.
+        client = DiscordIpcClient(IpcConnector { client.close(); unix.connect() }, APP_ID).also { clients += it }
+
+        assertFalse(client.connect())
+        assertFalse(client.isConnected)
+        assertTrue(server.awaitClientClosed(), "the late socket was closed")
+        assertTrue(server.received.isEmpty(), "no handshake on the late socket")
+    }
+
+    @Test
+    fun `the client reconnects after a close`() {
+        val client = client()
+        assertTrue(client.connect())
+        client.close()
+        assertTrue(server.awaitClientClosed())
+
+        assertTrue(client.connect())
+        assertEquals(2, server.connections)
+    }
+
+    private companion object {
+        const val SHORT_TIMEOUT_MS = 300L
+        const val TIMEOUT_SLACK_MS = 1_000L
     }
 }
