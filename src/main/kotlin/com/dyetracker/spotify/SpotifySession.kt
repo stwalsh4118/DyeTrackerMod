@@ -66,6 +66,11 @@ class SpotifySession(
      * Refresh the access token and save it, keeping the old refresh token unless Spotify rotated
      * it. Null on success, else the failure to return. `invalid_grant` (or no refresh token) ends
      * the session; any other failure keeps the tokens.
+     *
+     * The HTTP call takes time, so a logout, a new Client ID or a new login can land meanwhile.
+     * The result is written only if the file still holds the session that was refreshed; when it
+     * doesn't, the file is left alone and a stale success reports [NOT_LOGGED_IN], so the caller
+     * never uses a token the file no longer holds.
      */
     @Synchronized
     private fun refresh(): SpotifyResult.Failure? {
@@ -78,17 +83,23 @@ class SpotifySession(
             is SpotifyResult.Success -> {
                 val tokens = result.data
                 val expiresAtMs = clock() + tokens.expiresIn * SpotifyConstants.MS_PER_SECOND
+                var saved = false
                 store.update {
-                    it.copy(
-                        accessToken = tokens.accessToken,
-                        refreshToken = tokens.refreshToken ?: it.refreshToken,
-                        expiresAtMs = expiresAtMs,
-                    )
+                    if (it.isSameSession(auth)) {
+                        saved = true
+                        it.copy(
+                            accessToken = tokens.accessToken,
+                            refreshToken = tokens.refreshToken ?: it.refreshToken,
+                            expiresAtMs = expiresAtMs,
+                        )
+                    } else {
+                        it
+                    }
                 }
-                null
+                if (saved) null else SpotifyResult.Failure(SpotifyConstants.HTTP_UNAUTHORIZED, NOT_LOGGED_IN)
             }
             is SpotifyResult.Failure -> if (result.error == ERROR_INVALID_GRANT) {
-                store.update { it.withoutTokens() }
+                store.update { if (it.isSameSession(auth)) it.withoutTokens() else it }
                 SpotifyResult.Failure(SpotifyConstants.HTTP_UNAUTHORIZED, SESSION_ENDED)
             } else {
                 result
@@ -96,6 +107,10 @@ class SpotifySession(
         }
     }
 }
+
+/** Whether this file still holds [snapshot]'s session: same Client ID and refresh token. */
+private fun SpotifyAuthFile.isSameSession(snapshot: SpotifyAuthFile): Boolean =
+    clientId == snapshot.clientId && refreshToken == snapshot.refreshToken
 
 /** This file with the tokens cleared and the Client ID kept. */
 private fun SpotifyAuthFile.withoutTokens(): SpotifyAuthFile =

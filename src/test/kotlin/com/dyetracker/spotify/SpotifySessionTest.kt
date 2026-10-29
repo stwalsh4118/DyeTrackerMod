@@ -30,13 +30,16 @@ class SpotifySessionTest {
 
     /**
      * One fake endpoint: answers with queued (status, body) pairs, the last one repeating; a 500
-     * when none were given (an endpoint the test expects untouched).
+     * when none were given (an endpoint the test expects untouched). [beforeReply] runs once the
+     * request has arrived, before the reply: a store change made while the call is in flight.
      */
     private class Endpoint(vararg replies: Pair<Int, String?>) {
         val replies = ConcurrentLinkedQueue(replies.toList())
         val calls = AtomicInteger()
         val authorizations = CopyOnWriteArrayList<String?>()
         val bodies = CopyOnWriteArrayList<String>()
+
+        @Volatile var beforeReply: () -> Unit = {}
 
         fun next(): Pair<Int, String?> = (if (replies.size > 1) replies.poll() else replies.peek()) ?: (500 to null)
     }
@@ -59,6 +62,7 @@ class SpotifySessionTest {
                 endpoint.calls.incrementAndGet()
                 endpoint.authorizations.add(exchange.requestHeaders.getFirst("Authorization"))
                 endpoint.bodies.add(exchange.requestBody.readBytes().toString(StandardCharsets.UTF_8))
+                endpoint.beforeReply()
                 val (status, body) = endpoint.next()
                 if (body == null) {
                     exchange.sendResponseHeaders(status, -1)
@@ -217,6 +221,59 @@ class SpotifySessionTest {
     }
 
     @Test
+    fun `a logout during a refresh stays logged out`() {
+        store.file = CONNECTED_FILE.copy(expiresAtMs = NOW)
+        val token = Endpoint(200 to REFRESH_ROTATED).apply {
+            beforeReply = { store.file = SpotifyAuthFile(clientId = CLIENT_ID) }
+        }
+        val api = Endpoint(204 to null)
+        serve(token, api)
+
+        val result = session.currentlyPlaying()
+
+        assertEquals(SpotifyResult.Failure(401, "Not logged in"), result)
+        assertEquals(SpotifyAuthFile(clientId = CLIENT_ID), store.file)
+        assertEquals(SessionStatus.LOGGED_OUT, session.status())
+        assertEquals(0, api.calls.get())
+    }
+
+    @Test
+    fun `a Client ID change during a refresh keeps the new ID and no tokens`() {
+        store.file = CONNECTED_FILE.copy(expiresAtMs = NOW)
+        val token = Endpoint(200 to REFRESH_ROTATED).apply {
+            beforeReply = { store.file = SpotifyAuthFile(clientId = OTHER_CLIENT_ID) }
+        }
+        val api = Endpoint(204 to null)
+        serve(token, api)
+
+        val result = session.currentlyPlaying()
+
+        assertEquals(SpotifyResult.Failure(401, "Not logged in"), result)
+        assertEquals(SpotifyAuthFile(clientId = OTHER_CLIENT_ID), store.file)
+        assertEquals(0, api.calls.get())
+    }
+
+    @Test
+    fun `a stale refresh's invalid_grant leaves a fresh login's tokens alone`() {
+        store.file = CONNECTED_FILE.copy(expiresAtMs = NOW)
+        val freshLogin = CONNECTED_FILE.copy(
+            accessToken = "FRESH_ACCESS",
+            refreshToken = "FRESH_REFRESH",
+            expiresAtMs = NOW + 3_600_000,
+        )
+        val token = Endpoint(400 to """{"error":"invalid_grant","error_description":"Refresh token revoked"}""").apply {
+            beforeReply = { store.file = freshLogin }
+        }
+        serve(token = token)
+
+        val result = session.currentlyPlaying()
+
+        assertIs<SpotifyResult.Failure>(result)
+        assertEquals(freshLogin, store.file)
+        assertEquals(SessionStatus.CONNECTED, session.status())
+    }
+
+    @Test
     fun `a blank refresh token clears the tokens without calling Spotify`() {
         store.file = CONNECTED_FILE.copy(refreshToken = "", expiresAtMs = NOW)
         val token = Endpoint(200 to REFRESH_NO_ROTATION)
@@ -280,6 +337,7 @@ class SpotifySessionTest {
     private companion object {
         const val NOW = 1_800_000_000_000L
         const val CLIENT_ID = "0123456789abcdef0123456789abcdef"
+        const val OTHER_CLIENT_ID = "fedcba9876543210fedcba9876543210"
         const val TOKEN_PATH = "/api/token"
         const val PLAYING_PATH = "/v1/me/player/currently-playing"
 
