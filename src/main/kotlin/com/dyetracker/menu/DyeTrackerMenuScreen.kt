@@ -1,5 +1,6 @@
 package com.dyetracker.menu
 
+import com.dyetracker.api.AchievementsResponse
 import com.dyetracker.api.ApiClient
 import com.dyetracker.api.CollectionResponse
 import com.dyetracker.api.DyeProgressEntry
@@ -68,8 +69,8 @@ import kotlin.math.roundToInt
  * ([pinDecision]); a short message at the bottom says what happened, and the hovered card hints
  * whether a click would pin it.
  *
- * The header's tab pills switch between the Dyes tab (all of the above), the Collection tab and
- * the Settings tab. The Collection tab keeps the profile strip and shows which of the Dyes tab's
+ * The header's tab pills switch between the Dyes tab (all of the above), the Collection tab, the
+ * Achievements tab and the Settings tab. The Collection tab keeps the profile strip and shows which of the Dyes tab's
  * dyes the player owns on that profile, like the website's Collection page ([CollectionTabView]),
  * with category chips (owned/total each) and an All / Owned / Unowned filter of its own, kept while
  * the screen is open. The collection is fetched alongside the dyes (each load landing on a profile
@@ -77,6 +78,10 @@ import kotlin.math.roundToInt
  * dropping a result for another profile or one a newer request superseded ([collectionFetch]).
  * Once loaded, the Dyes tab's cards of owned dyes show an OBTAINED badge and the strip's totals
  * count the obtained dyes; until then (or after a collection error) they show as without it.
+ * The Achievements tab keeps the profile strip and shows that profile's achievements in category
+ * sections, like the website's Achievements page ([AchievementsTabView]), scrolling on their own.
+ * They are fetched only for that tab: on opening it, on a profile switch or Refresh while it shows,
+ * and when a load lands while it shows ([achievementsFetch], which drops a stale result likewise).
  * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, the layout
  * editor), each control calling what its `/dyetracker` command calls. Settings state is read fresh
  * every frame, so a change made by a command meanwhile shows at once.
@@ -87,6 +92,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     private enum class MenuTab(val label: String) {
         DYES("Dyes"),
         COLLECTION("Collection"),
+        ACHIEVEMENTS("Achievements"),
         SETTINGS("Settings"),
     }
 
@@ -247,12 +253,17 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     /** Which Collection cards show by ownership. */
     private var ownedFilter = OwnedFilter.ALL
 
+    /** Pixels the Achievements list is scrolled up by; apart from the card grids' scrolls. */
+    private var achievementsScroll = 0
+
     /**
-     * Refresh is ignored: a dyes load runs, or on the Collection tab a collection fetch does. On
-     * the Dyes tab this is just [fetchRunning].
+     * Refresh is ignored: a dyes load runs, or on the Collection tab a collection fetch does, or on
+     * the Achievements tab an achievements fetch does. On the Dyes tab this is just [fetchRunning].
      */
     private val refreshBlocked: Boolean
-        get() = fetchRunning || (tab == MenuTab.COLLECTION && collectionFetch.busy)
+        get() = fetchRunning ||
+            (tab == MenuTab.COLLECTION && collectionFetch.busy) ||
+            (tab == MenuTab.ACHIEVEMENTS && achievementsFetch.busy)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -262,6 +273,17 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
      * collection fetch started or the strip moved to another profile is dropped.
      */
     private val collectionFetch = TabFetch<CollectionResponse>(
+        scope,
+        post = { Minecraft.getInstance().execute(it) },
+        shownProfileId = { strip?.profile?.id },
+    )
+
+    /**
+     * The achievements of the profile the strip shows, for the Achievements tab only; a result
+     * posted after the screen closed, a newer achievements fetch started or the strip moved to
+     * another profile is dropped.
+     */
+    private val achievementsFetch = TabFetch<AchievementsResponse>(
         scope,
         post = { Minecraft.getInstance().execute(it) },
         shownProfileId = { strip?.profile?.id },
@@ -377,6 +399,27 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /**
+     * Fetches the achievements of the profile the strip shows ([ApiClient.fetchAchievements]) on
+     * [Dispatchers.IO] via [achievementsFetch], which drops a stale result on the render thread.
+     * Before the first load gives the strip a profile there is nothing to fetch; [applyResult]
+     * fetches once it lands. The Achievements list's scroll resets for another profile.
+     */
+    private fun fetchAchievements() {
+        val target = strip ?: return
+        val profileId = target.profile.id
+        if (achievementsFetch.state?.profileId != profileId) achievementsScroll = 0
+        achievementsFetch.fetch(profileId, { ApiClient.fetchAchievements(target.username, profileId) }) {
+            clampAchievementsScroll()
+        }
+    }
+
+    /** [fetchAchievements] unless the strip's profile has its achievements loaded or loading ([TabFetch.needsFetch]). */
+    private fun ensureAchievements() {
+        val profileId = strip?.profile?.id ?: return
+        if (achievementsFetch.needsFetch(profileId)) fetchAchievements()
+    }
+
+    /**
      * Syncs [data] now and suspends until the sync is done, succeeded or not. A failed sync
      * re-arms the normal debounced sync, since `syncNow` cancelled its pending retry. [attachRearm]
      * hangs the re-arm on the sync's own future and hands back a separate stage to wait on, so
@@ -401,7 +444,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
      * resets when it is another profile than the strip showed (a background full load picked the
      * profile selected in-game). A failed [background] load (or one finding no profiles) keeps the
      * cached dyes on screen and shows "refresh failed"; any other failure replaces the grid area.
-     * A loaded profile without its collection loaded or loading gets a collection fetch, on any tab.
+     * A loaded profile without its collection loaded or loading gets a collection fetch, on any tab;
+     * on the Achievements tab, likewise its achievements.
      */
     private fun applyResult(result: MenuLoadResult, background: Boolean) {
         refreshing = false
@@ -417,6 +461,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 clampScrollToContent() // a refresh can change how many dyes there are
                 // A first load or one landing on another profile needs that profile's collection.
                 ensureCollection()
+                if (tab == MenuTab.ACHIEVEMENTS) ensureAchievements()
             }
             background -> refreshFailed = true
             else -> state = result.toViewState()
@@ -433,6 +478,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         epoch++
         closed = true
         collectionFetch.close()
+        achievementsFetch.close()
         scope.cancel()
         super.removed()
     }
@@ -445,7 +491,11 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         val tabPill = pillAt(tabPills(), click.x(), click.y())
         if (tabPill != null) {
             tab = MenuTab.valueOf(tabPill.key)
-            if (tab == MenuTab.COLLECTION) ensureCollection() // reuses the Dyes tab's collection; retries a failed one
+            when (tab) {
+                MenuTab.COLLECTION -> ensureCollection() // reuses the Dyes tab's collection; retries a failed one
+                MenuTab.ACHIEVEMENTS -> ensureAchievements() // fetched once per profile; retries a failed one
+                MenuTab.DYES, MenuTab.SETTINGS -> Unit
+            }
             return true
         }
         if (tab == MenuTab.SETTINGS) return clickSettings(click.x(), click.y(), doubled)
@@ -458,17 +508,20 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             if (currentStrip.canSwitch && layout.profilePill.rect.contains(click.x(), click.y())) {
                 switchProfile(currentStrip)
                 ensureCollection()
+                if (tab == MenuTab.ACHIEVEMENTS) ensureAchievements()
                 return true
             }
             if (layout.refreshPill?.rect?.contains(click.x(), click.y()) == true) {
                 if (!refreshBlocked) {
                     fetchProfile(currentStrip)
                     fetchCollection()
+                    if (tab == MenuTab.ACHIEVEMENTS) fetchAchievements()
                 }
                 return true
             }
         }
         if (tab == MenuTab.COLLECTION) return clickCollectionPill(click.x(), click.y()) // its cards aren't clickable
+        if (tab == MenuTab.ACHIEVEMENTS) return false // its rows aren't clickable; never the hidden Dyes grid
         val loaded = state as? ViewState.Loaded ?: return false // control pills and cards only show over loaded dyes
         val pill = pillAt(grid.pills, click.x(), click.y())
         if (pill != null) {
@@ -635,6 +688,16 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             )
             return true
         }
+        if (tab == MenuTab.ACHIEVEMENTS) {
+            val geometry = loadedAchievements()?.let { achievementsGeometry(MenuAchievements.sections(it.achievements)) }
+                ?: return false // no list shows
+            achievementsScroll = MenuLayout.clampScroll(
+                achievementsScroll - (vertical * MenuLayout.SCROLL_STEP).toInt(),
+                geometry.contentHeight,
+                geometry.viewport.height,
+            )
+            return true
+        }
         val grid = gridGeometry(visibleDyes().size)
         scroll = MenuLayout.clampScroll(
             scroll - (vertical * MenuLayout.SCROLL_STEP).toInt(),
@@ -648,6 +711,33 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         val grid = gridGeometry(visibleDyes().size)
         scroll = MenuLayout.clampScroll(scroll, grid.contentHeight, grid.viewport.height)
         clampCollectionScroll()
+        clampAchievementsScroll()
+    }
+
+    /** Keeps [achievementsScroll] within the Achievements list; leaves it while no list shows. */
+    private fun clampAchievementsScroll() {
+        val response = loadedAchievements() ?: return
+        val geometry = achievementsGeometry(MenuAchievements.sections(response.achievements))
+        achievementsScroll = MenuLayout.clampScroll(achievementsScroll, geometry.contentHeight, geometry.viewport.height)
+    }
+
+    /** The achievements loaded for the profile the strip shows, else `null` (none shown, loading, failed). */
+    private fun loadedAchievements(): AchievementsResponse? = strip?.profile?.id?.let(achievementsFetch::loadedFor)
+
+    /**
+     * Where the Achievements tab's parts sit for [sections] on the current screen size: below the
+     * profile strip, as wide as it.
+     */
+    private fun achievementsGeometry(sections: List<AchievementSection>): AchievementsGeometry {
+        val stripRow = gridGeometry(0).stripRow
+        return MenuLayout.achievementsGeometry(
+            top = stripRow.bottom + MenuLayout.STRIP_GAP,
+            left = stripRow.x,
+            width = stripRow.width,
+            screenHeight = height,
+            lineHeight = font.lineHeight,
+            sectionSizes = sections.map { it.entries.size },
+        )
     }
 
     /** Keeps [collectionScroll] within the Collection grid; leaves it while no grid shows. */
@@ -969,6 +1059,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         when (tab) {
             MenuTab.DYES -> drawDyesTab(context, mouseX, mouseY)
             MenuTab.COLLECTION -> drawCollectionTab(context, mouseX, mouseY)
+            MenuTab.ACHIEVEMENTS -> drawAchievementsTab(context, mouseX, mouseY)
             MenuTab.SETTINGS -> drawSettings(context, mouseX, mouseY)
         }
         drawPinMessage(context)
@@ -1019,6 +1110,38 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                     collectionScroll,
                     mouseX,
                     mouseY,
+                )
+            }
+        }
+    }
+
+    /**
+     * The Achievements tab: the profile strip, then the strip profile's achievements
+     * ([AchievementsTabView]) once loaded, else their loading or failure message. Before the first
+     * load gives the strip a profile, the Dyes tab's loading or failure message shows.
+     */
+    private fun drawAchievementsTab(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
+        val messageArea = drawStripArea(context, gridGeometry(0).stripRow, mouseX, mouseY)
+        val profileId = strip?.profile?.id
+        if (profileId == null) {
+            drawStateMessage(context, state, messageArea)
+            return
+        }
+        when (val current = achievementsFetch.stateFor(profileId)) {
+            null, is FetchState.Loading ->
+                drawMessage(context, ACHIEVEMENTS_LOADING_TEXT, UiTheme.Colors.TEXT_SUBTLE, messageArea)
+            is FetchState.Failed ->
+                drawMessage(context, "$ACHIEVEMENTS_FAILED_PREFIX${current.message}", UiTheme.Colors.STATUS_ERROR, messageArea)
+            is FetchState.Loaded -> {
+                val sections = MenuAchievements.sections(current.data.achievements)
+                AchievementsTabView.draw(
+                    this,
+                    context,
+                    font,
+                    current.data,
+                    sections,
+                    achievementsGeometry(sections),
+                    achievementsScroll,
                 )
             }
         }
@@ -1284,15 +1407,32 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         drawBelow: () -> Unit = {},
         drawItem: (index: Int, x: Int, y: Int) -> Unit,
     ) {
+        drawScrolled(context, viewport, contentHeight, scroll) {
+            for (index in 0 until itemCount) {
+                val (x, y) = MenuLayout.cardOrigin(index, columns, left, viewport.y - scroll)
+                if (y >= viewport.bottom) break // cards are row-ordered, so every later card is below too
+                if (y + MenuLayout.CARD_HEIGHT <= viewport.y) continue
+                drawItem(index, x, y)
+            }
+            drawBelow()
+        }
+    }
+
+    /**
+     * [drawContent] clipped to [viewport], then the scrollbar for [contentHeight] scrolled by
+     * [scroll]. Nothing is drawn when the window leaves the viewport empty (26.2 rejects a
+     * zero-size scissor).
+     */
+    internal fun drawScrolled(
+        context: GuiGraphicsExtractor,
+        viewport: Rect,
+        contentHeight: Int,
+        scroll: Int,
+        drawContent: () -> Unit,
+    ) {
         if (viewport.width <= 0 || viewport.height <= 0) return
         context.enableScissor(viewport.x, viewport.y, viewport.right, viewport.bottom)
-        for (index in 0 until itemCount) {
-            val (x, y) = MenuLayout.cardOrigin(index, columns, left, viewport.y - scroll)
-            if (y >= viewport.bottom) break // cards are row-ordered, so every later card is below too
-            if (y + MenuLayout.CARD_HEIGHT <= viewport.y) continue
-            drawItem(index, x, y)
-        }
-        drawBelow()
+        drawContent()
         context.disableScissor()
         drawScrollbar(context, viewport, contentHeight, scroll)
     }
@@ -1486,7 +1626,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /** Width of a badge reading [label], its padding included. */
-    private fun badgeWidth(label: String): Int = scaledWidth(label, MenuLayout.BADGE_SCALE) + 2 * MenuLayout.BADGE_PADDING
+    internal fun badgeWidth(label: String): Int = scaledWidth(label, MenuLayout.BADGE_SCALE) + 2 * MenuLayout.BADGE_PADDING
 
     /** A card badge's label [text] color, its [background] fill and its [border]. */
     internal data class BadgeColors(val text: Int, val background: Int, val border: Int)
@@ -1523,6 +1663,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         private const val EMPTY_FILTER_TEXT = "No dyes in this category."
         private const val COLLECTION_LOADING_TEXT = "Loading your collection…"
         private const val COLLECTION_FAILED_PREFIX = "Couldn't load your collection: "
+        private const val ACHIEVEMENTS_LOADING_TEXT = "Loading achievements…"
+        private const val ACHIEVEMENTS_FAILED_PREFIX = "Couldn't load achievements: "
         private const val SORT_LABEL_PREFIX = "Sort: "
         private const val PROFILE_LABEL_PREFIX = "Profile: "
 

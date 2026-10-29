@@ -48,7 +48,19 @@ internal object CollectionTabView {
     ) {
         val viewport = geometry.viewport
         val renderCtx = RenderContext(context, Util.getMillis(), false)
-        drawSummary(context, renderCtx, font, MenuCollection.summary(cells), geometry)
+        val summary = MenuCollection.summary(cells)
+        drawSummary(
+            context,
+            renderCtx,
+            font,
+            MenuCollection.summaryText(summary),
+            MenuCollection.percentText(summary),
+            MenuCollection.percent(summary),
+            viewport.x,
+            geometry.summaryY,
+            geometry.barY,
+            viewport.width,
+        )
         geometry.hintY?.let { hintY ->
             val hint = MenuCards.fitText(MenuCollection.EMPTY_HINT, viewport.width) { font.width(it) }
             UiDraw.drawText(
@@ -179,31 +191,38 @@ internal object CollectionTabView {
         }
     }
 
-    /** `N of M Dyes` then its percent on one line, and below it the full-width progress bar. */
-    private fun drawSummary(
+    /**
+     * A tab's summary from [left]: [summaryText] then [percentText] on one line at [summaryY], and
+     * at [barY] a progress bar [width] wide filled to [percent] (`0` to `100`) in the emerald
+     * collection accent. The Collection and Achievements tabs share it.
+     */
+    internal fun drawSummary(
         context: GuiGraphicsExtractor,
         renderCtx: RenderContext,
         font: Font,
-        summary: MenuCollection.CollectionSummary,
-        geometry: CollectionGeometry,
+        summaryText: String,
+        percentText: String,
+        percent: Double,
+        left: Int,
+        summaryY: Int,
+        barY: Int,
+        width: Int,
     ) {
-        val left = geometry.viewport.x
-        val summaryText = MenuCollection.summaryText(summary)
-        UiDraw.drawText(context, font, summaryText, left, geometry.summaryY, UiTheme.Colors.TEXT_PRIMARY)
+        UiDraw.drawText(context, font, summaryText, left, summaryY, UiTheme.Colors.TEXT_PRIMARY)
         UiDraw.drawText(
             context,
             font,
-            MenuCollection.percentText(summary),
+            percentText,
             left + font.width(summaryText) + MenuLayout.STRIP_ITEM_GAP,
-            geometry.summaryY,
+            summaryY,
             UiTheme.Colors.TEXT_SUBTLE,
         )
         ProgressBarWidget(
-            value = MenuCollection.percent(summary).toFloat(),
-            width = geometry.viewport.width,
+            value = percent.toFloat(),
+            width = width,
             height = UiTheme.Sizing.PROGRESS_BAR_HEIGHT,
             fillColor = UiTheme.Colors.COLLECTION_ACCENT,
-        ).draw(renderCtx, left, geometry.barY)
+        ).draw(renderCtx, left, barY)
     }
 
     /**
