@@ -76,6 +76,7 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 - Switch between your SkyBlock profiles with the profile switcher.
 - Filter by category and change the sort order (progress or name).
 - Click a dye to pin it to your HUD as a progress widget.
+- Dyes you've obtained show an **OBTAINED** badge, and the top bar shows how many of the dyes you've obtained (see the Collection tab).
 
 **Collection tab**
 
