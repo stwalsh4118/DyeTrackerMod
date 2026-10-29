@@ -9,8 +9,10 @@ import net.minecraft.world.scores.DisplaySlot
 /**
  * Tracks whether the player is on Hypixel SkyBlock, for the Discord card. Every
  * [SKYBLOCK_POLL_TICKS] client ticks it reads the server address and the sidebar title on the
- * client thread, feeds [isSkyBlock] to one [SkyBlockSession] and publishes the result in [active]
+ * client thread, feeds [countsAsSkyBlock] to one [SkyBlockSession] and publishes the result in [active]
  * and [startedAtMs], the only state the presence worker reads. A disconnect ends the session at once.
+ * The session is only touched on the client thread: DISCONNECT can fire on the Netty event loop, so
+ * its handler hands the work to the client, and a poll on a dropped connection counts as off SkyBlock.
  */
 object SkyBlockTracker {
 
@@ -37,17 +39,20 @@ object SkyBlockTracker {
                 poll(client)
             }
         }
-        ClientPlayConnectionEvents.DISCONNECT.register { _, _ ->
-            session.leaveNow()
-            publish()
+        ClientPlayConnectionEvents.DISCONNECT.register { _, client ->
+            client.execute {
+                session.leaveNow()
+                publish()
+            }
         }
         DyeTrackerMod.info("SkyBlockTracker registered")
     }
 
     private fun poll(client: Minecraft) {
+        val connected = client.getConnection()?.getConnection()?.isConnected() == true
         val address = client.getCurrentServer()?.ip
         val sidebarTitle = client.level?.getScoreboard()?.getDisplayObjective(DisplaySlot.SIDEBAR)?.getDisplayName()?.getString()
-        session.update(isSkyBlock(address, sidebarTitle), System.currentTimeMillis())
+        session.update(countsAsSkyBlock(connected, address, sidebarTitle), System.currentTimeMillis())
         publish()
     }
 

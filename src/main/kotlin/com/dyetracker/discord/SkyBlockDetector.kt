@@ -31,6 +31,13 @@ fun isSkyBlock(serverAddress: String?, sidebarTitle: String?): Boolean {
 }
 
 /**
+ * What one SkyBlock check reports: [isSkyBlock] over a [connected] link only. A dropped connection
+ * is off SkyBlock even while the level and its SKYBLOCK sidebar linger before teardown.
+ */
+fun countsAsSkyBlock(connected: Boolean, serverAddress: String?, sidebarTitle: String?): Boolean =
+    connected && isSkyBlock(serverAddress, sidebarTitle)
+
+/**
  * One SkyBlock visit, fed a SkyBlock check now and then. Entering is immediate; leaving waits until
  * the player has been off SkyBlock for [leaveDebounceMs], so lobby hops and server swaps keep the
  * session and its start time. Not thread-safe: one caller (the client thread) feeds it.

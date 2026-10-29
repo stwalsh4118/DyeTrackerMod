@@ -28,6 +28,23 @@ class SkyBlockDetectorTest {
         assertTrue(isSkyBlock("mc.hypixel.net", "§e§lSKYBLOCK"))
         assertTrue(isSkyBlock("mc.hypixel.net", "SKYBLOCK CO-OP"))
         assertTrue(isSkyBlock("mc.hypixel.net", "SkyBlock"), "the marker matches ignoring case")
+        assertTrue(isSkyBlock("mc.hypixel.net", "§eSKY§lBLOCK"), "formatting codes inside the marker are stripped")
+    }
+
+    @Test
+    fun `a live connection to SkyBlock counts`() {
+        assertTrue(countsAsSkyBlock(connected = true, serverAddress = "mc.hypixel.net", sidebarTitle = "§e§lSKYBLOCK"))
+    }
+
+    @Test
+    fun `a dropped connection never counts, whatever the sidebar still shows`() {
+        assertFalse(countsAsSkyBlock(connected = false, serverAddress = "mc.hypixel.net", sidebarTitle = "§e§lSKYBLOCK"))
+    }
+
+    @Test
+    fun `a live connection off SkyBlock does not count`() {
+        assertFalse(countsAsSkyBlock(connected = true, serverAddress = "mc.hypixel.net", sidebarTitle = "§e§lHYPIXEL"))
+        assertFalse(countsAsSkyBlock(connected = true, serverAddress = "play.example.net", sidebarTitle = "SKYBLOCK"))
     }
 
     @Test
