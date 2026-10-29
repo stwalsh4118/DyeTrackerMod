@@ -1,7 +1,7 @@
 package com.dyetracker.discord
 
 /** The DyeTracker application in the Discord Developer Portal. Public, not a secret. Blank = presence never connects. */
-const val DISCORD_APPLICATION_ID = ""
+const val DISCORD_APPLICATION_ID = "1565497379032141898"
 /** Rich Presence art asset key of the DyeTracker logo, uploaded in the Discord app. */
 const val DISCORD_LOGO_ASSET = "dyetracker"
 const val DISCORD_LOGO_TEXT = "DyeTracker"
