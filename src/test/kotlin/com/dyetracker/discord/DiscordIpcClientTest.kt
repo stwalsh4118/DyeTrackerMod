@@ -315,14 +315,14 @@ class DiscordIpcClientTest {
         var now = 0L
         val client = client()
         val sync = PresenceSync(client, PID, ReconnectBackoff(), clock = { now }, log = {})
-        sync.reconcile(TRACER_CARD)
+        sync.reconcile(TEST_CARD)
         assertTrue(client.isConnected)
         assertEquals(1, server.connections)
 
         client.shutdown()
         assertFalse(client.ping(), "no ping on a shut-down client")
         now += IPC_HEALTH_CHECK_MS + RECONNECT_MAX_MS
-        sync.reconcile(TRACER_CARD)
+        sync.reconcile(TEST_CARD)
 
         assertFalse(client.isConnected)
         assertEquals(1, server.connections, "reconcile did not reconnect")

@@ -30,3 +30,10 @@ const val SKYBLOCK_SIDEBAR_MARKER = "SKYBLOCK"
 const val SKYBLOCK_POLL_TICKS = 20
 /** Off SkyBlock for less than this keeps the card (lobby hops, server swaps). */
 const val SKYBLOCK_LEAVE_DEBOUNCE_MS = 10_000L
+/** The public website; the card's button links to the player's page on it. */
+const val DYETRACKER_SITE_URL = "https://dyetracker.xyz"
+const val PROFILE_BUTTON_LABEL = "View on DyeTracker"
+/** How often the card's stats are re-fetched while it is shown. */
+const val STATS_REFRESH_MS = 30_000L
+/** Discord rate-limits SET_ACTIVITY (commonly cited as one update per 15 s); never send faster. */
+const val MIN_UPDATE_INTERVAL_MS = 15_000L

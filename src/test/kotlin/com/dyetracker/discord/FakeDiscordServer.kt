@@ -204,3 +204,6 @@ internal const val APP_ID = "123456789012345678"
 
 /** A made-up process id for the socket tests. */
 internal const val PID = 4242L
+
+/** A fixed card for the socket tests (the shape of the 77-1 tracer card). */
+internal val TEST_CARD = PresenceCard(details = "Tracking dyes")
