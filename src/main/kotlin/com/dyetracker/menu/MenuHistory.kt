@@ -24,7 +24,7 @@ private const val NO_CHANCE_TEXT = "—"
 /** Between a row's dye name and its work. */
 private const val ROW_SEPARATOR = " · "
 
-/** Between the profile id and the period in a [historyKey]. */
+/** Between the profile id, the period and the dye in a [historyKey] or [historySeriesKey]. */
 private const val KEY_SEPARATOR = "|"
 
 private const val NOT_LINKED_TEXT = "Link the mod to start recording history"
@@ -53,3 +53,14 @@ fun historyRowText(gain: HistoryDyeGain): Pair<String, String> =
 
 /** The History fetch's and [HISTORY_CACHE]'s key for [profileId] over [period], e.g. `p1|24h`. */
 fun historyKey(profileId: String, period: HistoryPeriod): String = "$profileId$KEY_SEPARATOR${period.apiValue}"
+
+/** The History chart fetch's and [HISTORY_SERIES_CACHE]'s key for [dyeId] on [profileId] over [period], e.g. `p1|24h|bone`. */
+fun historySeriesKey(profileId: String, period: HistoryPeriod, dyeId: String): String =
+    "${historyKey(profileId, period)}$KEY_SEPARATOR$dyeId"
+
+/**
+ * The History row whose chart shows: the one for [selectedDyeId] while it is listed in [gains],
+ * else the first row; `null` without rows.
+ */
+fun historySelection(gains: List<HistoryDyeGain>, selectedDyeId: String?): HistoryDyeGain? =
+    gains.firstOrNull { it.dyeId == selectedDyeId } ?: gains.firstOrNull()

@@ -291,3 +291,32 @@ data class HistoryResponse(
     val snapshotCount: Int = 0,
     val dyes: List<HistoryDyeGain> = emptyList()
 )
+
+/**
+ * One time slice of a [HistoryDyeSeriesResponse], from [start] to [end] (epoch ms): the dye's
+ * [work] in it and the [cumulativeChance] of dropping it by its end, both `null` without
+ * snapshots to tell.
+ */
+@Serializable
+data class HistoryBucket(
+    val start: Long = 0,
+    val end: Long = 0,
+    val work: Double? = null,
+    val cumulativeChance: Double? = null
+)
+
+/**
+ * Response from `GET /api/v1/player/:username/profile/:profileId/history/dye/:dyeId?period=`
+ * (public endpoint): the dye [dyeId]'s work per time slice over the [period], oldest first
+ * (1h: 12 of 5 min, 24h: 24 of 1 h, 7d: 28 of 6 h, 30d: 30 of 1 day). [buckets] are empty for an
+ * unlinked player or without snapshots.
+ */
+@Serializable
+data class HistoryDyeSeriesResponse(
+    val uuid: String = "",
+    val profileId: String = "",
+    val period: String = "",
+    val dyeId: String = "",
+    val linked: Boolean = false,
+    val buckets: List<HistoryBucket> = emptyList()
+)

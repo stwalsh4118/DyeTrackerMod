@@ -6,10 +6,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/** Unit coverage for the History tab's periods, chance text, state messages and rows (75-1). */
+/** Unit coverage for the History tab's periods, chance text, state messages and rows (75-1), and its selected dye (75-2). */
 class MenuHistoryTest {
 
     private val bone = HistoryDyeGain("bone", "Bone Dye", "#e3dac9", "1,000 skeletons", 0.0027)
+
+    private val livid = HistoryDyeGain("livid", "Livid Dye", "#c0c0c0", "3 completions", null)
 
     /** A linked response with [snapshotCount] snapshots up to [to] and the [dyes] gained. */
     private fun response(
@@ -92,15 +94,40 @@ class MenuHistoryTest {
 
     @Test
     fun `a row without a chance shows a dash on the right`() {
-        val gain = HistoryDyeGain("livid", "Livid Dye", "#c0c0c0", "3 completions", null)
-
-        assertEquals("Livid Dye · 3 completions" to "—", historyRowText(gain))
+        assertEquals("Livid Dye · 3 completions" to "—", historyRowText(livid))
     }
 
     @Test
     fun `the cache key is the profile and the period`() {
         assertEquals("p1|24h", historyKey("p1", HistoryPeriod.DAY))
         assertEquals("p1|30d", historyKey("p1", HistoryPeriod.MONTH))
+    }
+
+    @Test
+    fun `the series cache key is the profile, the period and the dye`() {
+        assertEquals("p1|24h|bone", historySeriesKey("p1", HistoryPeriod.DAY, "bone"))
+        assertEquals("p1|1h|livid", historySeriesKey("p1", HistoryPeriod.HOUR, "livid"))
+    }
+
+    @Test
+    fun `without a selection the first row is selected`() {
+        assertEquals(bone, historySelection(listOf(bone, livid), null))
+    }
+
+    @Test
+    fun `a listed selection stays selected`() {
+        assertEquals(livid, historySelection(listOf(bone, livid), "livid"))
+    }
+
+    @Test
+    fun `a selection no longer listed falls back to the first row`() {
+        assertEquals(livid, historySelection(listOf(livid), "bone"))
+    }
+
+    @Test
+    fun `nothing is selected without rows`() {
+        assertNull(historySelection(emptyList(), "bone"))
+        assertNull(historySelection(emptyList(), null))
     }
 
     private companion object {

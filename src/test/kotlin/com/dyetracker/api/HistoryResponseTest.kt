@@ -8,8 +8,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * JSON-decoding coverage for the public history route's response (75-1). Mirrors the `ApiClient`
- * Json config (`ignoreUnknownKeys = true`), so the response's `counters` are dropped.
+ * JSON-decoding coverage for the public history route's response (75-1) and its per-dye series
+ * route's (75-2). Mirrors the `ApiClient` Json config (`ignoreUnknownKeys = true`), so the
+ * response's `counters` are dropped.
  */
 class HistoryResponseTest {
 
@@ -74,5 +75,45 @@ class HistoryResponseTest {
     @Test
     fun `an empty object decodes to an unlinked response without dyes`() {
         assertEquals(HistoryResponse(), json.decodeFromString<HistoryResponse>("{}"))
+    }
+
+    @Test
+    fun `decodes the dye series sample with a null work bucket`() {
+        val body = """
+            {"uuid":"u1","profileId":"p1","period":"24h","dyeId":"bone","linked":true,
+             "buckets":[{"start":1761700000000,"end":1761703600000,"work":120,"cumulativeChance":0.0004},
+                        {"start":1761703600000,"end":1761707200000,"work":null,"cumulativeChance":null}]}
+        """.trimIndent()
+
+        val result = json.decodeFromString<HistoryDyeSeriesResponse>(body)
+
+        assertEquals("u1", result.uuid)
+        assertEquals("p1", result.profileId)
+        assertEquals("24h", result.period)
+        assertEquals("bone", result.dyeId)
+        assertTrue(result.linked)
+        assertEquals(
+            listOf(
+                HistoryBucket(1_761_700_000_000L, 1_761_703_600_000L, 120.0, 0.0004),
+                HistoryBucket(1_761_703_600_000L, 1_761_707_200_000L, null, null),
+            ),
+            result.buckets,
+        )
+    }
+
+    @Test
+    fun `an empty object decodes to an unlinked series without buckets`() {
+        val result = json.decodeFromString<HistoryDyeSeriesResponse>("{}")
+
+        assertEquals(HistoryDyeSeriesResponse(), result)
+        assertFalse(result.linked)
+        assertEquals(emptyList(), result.buckets)
+    }
+
+    @Test
+    fun `a bucket missing its keys falls back to its defaults`() {
+        val result = json.decodeFromString<HistoryDyeSeriesResponse>("""{"buckets":[{}]}""")
+
+        assertEquals(HistoryBucket(start = 0, end = 0, work = null, cumulativeChance = null), result.buckets.single())
     }
 }

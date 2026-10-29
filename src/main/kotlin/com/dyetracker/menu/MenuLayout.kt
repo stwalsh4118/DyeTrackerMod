@@ -43,10 +43,10 @@ data class AchievementsGeometry(
 
 /**
  * Where the History tab's parts sit below the profile strip: the period [pills] (`key to rect`, as
- * [layoutPills] places them) and the scrolling [viewport] with its [contentHeight]: one row per
- * dye, each at [MenuLayout.historyRowY].
+ * [layoutPills] places them), the selected dye's [chart] panel (`null` without rows), and the
+ * scrolling [viewport] with its [contentHeight]: one row per dye, each at [MenuLayout.historyRowY].
  */
-data class HistoryGeometry(val pills: List<Pair<String, Rect>>, val viewport: Rect, val contentHeight: Int)
+data class HistoryGeometry(val pills: List<Pair<String, Rect>>, val chart: Rect?, val viewport: Rect, val contentHeight: Int)
 
 /** Sizes (GUI pixels) and card-grid geometry for the in-game DyeTracker menu. */
 object MenuLayout {
@@ -161,6 +161,12 @@ object MenuLayout {
     /** Height of one History row: a dye's icon box and the gap below it. */
     const val HISTORY_ROW_HEIGHT = ICON_BOX + TEXT_GAP
 
+    /** Height of the History tab's chart panel (title line and work bars) above its list. */
+    const val HISTORY_CHART_HEIGHT = 56
+
+    /** Gap between neighbouring bars in the History chart. */
+    const val HISTORY_BAR_GAP = 2
+
     /** How long a Settings row's message after a click (unlinked, synced, nothing to sync) shows, in ms. */
     const val SETTINGS_MESSAGE_MS = 4_000L
 
@@ -272,9 +278,10 @@ object MenuLayout {
 
     /**
      * The History tab's layout from [top] down, [width] wide from [left]: the period [pillLabels]
-     * wrapping within [width] ([layoutPills], widths by [measure]), and [OUTER_MARGIN] below the
-     * last pill row (or [top], without pills) the scrolling list of [rowCount]
-     * [HISTORY_ROW_HEIGHT] rows down to [OUTER_MARGIN] above the [screenHeight].
+     * wrapping within [width] ([layoutPills], widths by [measure]); [OUTER_MARGIN] below the last
+     * pill row (or [top], without pills) the [HISTORY_CHART_HEIGHT] chart when there are rows; and
+     * [OUTER_MARGIN] below the chart (or where it would start, without rows) the scrolling list of
+     * [rowCount] [HISTORY_ROW_HEIGHT] rows down to [OUTER_MARGIN] above the [screenHeight].
      */
     fun historyGeometry(
         top: Int,
@@ -286,9 +293,12 @@ object MenuLayout {
         rowCount: Int,
     ): HistoryGeometry {
         val pills = layoutPills(pillLabels, measure, left, top, width)
-        val listTop = (pills.maxOfOrNull { it.second.bottom } ?: top) + OUTER_MARGIN
+        val chartTop = (pills.maxOfOrNull { it.second.bottom } ?: top) + OUTER_MARGIN
+        val chart = if (rowCount > 0) Rect(left, chartTop, width, HISTORY_CHART_HEIGHT) else null
+        val listTop = chart?.let { it.bottom + OUTER_MARGIN } ?: chartTop
         return HistoryGeometry(
             pills = pills,
+            chart = chart,
             viewport = Rect(left, listTop, width, screenHeight - listTop - OUTER_MARGIN),
             contentHeight = historyRowY(listTop, rowCount) - listTop,
         )
@@ -296,6 +306,34 @@ object MenuLayout {
 
     /** Top of History row [index] in a list whose unscrolled top is [listTop]. */
     fun historyRowY(listTop: Int, index: Int): Int = listTop + index * HISTORY_ROW_HEIGHT
+
+    /**
+     * Where the bars sit in the History [chart]: inside its [CARD_PADDING], [TEXT_GAP] below its
+     * title line ([lineHeight] tall); `0` tall when the chart leaves no room.
+     */
+    fun historyBarArea(chart: Rect, lineHeight: Int): Rect {
+        val barTop = chart.y + CARD_PADDING + lineHeight + TEXT_GAP
+        return Rect(
+            chart.x + CARD_PADDING,
+            barTop,
+            chart.width - 2 * CARD_PADDING,
+            max(0, chart.bottom - CARD_PADDING - barTop),
+        )
+    }
+
+    /**
+     * Index of the History row under ([mouseX], [mouseY]) in [viewport], its [rowCount] rows
+     * scrolled up by [scroll]; `null` outside the viewport or past the last row. A row takes its
+     * whole [HISTORY_ROW_HEIGHT], the gap below its icon box too; the viewport is half-open like
+     * [cardIndexAt]'s.
+     */
+    fun historyRowIndexAt(mouseX: Double, mouseY: Double, viewport: Rect, rowCount: Int, scroll: Int): Int? {
+        val inViewport = mouseX >= viewport.x && mouseX < viewport.right &&
+            mouseY >= viewport.y && mouseY < viewport.bottom
+        if (!inViewport) return null
+        val index = floor((mouseY - (viewport.y - scroll)) / HISTORY_ROW_HEIGHT).toInt()
+        return if (index in 0 until rowCount) index else null
+    }
 
     /** Horizontal distance from one card's left edge to the next column's. */
     private const val COLUMN_PITCH = CARD_WIDTH + CARD_GAP
