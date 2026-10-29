@@ -95,4 +95,24 @@ object SpotifyConstants {
 
     /** The widget's text in edit mode while it would otherwise be hidden, so it can be placed. */
     const val EDIT_PLACEHOLDER = "Spotify"
+
+    const val HTTP_OK = 200
+
+    /** Texture id of the current album art (or episode/show image), for `ImageTextureManager`. */
+    const val ART_TEXTURE_ID = "spotify/art"
+
+    /** The art fetched is the smallest image at least this wide (Spotify's 64 px size). */
+    const val ART_MIN_WIDTH_PX = 64
+
+    /** An image body past this many bytes is abandoned. */
+    const val ART_MAX_BYTES = 2 * 1024 * 1024
+
+    /** Corner radius on a [ART_MIN_WIDTH_PX]-wide image; scaled to the image's real width. */
+    const val ART_CORNER_RADIUS_PX = 6
+
+    /** The art's drawn width in GUI pixels. */
+    const val ART_DRAW_PX = 32
+
+    /** The only hosts art is fetched from (Spotify's image CDNs), over https. */
+    val ART_ALLOWED_HOST_SUFFIXES = listOf(".scdn.co", ".spotifycdn.com")
 }

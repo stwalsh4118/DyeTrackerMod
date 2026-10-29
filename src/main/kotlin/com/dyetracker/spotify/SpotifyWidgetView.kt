@@ -9,17 +9,19 @@ import com.dyetracker.ui.core.HorizontalAlignment
 import com.dyetracker.ui.core.Widget
 import com.dyetracker.ui.layout.Column
 import com.dyetracker.ui.layout.Row
+import com.dyetracker.ui.texture.ImageTextureManager
 import com.dyetracker.ui.theme.UiTheme
 import net.minecraft.client.Minecraft
 
 /**
  * Builds the Spotify now-playing widget from PBI 30 toolkit components, one layout per
  * [SpotifyWidgetState] (task 76-4). A track or episode shows, on Spotify's fallback panel color,
- * the title with the Spotify icon, the artists (or show), and a live progress bar with
- * `m:ss / m:ss`; paused, the same layout dimmed by [SpotifyConstants.PAUSED_ALPHA_FACTOR] (the
- * icon never is) with `Paused · ` before the time. An ad shows [SpotifyConstants.AD_TITLE]; not
- * set up, logged out and errors show a message panel. Text is fitted to
- * [SpotifyConstants.TEXT_WIDTH_PX] with `…`, except a message's command hint.
+ * its cover at the left once loaded (task 76-5), then the title with the Spotify icon, the
+ * artists (or show), and a live progress bar with `m:ss / m:ss`; paused, the same layout dimmed by
+ * [SpotifyConstants.PAUSED_ALPHA_FACTOR] (the icon and the cover never are) with `Paused · `
+ * before the time. An ad shows [SpotifyConstants.AD_TITLE]; not set up, logged out and errors
+ * show a message panel. Text is fitted to [SpotifyConstants.TEXT_WIDTH_PX] with `…`, except a
+ * message's command hint.
  */
 object SpotifyWidgetView {
 
@@ -61,7 +63,19 @@ object SpotifyWidgetView {
         return panel(
             listOf(titleRow(fit(s.title), tone(UiTheme.Colors.TEXT_PRIMARY, paused), textWidth), subtitle, barRow),
             paused,
+            art(),
         )
+    }
+
+    /**
+     * The cover, [SpotifyConstants.ART_DRAW_PX] wide, or null until it is loaded. Spotify's
+     * branding rules: it is never dimmed or tinted (a [SpriteWidget] takes no color) and nothing
+     * is drawn over it.
+     */
+    private fun art(): Widget? {
+        val width = ImageTextureManager.widthOf(SpotifyConstants.ART_TEXTURE_ID)
+        if (width <= 0) return null
+        return SpriteWidget(SpotifyConstants.ART_TEXTURE_ID, SpotifyConstants.ART_DRAW_PX / width.toFloat())
     }
 
     /** The first line with the icon, then any further lines (the command hint) in secondary text. */
@@ -82,15 +96,19 @@ object SpotifyWidgetView {
         spacing = UiTheme.Spacing.INNER_GAP,
     )
 
-    private fun panel(lines: List<Widget>, paused: Boolean = false): Widget = PanelWidget(
-        child = Column(
+    /** [lines] in a column on the panel, with [art] at their left when there is one. */
+    private fun panel(lines: List<Widget>, paused: Boolean = false, art: Widget? = null): Widget {
+        val text = Column(
             children = lines,
             spacing = SpotifyConstants.LINE_GAP_PX,
             crossAxisAlignment = HorizontalAlignment.START,
-        ),
-        background = tone(UiTheme.Colors.SPOTIFY_FALLBACK_BACKGROUND, paused),
-        border = tone(UiTheme.Colors.PANEL_BORDER, paused),
-    )
+        )
+        return PanelWidget(
+            child = if (art == null) text else Row(children = listOf(art, text), spacing = UiTheme.Spacing.INNER_GAP),
+            background = tone(UiTheme.Colors.SPOTIFY_FALLBACK_BACKGROUND, paused),
+            border = tone(UiTheme.Colors.PANEL_BORDER, paused),
+        )
+    }
 
     /** [color], dimmed when [paused]. */
     private fun tone(color: Int, paused: Boolean): Int =

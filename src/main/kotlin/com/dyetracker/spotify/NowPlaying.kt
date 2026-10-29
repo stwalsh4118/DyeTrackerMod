@@ -17,8 +17,9 @@ private const val MINUTES_FORMAT = "%d:%02d"
 
 /**
  * The last poll's track: the [title], [subtitle] and [url] of [nowPlayingLine], whether it
- * [isPlaying], where it was ([progressMs]) of how long ([durationMs]), and when the mod got it
- * ([receivedAtMs], the local clock).
+ * [isPlaying], where it was ([progressMs]) of how long ([durationMs]), when the mod got it
+ * ([receivedAtMs], the local clock), and its cover ([artUrl], see [artUrlOf]; null for an ad, no
+ * image, or an image off Spotify's hosts).
  */
 data class NowPlayingSnapshot(
     val title: String,
@@ -28,6 +29,7 @@ data class NowPlayingSnapshot(
     val progressMs: Long,
     val durationMs: Long,
     val receivedAtMs: Long,
+    val artUrl: String? = null,
 )
 
 /** The snapshot of [cp] received at [receivedAtMs], or null when nothing is playing (no item). */
@@ -41,6 +43,7 @@ fun snapshotOf(cp: CurrentlyPlaying, receivedAtMs: Long): NowPlayingSnapshot? {
         progressMs = cp.progressMs ?: 0,
         durationMs = cp.item?.durationMs ?: 0,
         receivedAtMs = receivedAtMs,
+        artUrl = if (isAd(cp)) null else cp.item?.let(::artUrlOf),
     )
 }
 

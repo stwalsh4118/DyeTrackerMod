@@ -17,8 +17,8 @@ fun shouldPoll(connected: Boolean, widgetVisible: Boolean): Boolean = connected 
  * The record after a poll that returned [result] at [nowMs]. A track, an episode or an ad marks
  * the record active now and replaces the snapshot (an ad has no item, so no snapshot). Nothing
  * playing keeps the snapshot until [SpotifyConstants.IDLE_HIDE_MS] after the record was last
- * active, then clears it. A failure keeps the snapshot (the widget doesn't flicker on one bad
- * poll).
+ * active, then clears it. A failure keeps the snapshot, so a 429 or a network blip keeps showing
+ * the song (see [widgetState]).
  */
 internal fun nextRecord(prev: PollRecord, result: SpotifyResult<CurrentlyPlaying?>, nowMs: Long): PollRecord =
     when (result) {
@@ -66,10 +66,11 @@ object SpotifyPoller {
         DyeTrackerMod.info("Spotify poller started ({}ms interval)", SpotifyConstants.POLL_INTERVAL_MS)
     }
 
-    /** Cancel the poll loop (on client stop). */
+    /** Cancel the poll loop (on client stop) and release the album art. */
     fun stop() {
         job?.cancel()
         job = null
+        SpotifyArtFetcher.ensure(null)
     }
 
     /** [tick], with any exception logged; returns the tick's poll result, or null when none. */
@@ -91,15 +92,21 @@ object SpotifyPoller {
         val connected = session.status() == SessionStatus.CONNECTED
         val visible = ConfigManager.spotifyPlacements.all().firstOrNull()?.visible ?: SpotifyWidgetConfig().visible
         if (!shouldPoll(connected, visible)) {
-            SpotifyNowPlayingStore.record = recordWithoutPoll(SpotifyNowPlayingStore.record, connected)
+            publish(recordWithoutPoll(SpotifyNowPlayingStore.record, connected))
             return null
         }
         val result = session.currentlyPlaying()
         if (result is SpotifyResult.Failure) {
             DyeTrackerMod.debug("Spotify poll: {}", failureText(result))
         }
-        SpotifyNowPlayingStore.record = nextRecord(SpotifyNowPlayingStore.record, result, System.currentTimeMillis())
+        publish(nextRecord(SpotifyNowPlayingStore.record, result, System.currentTimeMillis()))
         return result
+    }
+
+    /** Write [rec] to the store, then load its snapshot's art (none without a snapshot releases it). */
+    private fun publish(rec: PollRecord) {
+        SpotifyNowPlayingStore.record = rec
+        SpotifyArtFetcher.ensure(rec.snapshot?.artUrl)
     }
 }
 

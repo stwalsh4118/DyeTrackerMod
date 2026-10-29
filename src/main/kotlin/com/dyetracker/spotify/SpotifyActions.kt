@@ -179,9 +179,10 @@ object SpotifyActions {
         }
     }
 
-    /** Forget the Spotify tokens (the Client ID stays). */
+    /** Forget the Spotify tokens (the Client ID stays) and release the album art. */
     fun logout(feedback: (Component) -> Unit) {
         SpotifySessions.default.logout()
+        SpotifyArtFetcher.ensure(null)
         feedback(Component.literal("Logged out of Spotify.").withStyle(ChatFormatting.GREEN))
     }
 
