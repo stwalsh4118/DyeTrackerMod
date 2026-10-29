@@ -104,7 +104,7 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 
 Click a dye in the menu's Dyes tab to pin it to your HUD. The widget shows the dye's name, your progress and a progress bar.
 
-**Rotation line** (Minecraft 26.1.2 and 26.2, linked accounts only)
+**Rotation line** (Minecraft 26.1.2 and 26.2, accounts that have been linked)
 
 Under the bar, the widget shows what you did toward the dye this rotation (the current SkyBlock year, about 5 real days) and the chance that work alone gave you, at this year's boost if the dye is boosted:
 
@@ -197,7 +197,7 @@ The mod stores its configuration in `.minecraft/config/dyetracker.json`. This in
 | Dye collection from Vincent's Dye Guide (the dyes you own, how many, and when you got them) | Collection tab and the website | DyeTracker API |
 | Vincent's rotation (the dye ids on his Dyes screen, their boosts, and the SkyBlock year), linked accounts only | Knowing which dyes are boosted each SkyBlock year | DyeTracker API |
 
-When your account is linked, each time your dye progress is looked up (by the mod, the menu or the website), DyeTracker also saves the stat counters behind it on its server, at most once every 5 minutes and only when they changed. It uses them to show what you did this rotation (see [Dye widgets](#dye-widgets)) and keeps them.
+Once you've linked your account, each time your dye progress is looked up (by the mod, the menu or the website), DyeTracker also saves the stat counters behind it on its server, at most once every 5 minutes and only when they changed. It uses them to show what you did this rotation (see [Dye widgets](#dye-widgets)) and keeps them. This keeps happening after you unlink in the mod (see [Data storage](#data-storage)).
 
 Your Minecraft session token is **never** sent to DyeTracker servers - only to Mojang's official authentication servers.
 
@@ -216,7 +216,7 @@ The mod uses Minecraft's standard server authentication flow - the same method e
 
 - Credentials are stored locally in `.minecraft/config/dyetracker.json`
 - You can unlink your account at any time with `/dyetracker unlink`
-- Unlinking deletes all stored credentials
+- Unlinking deletes the credentials stored on your computer only. It doesn't unlink your account on DyeTracker's side or delete the stat counters DyeTracker has saved.
 
 ## License
 
