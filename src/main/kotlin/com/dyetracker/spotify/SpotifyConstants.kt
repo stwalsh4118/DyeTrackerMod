@@ -153,6 +153,18 @@ object SpotifyConstants {
     /** One darken or lighten step of the palette's contrast search. */
     const val COLOR_STEP = 0.05f
 
+    /** How long the border pulses toward white after the track changes. */
+    const val PULSE_MS = 600L
+
+    /** How far toward white the border is at the start of a pulse. */
+    const val PULSE_MAX_MIX = 0.6f
+
+    /** Width of the brighter head at the progress fill's leading edge, in GUI pixels. */
+    const val GLOW_HEAD_WIDTH_PX = 2
+
+    /** How far toward white the progress bar's head is from the accent. */
+    const val GLOW_HEAD_MIX = 0.5f
+
     /** The only hosts art is fetched from (Spotify's image CDNs), over https. */
     val ART_ALLOWED_HOST_SUFFIXES = listOf(".scdn.co", ".spotifycdn.com")
 }

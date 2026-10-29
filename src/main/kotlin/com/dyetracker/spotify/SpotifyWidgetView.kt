@@ -19,6 +19,8 @@ import net.minecraft.client.Minecraft
  * (task 76-5), then the title with the Spotify icon, the artists (or show), and a live progress
  * bar with `m:ss / m:ss`. Its panel, border, bar fill and text take the cover's colors, fading on
  * a track change, and the icon is green or white by contrast ([SpotifyColorStore], task 76-6).
+ * The border pulses toward white when the track changes and the bar's fill has a brighter head
+ * ([pulsedBorder], [glowHeadColor], task 76-7); neither touches the cover or the icon.
  * Paused, the same layout is dimmed by [SpotifyConstants.PAUSED_ALPHA_FACTOR] (the icon and the
  * cover never are) with `Paused · ` before the time. An ad shows [SpotifyConstants.AD_TITLE] in
  * the store's colors (fading to [FALLBACK_COLORS], as an ad has no art); not set up, logged out
@@ -50,7 +52,9 @@ object SpotifyWidgetView {
     }
 
     private fun track(s: NowPlayingSnapshot, nowMs: Long, paused: Boolean): Widget {
-        val colors = SpotifyColorStore.colorsAt(nowMs)
+        val faded = SpotifyColorStore.colorsAt(nowMs)
+        // The pulse is on the border only, and dimmed with the rest when paused (panel tones it).
+        val colors = faded.copy(border = pulsedBorder(faded.border, nowMs - SpotifyNowPlayingStore.trackChangedAtMs))
         val textWidth = SpotifyConstants.TEXT_WIDTH_PX
         val time = timeText(s, nowMs, paused)
         val barWidth = (textWidth - font.width(time) - UiTheme.Spacing.INNER_GAP).coerceAtLeast(0)
@@ -63,6 +67,8 @@ object SpotifyWidgetView {
                     width = barWidth,
                     trackColor = tone(UiTheme.Colors.PROGRESS_TRACK, paused),
                     fillColor = tone(colors.accent, paused),
+                    headColor = tone(glowHeadColor(colors.accent), paused),
+                    headWidth = SpotifyConstants.GLOW_HEAD_WIDTH_PX,
                 ),
                 TextWidget(time, color = tone(colors.text, paused)),
             ),

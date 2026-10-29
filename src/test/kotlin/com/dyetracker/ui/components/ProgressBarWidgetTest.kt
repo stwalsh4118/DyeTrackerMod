@@ -4,6 +4,7 @@ import com.dyetracker.ui.core.Size
 import com.dyetracker.ui.theme.UiTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /**
  * Pure-JVM coverage for [ProgressBarWidget]'s measurement and the value→fill-width math.
@@ -60,5 +61,37 @@ class ProgressBarWidgetTest {
     fun `fill width is zero for a non-positive track width`() {
         assertEquals(0, ProgressBarWidget.fillWidth(50f, 0))
         assertEquals(0, ProgressBarWidget.fillWidth(50f, -20))
+    }
+
+    @Test
+    fun `the head sits at the leading edge of the fill`() {
+        assertEquals(48, ProgressBarWidget.headX(100, 50f, 2))
+    }
+
+    @Test
+    fun `there is no head on an empty fill`() {
+        assertNull(ProgressBarWidget.headX(100, 0f, 2))
+    }
+
+    @Test
+    fun `a fill narrower than the head starts the head at the bar's start`() {
+        // 1% of 100 fills 1 px.
+        assertEquals(0, ProgressBarWidget.headX(100, 1f, 2))
+    }
+
+    @Test
+    fun `there is no head without a head width`() {
+        assertNull(ProgressBarWidget.headX(100, 50f, 0))
+        assertNull(ProgressBarWidget.headX(100, 50f, -2))
+    }
+
+    @Test
+    fun `a full bar's head ends at the bar's end`() {
+        assertEquals(98, ProgressBarWidget.headX(100, 100f, 2))
+    }
+
+    @Test
+    fun `there is no head on a non-positive track width`() {
+        assertNull(ProgressBarWidget.headX(0, 50f, 2))
     }
 }

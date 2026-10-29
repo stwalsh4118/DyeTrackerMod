@@ -21,7 +21,7 @@ private const val CHANNEL_MASK = 0xFF
 private const val CHANNEL_MAX = 255.0
 private const val RGB_MASK = 0x00_FF_FF_FF
 private const val OPAQUE_BLACK = 0xFF_00_00_00.toInt()
-private const val OPAQUE_WHITE = 0xFF_FF_FF_FF.toInt()
+internal const val OPAQUE_WHITE = 0xFF_FF_FF_FF.toInt()
 
 /** A palette bucket is the top bits of each channel. */
 private const val BUCKET_BITS = 4

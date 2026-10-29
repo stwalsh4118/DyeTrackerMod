@@ -96,23 +96,28 @@ object SpotifyPoller {
         val connected = session.status() == SessionStatus.CONNECTED
         val visible = ConfigManager.spotifyPlacements.all().firstOrNull()?.visible ?: SpotifyWidgetConfig().visible
         if (!shouldPoll(connected, visible)) {
-            publish(recordWithoutPoll(SpotifyNowPlayingStore.record, connected))
+            publish(recordWithoutPoll(SpotifyNowPlayingStore.record, connected), System.currentTimeMillis())
             return null
         }
         val result = session.currentlyPlaying()
         if (result is SpotifyResult.Failure) {
             DyeTrackerMod.debug("Spotify poll: {}", failureText(result))
         }
-        publish(nextRecord(SpotifyNowPlayingStore.record, result, System.currentTimeMillis()))
+        val nowMs = System.currentTimeMillis()
+        publish(nextRecord(SpotifyNowPlayingStore.record, result, nowMs), nowMs)
         return result
     }
 
     /**
-     * Write [rec] to the store, then load its snapshot's art. No snapshot, or a session no longer
-     * connected (the poll may have logged it out), releases it.
+     * Write [rec] to the store, stamp [nowMs] as the track change when it is a new track (the
+     * border pulse, after the record: see [SpotifyNowPlayingStore.trackChangedAtMs]), then load
+     * its snapshot's art. No snapshot, or a session no longer connected (the poll may have logged
+     * it out), releases it.
      */
-    private fun publish(rec: PollRecord) {
+    private fun publish(rec: PollRecord, nowMs: Long) {
+        val changed = trackChanged(SpotifyNowPlayingStore.record.snapshot, rec.snapshot)
         SpotifyNowPlayingStore.record = rec
+        if (changed) SpotifyNowPlayingStore.trackChangedAtMs = nowMs
         val connected = SpotifySessions.default.status() == SessionStatus.CONNECTED
         SpotifyArtFetcher.ensure(artUrlFor(rec, connected))
     }
