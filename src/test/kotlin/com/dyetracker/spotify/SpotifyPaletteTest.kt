@@ -98,10 +98,9 @@ class SpotifyPaletteTest {
     @Test
     fun `a minority color too close to the dominant is not the accent`() {
         // #20203A is saturated enough but within ACCENT_MIN_DISTANCE of #1A1A2E: the accent is the
-        // dominant lightened, which keeps blue as its largest channel.
-        val colors = paletteOf(split(OPAQUE or 0x1A1A2E, OPAQUE or 0x20203A, topRows = SIZE * 3 / 4))
-        val accent = colors.accent
-        assertTrue(blue(accent) > red(accent), "accent ${hex(accent)} is not the dominant lightened")
+        // dominant lightened, exactly as for a cover with no minority color.
+        val withClose = paletteOf(split(OPAQUE or 0x1A1A2E, OPAQUE or 0x20203A, topRows = SIZE * 3 / 4))
+        assertEquals(paletteOf(solid(OPAQUE or 0x1A1A2E)).accent, withClose.accent)
     }
 
     @Test

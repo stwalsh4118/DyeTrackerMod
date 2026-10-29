@@ -51,7 +51,8 @@ object SpotifyWidgetView {
         val textWidth = SpotifyConstants.TEXT_WIDTH_PX
         val time = timeText(s, nowMs, paused)
         val barWidth = (textWidth - font.width(time) - UiTheme.Spacing.INNER_GAP).coerceAtLeast(0)
-        val subtitle = TextWidget(fit(s.subtitle), color = tone(UiTheme.Colors.TEXT_SECONDARY, paused))
+        // The palette only guarantees contrast for its text color, so the subtitle uses it too.
+        val subtitle = TextWidget(fit(s.subtitle), color = tone(colors.text, paused))
         val barRow = Row(
             children = listOf(
                 ProgressBarWidget(
