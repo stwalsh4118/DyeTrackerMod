@@ -97,8 +97,24 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 - **Account**: see which account is linked, or unlink it (click Unlink, then Confirm unlink).
 - **Sync**: send your tracked counts to DyeTracker now.
 - **Rotation widget**, **Dye widgets**, **GIF overlays** and **Bounce**: turn each on or off.
-  - The rotation widget shows the dyes on Vincent's Dyes screen and their boosts. When your account is linked, opening that screen also sends the rotation to DyeTracker, so it knows which dyes are boosted that SkyBlock year (Minecraft 26.1.2 and 26.2).
+  - The rotation widget shows the dyes on Vincent's Dyes screen and their boosts. When your account is linked, opening that screen also sends the rotation to DyeTracker (whether or not the widget is on), so it knows which dyes are boosted that SkyBlock year (Minecraft 26.1.2 and 26.2).
 - **Edit layout**: move and resize your HUD widgets.
+
+### Dye widgets
+
+Click a dye in the menu's Dyes tab to pin it to your HUD. The widget shows the dye's name, your progress and a progress bar.
+
+**Rotation line** (Minecraft 26.1.2 and 26.2, linked accounts only)
+
+Under the bar, the widget shows what you did toward the dye this rotation (the current SkyBlock year, about 5 real days) and the chance that work alone gave you, at this year's boost if the dye is boosted:
+
+- `1,234 skeletons · 0.04% this rotation` when DyeTracker has your stats from the start of the rotation.
+- `1,000 skeletons · 0.03% since 3h ago` when it started counting partway through, e.g. on a newly linked account. The first time, the line reads `0 skeletons · 0.00% since just now`.
+- Dyes with no drop chance (Livid, Necron, Jade and Dark Purple) show the count only, e.g. `12 completions this rotation`.
+- [Dyes the mod counts for you](#dyes-the-mod-counts-for-you) show the line once you've done some of that work this rotation.
+- The line follows your stats as DyeTracker refreshes them, which can take a few minutes after you play.
+
+The line is on by default. To hide it on one widget, open **Edit layout**, click the widget, press **C** and untick **Rotation line**.
 
 ## Building from Source
 
@@ -178,6 +194,10 @@ The mod stores its configuration in `.minecraft/config/dyetracker.json`. This in
 | UUID | Account identification | DyeTracker API |
 | Session Token | Prove account ownership | Mojang only (never DyeTracker) |
 | Dye counts (excavations, Dark Auctions, gift rewards, potions brewed) | Dye progress on the website | DyeTracker API |
+| Dye collection from Vincent's Dye Guide (the dyes you own, how many, and when you got them) | Collection tab and the website | DyeTracker API |
+| Vincent's rotation (the dye ids on his Dyes screen, their boosts, and the SkyBlock year), linked accounts only | Knowing which dyes are boosted each SkyBlock year | DyeTracker API |
+
+When your account is linked, each time your dye progress is looked up (by the mod, the menu or the website), DyeTracker also saves the stat counters behind it on its server, at most once every 5 minutes and only when they changed. It uses them to show what you did this rotation (see [Dye widgets](#dye-widgets)) and keeps them.
 
 Your Minecraft session token is **never** sent to DyeTracker servers - only to Mojang's official authentication servers.
 
