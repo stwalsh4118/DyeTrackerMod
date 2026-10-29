@@ -105,7 +105,6 @@ object MenuCollection {
     /** Whether to show [EMPTY_HINT]: none of [cells] is owned. */
     fun showEmptyHint(cells: List<CollectionCell>): Boolean = cells.none { it.owned }
 
-
     /** The cells in [category] (`null`: every category) that [owned] keeps, in their order. */
     fun filterCells(cells: List<CollectionCell>, category: String?, owned: OwnedFilter): List<CollectionCell> =
         cells.filter { (category == null || it.entry.category == category) && matches(it, owned) }

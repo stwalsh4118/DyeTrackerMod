@@ -383,7 +383,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
      * [shouldSyncFirst], then posts its result to the render thread. A [background] load keeps
      * the shown dyes (and shows "refreshing…"); otherwise the grid area shows Loading. A newer
      * load cancels this one and, like [removed], bumps [epoch] first, so a stale result is
-     * dropped even when its blocking call was already in flight.
+     * dropped even when its blocking call was already in flight. The result is told whether this
+     * load synced first, so [applyResult] fetches the tabs' data again after the sync.
      */
     private fun launchLoad(background: Boolean, load: () -> MenuLoadResult) {
         val myEpoch = ++epoch
@@ -406,7 +407,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             }
             Minecraft.getInstance().execute {
                 if (myEpoch != epoch) return@execute // stale — screen closed or another load started
-                applyResult(result, background)
+                applyResult(result, background, syncedFirst = syncFirst)
             }
         }
     }
@@ -481,9 +482,11 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
      * profile selected in-game). A failed [background] load (or one finding no profiles) keeps the
      * cached dyes on screen and shows "refresh failed"; any other failure replaces the grid area.
      * A loaded profile without its collection loaded or loading gets a collection fetch, on any tab;
-     * on the Achievements tab, likewise its achievements.
+     * on the Achievements tab, likewise its achievements. When the load [syncedFirst], its collection
+     * is fetched again in any case, and its achievements when held or shown ([MenuRefresh.afterLoad]),
+     * so data fetched or cached before the sync doesn't stay.
      */
-    private fun applyResult(result: MenuLoadResult, background: Boolean) {
+    private fun applyResult(result: MenuLoadResult, background: Boolean, syncedFirst: Boolean) {
         refreshing = false
         when {
             result is MenuLoadResult.Loaded -> {
@@ -495,12 +498,27 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 if (strip?.profile?.id != result.profile.id) scroll = 0
                 strip = StripState(result.username, result.profiles, result.profile)
                 clampScrollToContent() // a refresh can change how many dyes there are
-                // A first load or one landing on another profile needs that profile's collection.
-                ensureCollection()
-                if (tab == MenuTab.ACHIEVEMENTS) ensureAchievements()
+                // A first load or one landing on another profile needs that profile's collection;
+                // after a sync, data fetched before it may miss what the sync pushed.
+                val followUp = MenuRefresh.afterLoad(
+                    syncedFirst,
+                    achievementsHeld = achievementsFetch.stateFor(result.profile.id) != null,
+                    onAchievementsTab = tab == MenuTab.ACHIEVEMENTS,
+                )
+                runFollowUp(followUp.collection, ::ensureCollection, ::fetchCollection)
+                runFollowUp(followUp.achievements, ::ensureAchievements, ::fetchAchievements)
             }
             background -> refreshFailed = true
             else -> state = result.toViewState()
+        }
+    }
+
+    /** Does what [followUp] says with one tab's data: nothing, [ensure] it, or [fetch] it again. */
+    private fun runFollowUp(followUp: FollowUp, ensure: () -> Unit, fetch: () -> Unit) {
+        when (followUp) {
+            FollowUp.NONE -> Unit
+            FollowUp.ENSURE -> ensure()
+            FollowUp.FETCH -> fetch()
         }
     }
 

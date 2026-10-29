@@ -5,7 +5,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** Unit coverage for what the strip's Refresh pill fetches on each tab, and when it is ignored (68-8). */
+/**
+ * Unit coverage for what the strip's Refresh pill fetches on each tab, and when it is ignored (68-8);
+ * and what a landed dyes load fetches next, again after the menu synced first (PBI 68 branch review).
+ */
 class MenuRefreshTest {
 
     @Test
@@ -41,5 +44,45 @@ class MenuRefreshTest {
         assertTrue(MenuRefresh.collectionTabBlocked(collectionBusy = true, dyesLoading = false))
         assertTrue(MenuRefresh.collectionTabBlocked(collectionBusy = false, dyesLoading = true))
         assertTrue(MenuRefresh.collectionTabBlocked(collectionBusy = true, dyesLoading = true))
+    }
+
+    @Test
+    fun `a load without a sync first only ensures the collection, and the achievements on their tab`() {
+        assertEquals(
+            LoadFollowUp(collection = FollowUp.ENSURE, achievements = FollowUp.NONE),
+            MenuRefresh.afterLoad(syncedFirst = false, achievementsHeld = false, onAchievementsTab = false),
+        )
+        assertEquals(
+            LoadFollowUp(collection = FollowUp.ENSURE, achievements = FollowUp.NONE),
+            MenuRefresh.afterLoad(syncedFirst = false, achievementsHeld = true, onAchievementsTab = false),
+        )
+        assertEquals(
+            LoadFollowUp(collection = FollowUp.ENSURE, achievements = FollowUp.ENSURE),
+            MenuRefresh.afterLoad(syncedFirst = false, achievementsHeld = true, onAchievementsTab = true),
+        )
+        assertEquals(
+            LoadFollowUp(collection = FollowUp.ENSURE, achievements = FollowUp.ENSURE),
+            MenuRefresh.afterLoad(syncedFirst = false, achievementsHeld = false, onAchievementsTab = true),
+        )
+    }
+
+    @Test
+    fun `a load after a sync first fetches the collection again, and achievements held or shown`() {
+        assertEquals(
+            LoadFollowUp(collection = FollowUp.FETCH, achievements = FollowUp.NONE),
+            MenuRefresh.afterLoad(syncedFirst = true, achievementsHeld = false, onAchievementsTab = false),
+        )
+        assertEquals(
+            LoadFollowUp(collection = FollowUp.FETCH, achievements = FollowUp.FETCH),
+            MenuRefresh.afterLoad(syncedFirst = true, achievementsHeld = true, onAchievementsTab = false),
+        )
+        assertEquals(
+            LoadFollowUp(collection = FollowUp.FETCH, achievements = FollowUp.FETCH),
+            MenuRefresh.afterLoad(syncedFirst = true, achievementsHeld = false, onAchievementsTab = true),
+        )
+        assertEquals(
+            LoadFollowUp(collection = FollowUp.FETCH, achievements = FollowUp.FETCH),
+            MenuRefresh.afterLoad(syncedFirst = true, achievementsHeld = true, onAchievementsTab = true),
+        )
     }
 }
