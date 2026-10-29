@@ -37,3 +37,9 @@ const val PROFILE_BUTTON_LABEL = "View on DyeTracker"
 const val STATS_REFRESH_MS = 30_000L
 /** Discord rate-limits SET_ACTIVITY (commonly cited as one update per 15 s); never send faster. */
 const val MIN_UPDATE_INTERVAL_MS = 15_000L
+/** Where the website serves dye art; Discord fetches it through its media proxy. */
+const val DYE_IMAGE_PATH = "/dyes/"
+const val DYE_IMAGE_EXTENSION = ".webp"
+const val HUNT_PREFIX = "Hunting "
+/** Odds at or above this read as complete. */
+const val HUNT_COMPLETE_PERCENT = 100.0

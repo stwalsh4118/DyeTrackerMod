@@ -7,6 +7,7 @@ import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.PotionTier
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.discord.DiscordPresence
+import com.dyetracker.dyeprogress.DyeCatalog
 import com.dyetracker.dyeprogress.DyeProgressAdder
 import com.dyetracker.dyeprogress.DyeProgressPlacementEditor
 import com.dyetracker.menu.MenuKeybind
@@ -28,6 +29,7 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommands
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource
 import net.minecraft.client.Minecraft
+import net.minecraft.commands.SharedSuggestionProvider
 import net.minecraft.network.chat.Component
 import net.minecraft.ChatFormatting
 import java.text.SimpleDateFormat
@@ -40,6 +42,8 @@ object DyeTrackerCommands {
 
     private const val GIF_URL_DISPLAY_MAX = 60
     private const val GIF_URL_TRUNCATE_AT = 57
+    /** The `/dyetracker discord hunt` usage, shown in its status and in the help. */
+    private const val DISCORD_HUNT_USAGE = "/dyetracker discord hunt <dye|clear>"
     private val gifCommandScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** IO scope for the async dye-widget add command (profile resolution). */
@@ -326,6 +330,32 @@ object DyeTrackerCommands {
                                     1
                                 }
                         )
+                        .then(
+                            ClientCommands.literal("hunt")
+                                // Before the argument, so `clear` is never read as a dye id.
+                                .then(
+                                    ClientCommands.literal("clear")
+                                        .executes { context ->
+                                            handleDiscordHuntClear(context.source)
+                                            1
+                                        }
+                                )
+                                .then(
+                                    ClientCommands.argument("dye", StringArgumentType.word())
+                                        .suggests { _, builder ->
+                                            SharedSuggestionProvider.suggest(DyeCatalog.all.map { it.dyeId }, builder)
+                                        }
+                                        .executes { context ->
+                                            handleDiscordHuntSet(context.source, StringArgumentType.getString(context, "dye"))
+                                            1
+                                        }
+                                )
+                                // Bare `/dyetracker discord hunt` prints the pick and the usage.
+                                .executes { context ->
+                                    handleDiscordHuntStatus(context.source)
+                                    1
+                                }
+                        )
                         // Bare `/dyetracker discord` prints the status.
                         .executes { context ->
                             handleDiscordCommand(context.source, null)
@@ -499,6 +529,50 @@ object DyeTrackerCommands {
                 )
             }
         }
+    }
+
+    /**
+     * Pick [dyeId] as the Discord card's hunt (PBI 77) when it is exactly a [DyeCatalog] id, and
+     * wake the presence worker; an unknown id leaves the config as it was.
+     */
+    private fun handleDiscordHuntSet(source: FabricClientCommandSource, dyeId: String) {
+        val dye = DyeCatalog.all.firstOrNull { it.dyeId == dyeId }
+        if (dye == null) {
+            source.sendFeedback(
+                Component.literal("Unknown dye '$dyeId'. Press Tab for the list.").withStyle(ChatFormatting.RED)
+            )
+            return
+        }
+        ConfigManager.setDiscordHuntDyeId(dye.dyeId)
+        DiscordPresence.wake()
+        source.sendFeedback(
+            Component.literal("Discord hunt set to ${dye.displayName}.").withStyle(ChatFormatting.GREEN)
+        )
+    }
+
+    /** Clear the Discord card's hunt (PBI 77) and wake the presence worker. */
+    private fun handleDiscordHuntClear(source: FabricClientCommandSource) {
+        ConfigManager.setDiscordHuntDyeId("")
+        DiscordPresence.wake()
+        source.sendFeedback(
+            Component.literal("Discord hunt cleared.").withStyle(ChatFormatting.YELLOW)
+        )
+    }
+
+    /** Print the Discord card's hunt (PBI 77), or `none`, and the hunt usage. */
+    private fun handleDiscordHuntStatus(source: FabricClientCommandSource) {
+        val huntDyeId = ConfigManager.discordHuntDyeId()
+        val name = if (huntDyeId.isBlank()) {
+            "none"
+        } else {
+            DyeCatalog.all.firstOrNull { it.dyeId == huntDyeId }?.displayName ?: huntDyeId
+        }
+        source.sendFeedback(
+            Component.literal("Discord hunt: $name").withStyle(ChatFormatting.GRAY)
+        )
+        source.sendFeedback(
+            Component.literal("Usage: $DISCORD_HUNT_USAGE").withStyle(ChatFormatting.GRAY)
+        )
     }
 
     private fun handleDyeListCommand(source: FabricClientCommandSource) {
@@ -1192,6 +1266,14 @@ object DyeTrackerCommands {
                 .withStyle(ChatFormatting.YELLOW)
                 .append(
                     Component.literal(" - Show your dye stats on Discord")
+                        .withStyle(ChatFormatting.GRAY)
+                )
+        )
+        source.sendFeedback(
+            Component.literal("  $DISCORD_HUNT_USAGE")
+                .withStyle(ChatFormatting.YELLOW)
+                .append(
+                    Component.literal(" - Pick the dye your Discord card shows")
                         .withStyle(ChatFormatting.GRAY)
                 )
         )

@@ -102,9 +102,9 @@ object DiscordPresence {
     /**
      * Reads only [ConfigManager] and one copy of [SkyBlockTracker.snapshot], never Minecraft state.
      * Decides first whether a card is wanted and clears when not, without touching the stats. A
-     * wanted card is built from the stats known now (a due fetch starts in the background); while a
-     * username's first fetch is still running the card is held back, so the stats card isn't stuck
-     * behind the send throttle after a bare one.
+     * wanted card is built from the stats known now and the hunt dye (a due fetch starts in the
+     * background); while a username's first fetch is still running the card is held back, so the
+     * stats card isn't stuck behind the send throttle after a bare one.
      */
     private fun tick() {
         val skyBlock = SkyBlockTracker.snapshot
@@ -114,7 +114,7 @@ object DiscordPresence {
         }
         val known = stats.get(skyBlock.username)
         if (stats.firstLoadPending) return
-        sync.reconcile(buildPresenceCard(known, skyBlock.startedAtMs))
+        sync.reconcile(buildPresenceCard(known, skyBlock.startedAtMs, ConfigManager.discordHuntDyeId()))
     }
 }
 
