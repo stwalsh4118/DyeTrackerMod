@@ -73,6 +73,7 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 
 - Shows your dyes and your progress on each, looked up by your in-game name. You don't need to link your account to use it.
 - If your account is linked, the counts the mod tracks for you (see [Dyes the mod counts for you](#dyes-the-mod-counts-for-you)) show their exact synced values.
+- Your percentage counts work done in a boosted year at that year's boost.
 - Switch between your SkyBlock profiles with the profile switcher.
 - Filter by category and change the sort order (progress or name).
 - Click a dye to pin it to your HUD as a progress widget.
@@ -92,6 +93,13 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 - Secret achievements show as **???** until you unlock them.
 - Filter by **All / Unlocked / Locked**.
 
+**History tab**
+
+- Shows your gains over the last **1h / 24h / 7d / 30d** (pick one with the pills at the top): for each dye, the work you did and the chance that work gave you, at each year's boost. The biggest gains come first.
+- Click a dye to see bars of its work per time slice (5 minutes, an hour, 6 hours or a day, depending on the range). Hover a bar for the exact numbers.
+- History is only recorded for linked players, so link your account with the mod to start it. Until then the tab tells you so.
+- The website's history page has the full charts and the **Update me now** button.
+
 **Settings tab**
 
 - **Account**: see which account is linked, or unlink it (click Unlink, then Confirm unlink).
@@ -103,6 +111,8 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 ### Dye widgets
 
 Click a dye in the menu's Dyes tab to pin it to your HUD. The widget shows the dye's name, your progress and a progress bar.
+
+Your progress counts work done in a boosted year at that year's boost.
 
 **Rotation line** (Minecraft 26.1.2 and 26.2, accounts that have been linked)
 
