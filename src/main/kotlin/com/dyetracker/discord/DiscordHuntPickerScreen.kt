@@ -134,13 +134,8 @@ class DiscordHuntPickerScreen(private val parent: Screen?) : Screen(Component.li
             availableWidth = contentWidth,
             alignment = HorizontalAlignment.CENTER,
         )
-        val footer = when {
-            shown.more > 0 -> "+${shown.more}$MORE_SUFFIX"
-            shown.rows.isEmpty() -> NO_MATCH_TEXT
-            else -> null
-        }
-        if (footer != null) {
-            UiDraw.drawText(context, font, footer, left, top + FOOTER_DY, UiTheme.Colors.TEXT_SECONDARY)
+        if (shown.more > 0) {
+            UiDraw.drawText(context, font, "+${shown.more}$MORE_SUFFIX", left, top + FOOTER_DY, UiTheme.Colors.TEXT_SECONDARY)
         }
     }
 
@@ -164,9 +159,6 @@ class DiscordHuntPickerScreen(private val parent: Screen?) : Screen(Component.li
 
         /** After the count of matches beyond the shown rows: `+52 more`. */
         const val MORE_SUFFIX = " more"
-
-        /** The footer when no dye matches the search. */
-        const val NO_MATCH_TEXT = "No dye matches."
 
         const val PANEL_WIDTH_PX = 220
         const val PANEL_MIN_TOP_PX = 8
