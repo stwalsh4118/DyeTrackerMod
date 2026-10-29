@@ -152,7 +152,25 @@ data class DyeProgressEntry(
     val trackable: Boolean = false,
     val formula: String? = null,
     val source: String? = null,
-    val isVerified: Boolean = false
+    val isVerified: Boolean = false,
+    /** This SkyBlock year's work and chance for the dye (PBI 72); only sent for linked players. */
+    val rotation: DyeRotationStats? = null
+)
+
+/**
+ * One dye's stats for the current rotation (PBI 72), from the `rotation` object on a
+ * [DyeProgressEntry]. [work] is the API's preformatted amount of work (e.g. `1,234 skeletons`);
+ * [progress] is the chance percent at the year's [boost], or null when no chance applies;
+ * [since] is the epoch ms the counting started when it began partway through
+ * [skyblockYear], or null when it covers the whole rotation.
+ */
+@Serializable
+data class DyeRotationStats(
+    val skyblockYear: Int = 0,
+    val work: String = "",
+    val progress: Double? = null,
+    val boost: Int = 1,
+    val since: Long? = null
 )
 
 /**

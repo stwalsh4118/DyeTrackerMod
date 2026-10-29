@@ -105,6 +105,67 @@ class DyeProgressResponseTest {
     }
 
     @Test
+    fun `dye entry decodes a rotation object`() {
+        val body = """
+            {
+              "username": "Steve",
+              "profile": { "id": "p", "cute_name": "Strawberry" },
+              "dyes": [
+                {
+                  "dyeId": "bone", "name": "Bone Dye", "color": "#e3dac9", "category": "Mob Drop",
+                  "progress": 12.5,
+                  "rotation": {"skyblockYear":493,"work":"1,234 skeletons","progress":0.04,"boost":2,"since":null}
+                }
+              ],
+              "modSyncTimestamp": null
+            }
+        """.trimIndent()
+
+        val rotation = json.decodeFromString<DyeProgressResponse>(body).dyes.single().rotation
+
+        assertEquals(DyeRotationStats(493, "1,234 skeletons", 0.04, 2, null), rotation)
+    }
+
+    @Test
+    fun `dye entry without a rotation decodes with a null rotation`() {
+        val body = """
+            {
+              "username": "Steve",
+              "profile": { "id": "p", "cute_name": "Strawberry" },
+              "dyes": [
+                { "dyeId": "lava", "name": "Lava Dye", "color": "#ff5722", "category": "Mining", "progress": 3.0 }
+              ],
+              "modSyncTimestamp": null
+            }
+        """.trimIndent()
+
+        val entry = json.decodeFromString<DyeProgressResponse>(body).dyes.single()
+
+        assertNull(entry.rotation)
+    }
+
+    @Test
+    fun `a rotation object with only some keys decodes with defaults`() {
+        val body = """
+            {
+              "username": "Steve",
+              "profile": { "id": "p", "cute_name": "Strawberry" },
+              "dyes": [
+                {
+                  "dyeId": "bone", "name": "Bone Dye", "color": "#e3dac9", "category": "Mob Drop",
+                  "rotation": {"skyblockYear":493,"work":"12 runs","since":1700000000000}
+                }
+              ],
+              "modSyncTimestamp": null
+            }
+        """.trimIndent()
+
+        val rotation = json.decodeFromString<DyeProgressResponse>(body).dyes.single().rotation
+
+        assertEquals(DyeRotationStats(493, "12 runs", null, 1, 1700000000000L), rotation)
+    }
+
+    @Test
     fun `decodes a player-profiles response with no profiles`() {
         val body = """
             { "uuid": "abc-123", "username": "Notch", "profiles": [] }
