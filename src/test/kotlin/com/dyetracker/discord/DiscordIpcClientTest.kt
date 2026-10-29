@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** [DiscordIpcClient] against [FakeDiscordServer] over a real Unix socket in a temp dir. */
@@ -102,6 +103,61 @@ class DiscordIpcClientTest {
         assertTrue(client.connect())
 
         assertFalse(client.setActivity(PID, buildJsonObject { put("details", "x") }))
+        client.close()
+    }
+
+    @Test
+    fun `an ERROR reply leaves Discord's message in lastError`() {
+        server.replyError = true
+        server.errorMessage = "Invalid button URL"
+        val client = client()
+        assertTrue(client.connect())
+        assertNull(client.lastError, "nothing was rejected yet")
+
+        assertFalse(client.setActivity(PID, buildJsonObject { put("details", "x") }))
+
+        assertEquals("Invalid button URL", client.lastError)
+        client.close()
+    }
+
+    @Test
+    fun `an accepted setActivity clears lastError`() {
+        server.replyError = true
+        val client = client()
+        assertTrue(client.connect())
+        assertFalse(client.setActivity(PID, buildJsonObject { put("details", "x") }))
+
+        server.replyError = false
+        assertTrue(client.setActivity(PID, buildJsonObject { put("details", "x") }))
+
+        assertNull(client.lastError)
+        client.close()
+    }
+
+    @Test
+    fun `a setActivity that never reaches Discord clears lastError`() {
+        server.replyError = true
+        val client = client()
+        assertTrue(client.connect())
+        assertFalse(client.setActivity(PID, buildJsonObject { put("details", "x") }))
+        client.close()
+
+        assertFalse(client.setActivity(PID, buildJsonObject { put("details", "x") }))
+
+        assertNull(client.lastError, "a dropped send is not a rejection")
+    }
+
+    @Test
+    fun `an ERROR reply without a message leaves the whole reply in lastError`() {
+        server.replyError = true
+        server.errorMessage = null
+        val client = client()
+        assertTrue(client.connect())
+
+        assertFalse(client.setActivity(PID, buildJsonObject { put("details", "x") }))
+
+        val error = client.lastError
+        assertTrue(error != null && "\"evt\":\"ERROR\"" in error, "lastError was $error")
         client.close()
     }
 

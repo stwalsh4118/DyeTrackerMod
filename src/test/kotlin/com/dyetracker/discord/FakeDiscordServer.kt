@@ -25,7 +25,8 @@ import kotlin.concurrent.thread
  * [socketPath] and serves one connection at a time on a daemon thread, accepting the next once a
  * client goes away (so reconnects can be tested). Records every frame it receives, answers
  * HANDSHAKE with READY, each SET_ACTIVITY with a reply carrying the same nonce (an
- * `"evt":"ERROR"` reply while [replyError] is set) and each PING with a PONG of the same JSON.
+ * `"evt":"ERROR"` reply carrying [errorMessage] while [replyError] is set) and each PING with a PONG
+ * of the same JSON.
  */
 class FakeDiscordServer(private val socketPath: Path) : Closeable {
 
@@ -35,6 +36,13 @@ class FakeDiscordServer(private val socketPath: Path) : Closeable {
     /** When set, SET_ACTIVITY is answered with `"evt":"ERROR"`. */
     @Volatile
     var replyError: Boolean = false
+
+    /**
+     * The `data.message` of an ERROR reply (see [replyError]), like Discord's reason for rejecting a
+     * card; `null` leaves the message out.
+     */
+    @Volatile
+    var errorMessage: String? = DEFAULT_ERROR_MESSAGE
 
     /** When set, HANDSHAKE is answered with a CLOSE frame (what Discord does for a bad client id). */
     @Volatile
@@ -166,8 +174,15 @@ class FakeDiscordServer(private val socketPath: Path) : Closeable {
             isSetActivity -> IpcOp.FRAME to buildJsonObject {
                 put("cmd", "SET_ACTIVITY")
                 put("nonce", json.getValue("nonce"))
-                if (replyError) put("evt", "ERROR")
-                putJsonObject("data") {}
+                if (replyError) {
+                    put("evt", "ERROR")
+                    putJsonObject("data") {
+                        put("code", INVALID_PAYLOAD_CODE)
+                        errorMessage?.let { put("message", it) }
+                    }
+                } else {
+                    putJsonObject("data") {}
+                }
             }.toString()
             else -> null
         }
@@ -185,6 +200,8 @@ class FakeDiscordServer(private val socketPath: Path) : Closeable {
         const val POLL_MS = 5L
         const val INVALID_CLIENT_ID_CODE = 4000
         const val NORMAL_CLOSE_CODE = 1000
+        const val INVALID_PAYLOAD_CODE = 4000
+        const val DEFAULT_ERROR_MESSAGE = "child \"activity\" fails because [child \"buttons\" fails]"
         val READY_JSON = buildJsonObject {
             put("cmd", "DISPATCH")
             put("evt", "READY")

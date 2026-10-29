@@ -21,6 +21,8 @@ private const val KEY_EVT = "evt"
 private const val KEY_NONCE = "nonce"
 private const val EVT_READY = "READY"
 private const val EVT_ERROR = "ERROR"
+private const val KEY_DATA = "data"
+private const val KEY_MESSAGE = "message"
 private const val CMD_SET_ACTIVITY = "SET_ACTIVITY"
 
 /** Name of the client's watchdog thread, which closes a connection Discord stopped answering. */
@@ -68,6 +70,14 @@ class DiscordIpcClient(
     @Volatile
     private var shutDown = false
 
+    /**
+     * Why Discord rejected the last [setActivity]: the `data.message` of its ERROR answer (the
+     * whole answer when it has none). `null` when the last [setActivity] was accepted, never
+     * answered or never made. Like the rest of the client, only the presence worker reads it.
+     */
+    var lastError: String? = null
+        private set
+
     /** Whether a handshaken connection is open. */
     val isConnected: Boolean get() = channel != null
 
@@ -100,10 +110,11 @@ class DiscordIpcClient(
 
     /**
      * Sets the card to [activity], or clears it when `null`, for process [pid]. Returns `true` when
-     * Discord accepts it and `false` when it answers ERROR, when not connected, or when the
-     * connection fails (which also closes it).
+     * Discord accepts it and `false` when it answers ERROR (its reason goes in [lastError]), when
+     * not connected, or when the connection fails (which also closes it).
      */
     fun setActivity(pid: Long, activity: JsonObject?): Boolean {
+        lastError = null
         val open = channel ?: return false
         val nonce = UUID.randomUUID().toString()
         val request = buildJsonObject {
@@ -115,7 +126,9 @@ class DiscordIpcClient(
             put(KEY_NONCE, nonce)
         }
         val reply = exchange(open, IpcOp.FRAME, request.toString(), IpcOp.FRAME) { it.string(KEY_NONCE) == nonce } ?: return false
-        return reply.string(KEY_EVT) != EVT_ERROR
+        if (reply.string(KEY_EVT) != EVT_ERROR) return true
+        lastError = (reply[KEY_DATA] as? JsonObject)?.string(KEY_MESSAGE) ?: reply.toString()
+        return false
     }
 
     /**

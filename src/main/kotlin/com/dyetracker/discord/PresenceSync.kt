@@ -8,6 +8,9 @@ internal const val LOG_NOT_REACHABLE = "Discord not reachable; will keep retryin
 /** Logged when a connect succeeds after failed ones. */
 internal const val LOG_CONNECTED = "Discord presence connected"
 
+/** Logged, before Discord's reason, once per distinct card Discord rejects. */
+internal const val LOG_REJECTED = "Discord rejected the presence card: "
+
 /**
  * Reconciles the card the mod wants with what it last sent Discord: connects when a card is
  * wanted (backing off after failed connects), sends only when the card changed and at most once per
@@ -19,7 +22,8 @@ internal const val LOG_CONNECTED = "Discord presence connected"
  * @param pid this game's process id, which Discord ties the card to.
  * @param backoff when the next connect may be tried after failed ones.
  * @param clock the current time in ms.
- * @param log where the two info lines of an outage go ([LOG_NOT_REACHABLE], [LOG_CONNECTED]); never chat.
+ * @param log where the two info lines of an outage go ([LOG_NOT_REACHABLE], [LOG_CONNECTED]) and
+ *   why Discord rejected a card ([LOG_REJECTED]); never chat.
  */
 class PresenceSync(
     private val client: DiscordIpcClient,
@@ -43,6 +47,12 @@ class PresenceSync(
     private var lastSentAtMs: Long? = null
 
     /**
+     * The card Discord last rejected, so its reason is logged once however often it is retried;
+     * `null` after an accepted card, so a card rejected again then is logged again.
+     */
+    private var lastRejected: PresenceCard? = null
+
+    /**
      * Moves Discord towards [wanted]. `null` clears a sent card (once), closes the connection and
      * resets the backoff, and never connects just to clear. A card first pings a connection that
      * has been idle for [IPC_HEALTH_CHECK_MS] (a failed ping forgets [lastSent]); then, when not
@@ -51,6 +61,7 @@ class PresenceSync(
      * [MIN_UPDATE_INTERVAL_MS] ago (a later call sends the newest card then). The first send on a
      * fresh connection is immediate, and a clear is never throttled. A failed send forgets
      * [lastSent], so a later call sends it again (after a reconnect when the connection broke).
+     * When Discord rejects a card, its reason is logged ([LOG_REJECTED]) once per distinct card.
      *
      * The ping only runs for a card Discord already has; a card still waiting on the throttle is
      * sent within [MIN_UPDATE_INTERVAL_MS], and that send checks the connection instead.
@@ -72,12 +83,21 @@ class PresenceSync(
         if (!client.isConnected && !connect(now)) return
         if (wanted == lastSent || throttled(now)) return
         lastSentAtMs = now
-        lastSent = if (client.setActivity(pid, wanted.toActivityJson())) {
+        if (client.setActivity(pid, wanted.toActivityJson())) {
             lastContactMs = now
-            wanted
+            lastSent = wanted
+            lastRejected = null
         } else {
-            null
+            lastSent = null
+            client.lastError?.let { reason -> logRejected(wanted, reason) }
         }
+    }
+
+    /** Logs why Discord rejected [card], unless it is the card whose rejection was logged last. */
+    private fun logRejected(card: PresenceCard, reason: String) {
+        if (card == lastRejected) return
+        lastRejected = card
+        log("$LOG_REJECTED$reason")
     }
 
     /** Whether a card went out on this connection less than [MIN_UPDATE_INTERVAL_MS] before [now]. */

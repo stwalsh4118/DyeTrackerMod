@@ -19,8 +19,8 @@ import kotlin.test.assertTrue
 /**
  * [PresenceSync.reconcile] against [FakeDiscordServer]: sends only on change and at most every
  * [MIN_UPDATE_INTERVAL_MS] per connection, clears (unthrottled) and closes on null, backs off
- * failed connects, pings an idle connection and resends the card after a reconnect. Time is an
- * injected clock ([now]).
+ * failed connects, pings an idle connection, resends the card after a reconnect and logs why Discord
+ * rejected a card once per distinct card. Time is an injected clock ([now]).
  */
 @EnabledOnOs(OS.LINUX, OS.MAC)
 @Timeout(TEST_TIMEOUT_SECONDS)
@@ -124,6 +124,51 @@ class PresenceSyncTest {
 
         assertEquals(2, server.setActivityArgs().size)
         assertEquals(TEST_CARD, sync.lastSent)
+    }
+
+    @Test
+    fun `a rejected card logs Discord's message once across throttled retries`() {
+        server.replyError = true
+        server.errorMessage = "Invalid button URL"
+        sync.reconcile(TEST_CARD)
+        now = MIN_UPDATE_INTERVAL_MS
+        sync.reconcile(TEST_CARD)
+        now = 2 * MIN_UPDATE_INTERVAL_MS
+        sync.reconcile(TEST_CARD)
+
+        assertEquals(3, server.setActivityArgs().size, "the card was retried twice, once per interval")
+        assertEquals(listOf("Discord rejected the presence card: Invalid button URL"), logged)
+    }
+
+    @Test
+    fun `a different rejected card logs again`() {
+        server.replyError = true
+        sync.reconcile(TEST_CARD)
+        server.errorMessage = "Invalid image"
+        now = MIN_UPDATE_INTERVAL_MS
+        sync.reconcile(TEST_CARD.copy(state = "Fishing"))
+
+        assertEquals(2, server.setActivityArgs().size)
+        assertEquals(2, logged.size)
+        assertEquals("Discord rejected the presence card: Invalid image", logged[1])
+    }
+
+    @Test
+    fun `an accepted card clears the rejection so the same card logs again`() {
+        server.replyError = true
+        sync.reconcile(TEST_CARD)
+        server.replyError = false
+        now = MIN_UPDATE_INTERVAL_MS
+        sync.reconcile(TEST_CARD.copy(state = "Fishing"))
+        assertEquals(1, logged.size, "an accepted card logs nothing")
+
+        server.replyError = true
+        now = 2 * MIN_UPDATE_INTERVAL_MS
+        sync.reconcile(TEST_CARD)
+
+        assertEquals(3, server.setActivityArgs().size)
+        assertEquals(2, logged.size)
+        assertEquals(logged[0], logged[1])
     }
 
     @Test
