@@ -101,6 +101,7 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 - **Sync**: send your tracked counts to DyeTracker now.
 - **Rotation widget**, **Dye widgets**, **GIF overlays** and **Bounce**: turn each on or off.
   - The rotation widget shows the dyes on Vincent's Dyes screen and their boosts. When your account is linked, opening that screen also sends the rotation to DyeTracker (whether or not the widget is on), so it knows which dyes are boosted that SkyBlock year (Minecraft 26.1.2 and 26.2).
+- **Discord presence** and **Discord hunt**: see [Discord Rich Presence](#discord-rich-presence).
 - **Edit layout**: move and resize your HUD widgets.
 
 ### Discord Rich Presence
@@ -228,7 +229,7 @@ The mod stores its configuration in `.minecraft/config/dyetracker.json`. This in
 | Dye counts (excavations, Dark Auctions, gift rewards, potions brewed) | Dye progress on the website | DyeTracker API |
 | Dye collection from Vincent's Dye Guide (the dyes you own, how many, and when you got them) | Collection tab and the website | DyeTracker API |
 | Vincent's rotation (the dye ids on his Dyes screen, their boosts, and the SkyBlock year), linked accounts only | Knowing which dyes are boosted each SkyBlock year | DyeTracker API |
-| Your DyeTracker stats (read from the DyeTracker API the mod already uses) and hunt dye, only while [Discord Rich Presence](#discord-rich-presence) is on (off by default) | Shown on your Discord profile while enabled | The local Discord app (Discord shows it to people who can see your profile) |
+| Your DyeTracker stats (read from the DyeTracker API the mod already uses), hunt dye, SkyBlock profile name, and a link to your DyeTracker profile page (which has your Minecraft UUID in it), only while [Discord Rich Presence](#discord-rich-presence) is on (off by default) | Shown on your Discord profile while enabled | The local Discord app (Discord shows it to people who can see your profile) |
 
 Once you've linked your account, each time your dye progress is looked up (by the mod, the menu or the website), DyeTracker also saves the stat counters behind it on its server, at most once every 5 minutes and only when they changed. It uses them to show what you did this rotation (see [Dye widgets](#dye-widgets)) and keeps them. This keeps happening after you unlink in the mod (see [Data storage](#data-storage)).
 
