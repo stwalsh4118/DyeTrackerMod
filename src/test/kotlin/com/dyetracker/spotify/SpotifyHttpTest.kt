@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 
@@ -184,5 +185,39 @@ class SpotifyHttpTest {
         serve("/v1/me/player/currently-playing", 401, """{"error":{"status":401,"message":"The access token expired"}}""")
 
         assertEquals(SpotifyResult.Failure(401, "The access token expired"), http.currentlyPlaying("A"))
+    }
+
+    @Test
+    fun `a 200 token body that won't decode fails without echoing the tokens`() {
+        serve(
+            "/api/token",
+            200,
+            """{"access_token":"SECRETA","token_type":"Bearer","expires_in":"soon","refresh_token":"SECRETR"}""",
+        )
+
+        val result = http.exchangeCode("cid", "c", "r", "v")
+
+        assertIs<SpotifyResult.Failure>(result)
+        assertEquals(200, result.status)
+        assertFalse(result.message.contains("SECRETA"), result.message)
+        assertFalse(result.message.contains("SECRETR"), result.message)
+    }
+
+    @Test
+    fun `a 200 currently-playing body that won't decode fails without echoing the body`() {
+        serve("/v1/me/player/currently-playing", 200, """{"is_playing":"SECRETBODY","item":{"name":"Song"}}""")
+
+        val result = http.currentlyPlaying("A")
+
+        assertIs<SpotifyResult.Failure>(result)
+        assertEquals(200, result.status)
+        assertFalse(result.message.contains("SECRETBODY"), result.message)
+    }
+
+    @Test
+    fun `a malformed error body falls back to the status without echoing it`() {
+        serve("/api/token", 400, """{"error":"invalid_grant","error_description":"SECRETX" """)
+
+        assertEquals(SpotifyResult.Failure(400, "HTTP 400"), http.exchangeCode("cid", "c", "r", "v"))
     }
 }

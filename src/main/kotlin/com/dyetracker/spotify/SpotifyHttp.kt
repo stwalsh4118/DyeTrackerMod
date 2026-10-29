@@ -1,7 +1,9 @@
 package com.dyetracker.spotify
 
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -31,6 +33,12 @@ private const val CURRENTLY_PLAYING_PATH = "/me/player/currently-playing?additio
 private const val ERROR_KEY = "error"
 private const val ERROR_DESCRIPTION_KEY = "error_description"
 private const val ERROR_MESSAGE_KEY = "message"
+
+/**
+ * [SpotifyResult.Failure.message] when a body won't decode. The decoder's own message quotes the
+ * whole body, which for the token endpoint holds the tokens, so it is never used.
+ */
+private const val UNEXPECTED_RESPONSE = "Unexpected response from Spotify"
 
 private val httpTimeout: Duration = Duration.ofSeconds(SpotifyConstants.HTTP_TIMEOUT_SECONDS)
 
@@ -85,17 +93,36 @@ class SpotifyHttp(
         }
     }
 
-    /** Send [request] and map its response with [onResponse]; any exception is a status-0 failure. */
-    private fun <T> send(request: HttpRequest, onResponse: (Int, String) -> SpotifyResult<T>): SpotifyResult<T> =
-        try {
-            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-            onResponse(response.statusCode(), response.body())
+    /**
+     * Send [request] and map its response with [onResponse]. Never throws.
+     *
+     * A transport failure is a status-0 failure; only an [IOException]'s message is kept (the JDK
+     * client's never carry a body). A body that won't decode is a failure with the real status and
+     * [UNEXPECTED_RESPONSE]: never the decoder's message, which quotes the body (the tokens, for
+     * the token endpoint). Any other exception is named by its type alone.
+     */
+    private fun <T> send(request: HttpRequest, onResponse: (Int, String) -> SpotifyResult<T>): SpotifyResult<T> {
+        val response = try {
+            client.send(request, HttpResponse.BodyHandlers.ofString())
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
-            SpotifyResult.Failure(STATUS_NO_RESPONSE, e.javaClass.simpleName)
+            return SpotifyResult.Failure(STATUS_NO_RESPONSE, e.javaClass.simpleName)
+        } catch (e: IOException) {
+            return SpotifyResult.Failure(STATUS_NO_RESPONSE, e.message ?: e.javaClass.simpleName)
         } catch (e: Exception) {
-            SpotifyResult.Failure(STATUS_NO_RESPONSE, e.message ?: e.javaClass.simpleName)
+            return SpotifyResult.Failure(STATUS_NO_RESPONSE, e.javaClass.simpleName)
         }
+        val status = response.statusCode()
+        return try {
+            onResponse(status, response.body())
+        } catch (_: SerializationException) {
+            SpotifyResult.Failure(status, UNEXPECTED_RESPONSE)
+        } catch (_: IllegalArgumentException) {
+            SpotifyResult.Failure(status, UNEXPECTED_RESPONSE)
+        } catch (e: Exception) {
+            SpotifyResult.Failure(status, e.javaClass.simpleName)
+        }
+    }
 }
 
 /** A failure for [status], with Spotify's own message from [body] when it has one. */
