@@ -5,6 +5,7 @@ import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.DroppedDye
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.data.VisitorEntry
+import com.dyetracker.rotation.RotationPusher
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.Screen
@@ -111,6 +112,7 @@ object InventoryHandler {
         }
 
         ConfigManager.updateDyeRotation(rotation)
+        RotationPusher.push(rotation)
         DyeTrackerMod.info("Captured dye rotation ({} dyes): {}", rotation.dyeIds.size, rotation.dyeIds)
 
         player.sendSystemMessage(

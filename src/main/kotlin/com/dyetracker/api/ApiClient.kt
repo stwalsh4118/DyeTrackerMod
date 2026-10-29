@@ -271,6 +271,55 @@ object ApiClient {
     }
 
     /**
+     * Push the Vincent rotation captured from the "Dyes" screen to `POST /api/v1/rotation`.
+     * Requires authentication. Never throws — returns [ApiResult.Error] on non-200 / network
+     * failure.
+     */
+    fun pushRotation(request: RotationPushRequest): ApiResult<RotationPushResponse> {
+        val url = "${ConfigManager.config.apiUrl}/api/v1/rotation"
+        val body = json.encodeToString(request)
+
+        DyeTrackerMod.info(
+            "API: POST {} (pushing rotation, year={}, {} dyes)",
+            url,
+            request.skyblockYear,
+            request.dyeIds.size,
+        )
+
+        return try {
+            val authHeader = getAuthHeader()
+            if (authHeader == null) {
+                DyeTrackerMod.warn("pushRotation: No auth token available")
+                return ApiResult.Error("Not authenticated", 401)
+            }
+
+            val httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", CONTENT_TYPE_JSON)
+                .header(AUTH_HEADER, authHeader)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .timeout(Duration.ofSeconds(30))
+                .build()
+
+            val response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString())
+            DyeTrackerMod.info("API: Response status={}", response.statusCode())
+
+            if (response.statusCode() == 200) {
+                val responseData = json.decodeFromString<RotationPushResponse>(response.body())
+                DyeTrackerMod.info("API: pushRotation success, stored={}", responseData.stored)
+                ApiResult.Success(responseData)
+            } else {
+                val error = parseError(response.body())
+                DyeTrackerMod.warn("pushRotation failed: {} ({})", error, response.statusCode())
+                ApiResult.Error(error, response.statusCode())
+            }
+        } catch (e: Exception) {
+            DyeTrackerMod.error("pushRotation exception", e)
+            ApiResult.Error("Network error: ${e.message}")
+        }
+    }
+
+    /**
      * Fetch per-dye progress for a profile from the public
      * `GET /api/v1/player/:username/profile/:profileId/dyes` endpoint. No auth required: the
      * backend resolves the username to a UUID and applies that account's saved stats + mod RNG
