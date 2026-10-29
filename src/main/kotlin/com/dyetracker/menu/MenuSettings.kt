@@ -1,5 +1,7 @@
 package com.dyetracker.menu
 
+import com.dyetracker.spotify.SessionStatus
+
 /** Whether a group of HUD widgets is shown: none exist, all shown, all hidden, or some of each. */
 enum class ToggleState { NONE, ON, OFF, MIXED }
 
@@ -73,3 +75,19 @@ private const val AGE_PREFIX = "updated "
  */
 fun lastSyncText(nowMs: Long, lastSyncMs: Long): String =
     if (lastSyncMs == 0L) NEVER_SYNCED_TEXT else LAST_SYNC_PREFIX + formatAge(nowMs, lastSyncMs).removePrefix(AGE_PREFIX)
+
+/** The Spotify row's pill while the player isn't connected; inactive until a Client ID is saved. */
+private const val LOG_IN_LABEL = "Log in"
+
+/** The Spotify row's pill while connected. */
+private const val LOG_OUT_LABEL = "Log out"
+
+/**
+ * The Settings tab's Spotify pill for [status], as its label and whether it is active: Log out when
+ * connected, else Log in, inactive while no Client ID is saved ([SessionStatus.NOT_SET_UP]).
+ */
+fun spotifyRowPill(status: SessionStatus): Pair<String, Boolean> = when (status) {
+    SessionStatus.NOT_SET_UP -> LOG_IN_LABEL to false
+    SessionStatus.LOGGED_OUT -> LOG_IN_LABEL to true
+    SessionStatus.CONNECTED -> LOG_OUT_LABEL to true
+}
