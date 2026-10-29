@@ -20,10 +20,10 @@ import net.minecraft.client.Minecraft
  * bar with `m:ss / m:ss`. Its panel, border, bar fill and text take the cover's colors, fading on
  * a track change, and the icon is green or white by contrast ([SpotifyColorStore], task 76-6).
  * Paused, the same layout is dimmed by [SpotifyConstants.PAUSED_ALPHA_FACTOR] (the icon and the
- * cover never are) with `Paused · ` before the time. An ad shows [SpotifyConstants.AD_TITLE]; not
- * set up, logged out and errors show a message panel; these and the edit placeholder use
- * [FALLBACK_COLORS]. Text is fitted to [SpotifyConstants.TEXT_WIDTH_PX] with `…`, except a
- * message's command hint.
+ * cover never are) with `Paused · ` before the time. An ad shows [SpotifyConstants.AD_TITLE] in
+ * the store's colors (fading to [FALLBACK_COLORS], as an ad has no art); not set up, logged out
+ * and errors show a message panel; these and the edit placeholder use [FALLBACK_COLORS]. Text is
+ * fitted to [SpotifyConstants.TEXT_WIDTH_PX] with `…`, except a message's command hint.
  */
 object SpotifyWidgetView {
 
@@ -37,13 +37,16 @@ object SpotifyWidgetView {
     fun build(state: SpotifyWidgetState, nowMs: Long, editing: Boolean): Widget? = when (state) {
         is SpotifyWidgetState.Playing -> track(state.s, nowMs, paused = false)
         is SpotifyWidgetState.Paused -> track(state.s, nowMs, paused = true)
-        SpotifyWidgetState.Ad -> panel(
-            listOf(titleRow(fit(SpotifyConstants.AD_TITLE), FALLBACK_COLORS, SpotifyConstants.TEXT_WIDTH_PX)),
-            FALLBACK_COLORS,
-        )
+        SpotifyWidgetState.Ad -> ad(nowMs)
         SpotifyWidgetState.NotSetUp, SpotifyWidgetState.LoggedOut -> message(messageLines(state))
         is SpotifyWidgetState.Error -> message(messageLines(state).map(::fit))
         SpotifyWidgetState.Hidden -> if (editing) placeholder() else null
+    }
+
+    /** An ad has no art, so [SpotifyColorStore] is already fading to [FALLBACK_COLORS]. */
+    private fun ad(nowMs: Long): Widget {
+        val colors = SpotifyColorStore.colorsAt(nowMs)
+        return panel(listOf(titleRow(fit(SpotifyConstants.AD_TITLE), colors, SpotifyConstants.TEXT_WIDTH_PX)), colors)
     }
 
     private fun track(s: NowPlayingSnapshot, nowMs: Long, paused: Boolean): Widget {
