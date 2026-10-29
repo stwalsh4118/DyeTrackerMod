@@ -96,7 +96,7 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 **History tab**
 
 - Shows your gains over the last **1h / 24h / 7d / 30d** (pick one with the pills at the top): for each dye, the work you did and the chance that work gave you, at each year's boost. The biggest gains come first.
-- Click a dye to see bars of its work per time slice (5 minutes, an hour, 6 hours or a day, depending on the range). Hover a bar for the exact numbers.
+- Click a dye to see bars of its work per time slice (5 minutes, an hour, 6 hours or a day, depending on the range). Hover a bar for its time and work.
 - History is only recorded for linked players, so link your account with the mod to start it. Until then the tab tells you so.
 - The website's history page has the full charts and the **Update me now** button.
 
@@ -207,7 +207,7 @@ The mod stores its configuration in `.minecraft/config/dyetracker.json`. This in
 | Dye collection from Vincent's Dye Guide (the dyes you own, how many, and when you got them) | Collection tab and the website | DyeTracker API |
 | Vincent's rotation (the dye ids on his Dyes screen, their boosts, and the SkyBlock year), linked accounts only | Knowing which dyes are boosted each SkyBlock year | DyeTracker API |
 
-Once you've linked your account, each time your dye progress is looked up (by the mod, the menu or the website), DyeTracker also saves the stat counters behind it on its server, at most once every 5 minutes and only when they changed. It uses them to show what you did this rotation (see [Dye widgets](#dye-widgets)) and keeps them. This keeps happening after you unlink in the mod (see [Data storage](#data-storage)).
+Once you've linked your account, each time your dye progress is looked up (by the mod, the menu or the website), DyeTracker also saves the stat counters behind it on its server, at most once every 5 minutes and only when they changed. It uses them to show what you did this rotation (see [Dye widgets](#dye-widgets)), and keeps them to show your history in the in-game History tab and on your public history page on the website. This keeps happening after you unlink in the mod (see [Data storage](#data-storage)).
 
 Your Minecraft session token is **never** sent to DyeTracker servers - only to Mojang's official authentication servers.
 
