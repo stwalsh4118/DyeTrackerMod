@@ -149,6 +149,24 @@ object UiTheme {
 
         /** Wash over a not-owned Collection card; stands in for the website's `opacity-50` + `grayscale`. */
         const val UNOWNED_DIM: Int = 0x99_00_00_00.toInt()
+
+        /** Menu achievement `bronze` tier; the website `AchievementTierBadge`'s `#cd7f32`. */
+        const val TIER_BRONZE: Int = 0xFF_CD_7F_32.toInt()
+
+        /** Menu achievement `silver` tier; the website `AchievementTierBadge`'s `#c0c0c0`. */
+        const val TIER_SILVER: Int = 0xFF_C0_C0_C0.toInt()
+
+        /** Menu achievement `gold` tier; the website `AchievementTierBadge`'s `#ffd700`. */
+        const val TIER_GOLD: Int = 0xFF_FF_D7_00.toInt()
+
+        /** Menu achievement `platinum` tier; the website `AchievementTierBadge`'s `#00f0ff`. */
+        const val TIER_PLATINUM: Int = 0xFF_00_F0_FF.toInt()
+
+        /** Menu achievement `legendary` tier; the website `AchievementTierBadge`'s `#e225f4`. */
+        const val TIER_LEGENDARY: Int = 0xFF_E2_25_F4.toInt()
+
+        /** A locked achievement's tier pill; the website `AchievementTierBadge`'s muted `#4b5563`. */
+        const val TIER_LOCKED: Int = 0xFF_4B_55_63.toInt()
     }
 
     /** Spacing tokens in GUI pixels. */

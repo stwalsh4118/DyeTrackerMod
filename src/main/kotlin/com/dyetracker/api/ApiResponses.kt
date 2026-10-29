@@ -181,3 +181,40 @@ data class CollectionResponse(
     val username: String = "",
     val dyes: List<CollectionEntry> = emptyList()
 )
+
+/** How far a locked achievement is: [current] of [total]. */
+@Serializable
+data class AchievementProgress(val current: Int = 0, val total: Int = 0)
+
+/**
+ * One achievement from `GET /api/v1/player/:username/achievements`: its id, whether and when
+ * ([unlockedAt], epoch ms) the player unlocked it, and its [progress] when it counts towards one.
+ * [name], [description], [category] and [tier] come from the catalog and are null on an API that
+ * doesn't send them yet; the menu then falls back ([com.dyetracker.menu.MenuAchievements]).
+ */
+@Serializable
+data class PlayerAchievementEntry(
+    val achievementId: String,
+    val name: String? = null,
+    val description: String? = null,
+    val category: String? = null,
+    val tier: String? = null,
+    val secret: Boolean = false,
+    val unlocked: Boolean = false,
+    val unlockedAt: Long? = null,
+    val progress: AchievementProgress? = null
+)
+
+/**
+ * Response from `GET /api/v1/player/:username/achievements?profileId=` (public endpoint): every
+ * achievement with the player's state on that profile, and how many of [totalCount] are unlocked.
+ * The JSON's `profile` is dropped by the client's `ignoreUnknownKeys` Json.
+ */
+@Serializable
+data class AchievementsResponse(
+    val uuid: String = "",
+    val username: String = "",
+    val achievements: List<PlayerAchievementEntry> = emptyList(),
+    val unlockedCount: Int = 0,
+    val totalCount: Int = 0
+)

@@ -7,7 +7,8 @@ import kotlin.test.assertNull
 
 /**
  * Unit coverage for the menu card-grid geometry (tasks 67-1, 67-2), the Collection tab layout
- * (68-2, 68-3, its drop timeline 68-4), and a Dyes card's category line with its OBTAINED badge (68-5).
+ * (68-2, 68-3, its drop timeline 68-4), a Dyes card's category line with its OBTAINED badge (68-5),
+ * and the Achievements tab layout (68-6).
  */
 class MenuLayoutTest {
 
@@ -344,5 +345,55 @@ class MenuLayoutTest {
     fun `timeline rows start a text gap below the heading line`() {
         assertEquals(100 + 9 + 4, MenuLayout.timelineRowY(headingY = 100, lineHeight = 9, index = 0))
         assertEquals(100 + 9 + 4 + 2 * 14, MenuLayout.timelineRowY(headingY = 100, lineHeight = 9, index = 2))
+    }
+
+    /** The Achievements tab's layout from y=50, 328 wide from x=10, 9px text, with [sectionSizes] rows per section. */
+    private fun achievements(sectionSizes: List<Int>) = MenuLayout.achievementsGeometry(
+        top = 50,
+        left = 10,
+        width = 328,
+        screenHeight = 400,
+        lineHeight = 9,
+        sectionSizes = sectionSizes,
+    )
+
+    @Test
+    fun `achievements summary line is at the top and the bar a text gap below it`() {
+        val geometry = achievements(listOf(2))
+
+        assertEquals(50, geometry.summaryY)
+        assertEquals(50 + 9 + 4, geometry.barY)
+    }
+
+    @Test
+    fun `achievements list sits an outer margin below the bar`() {
+        val geometry = achievements(listOf(2))
+
+        val top = 63 + 4 + 16
+        assertEquals(Rect(10, top, 328, 400 - top - 16), geometry.viewport)
+    }
+
+    @Test
+    fun `achievements sections stack with a gap between them`() {
+        val geometry = achievements(listOf(2, 3))
+
+        val top = 63 + 4 + 16
+        val secondTop = top + 9 + 4 + 2 * 30 + 8
+        assertEquals(listOf(top, secondTop), geometry.sectionTops)
+        assertEquals(secondTop + 9 + 4 + 3 * 30 - top, geometry.contentHeight)
+    }
+
+    @Test
+    fun `no achievement sections have no content`() {
+        val geometry = achievements(emptyList())
+
+        assertEquals(emptyList(), geometry.sectionTops)
+        assertEquals(0, geometry.contentHeight)
+    }
+
+    @Test
+    fun `achievement rows start a text gap below their section header`() {
+        assertEquals(100 + 9 + 4, MenuLayout.achievementRowY(sectionTop = 100, lineHeight = 9, index = 0))
+        assertEquals(100 + 9 + 4 + 2 * 30, MenuLayout.achievementRowY(sectionTop = 100, lineHeight = 9, index = 2))
     }
 }

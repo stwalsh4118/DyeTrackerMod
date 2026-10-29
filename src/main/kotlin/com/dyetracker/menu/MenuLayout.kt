@@ -26,6 +26,20 @@ data class CollectionGeometry(
 /** Where a Dyes card's category-line badge starts ([badgeLeft]) and how wide the category text may be ([categoryWidth]). */
 data class CategoryLine(val badgeLeft: Int, val categoryWidth: Int)
 
+/**
+ * Where the Achievements tab's parts sit below the profile strip: the summary line at [summaryY],
+ * the progress bar at [barY], and the scrolling [viewport] with its [contentHeight]: one section
+ * per [sectionTops] entry, its header at that unscrolled y and its rows below it
+ * ([MenuLayout.achievementRowY]).
+ */
+data class AchievementsGeometry(
+    val summaryY: Int,
+    val barY: Int,
+    val viewport: Rect,
+    val contentHeight: Int,
+    val sectionTops: List<Int>,
+)
+
 /** Sizes (GUI pixels) and card-grid geometry for the in-game DyeTracker menu. */
 object MenuLayout {
     /** Gap between the screen edges / header and the content. */
@@ -127,6 +141,15 @@ object MenuLayout {
     /** Height of one Settings row (label, detail line, control pill). */
     const val SETTINGS_ROW_HEIGHT = 28
 
+    /** Height of one Achievements row (tier pill, name, description, footer). */
+    const val ACHIEVEMENT_ROW_HEIGHT = 30
+
+    /** Gap between one Achievements section's last row and the next section's header. */
+    const val ACHIEVEMENT_SECTION_GAP = CARD_GAP
+
+    /** Height of the progress bar under a locked achievement's `Progress n / m` footer. */
+    const val ACHIEVEMENT_PROGRESS_BAR_HEIGHT = 2
+
     /** How long a Settings row's message after a click (unlinked, synced, nothing to sync) shows, in ms. */
     const val SETTINGS_MESSAGE_MS = 4_000L
 
@@ -192,6 +215,43 @@ object MenuLayout {
     /** Top of drop timeline row [index] under a heading line ([lineHeight] tall) at [headingY]. */
     fun timelineRowY(headingY: Int, lineHeight: Int, index: Int): Int =
         headingY + lineHeight + TEXT_GAP + index * TIMELINE_ROW_HEIGHT
+
+    /**
+     * The Achievements tab's layout from [top] down, [width] wide from [left]: the summary line
+     * ([lineHeight] tall), [TEXT_GAP] below it the progress bar, and [OUTER_MARGIN] below the bar
+     * the scrolling list down to [OUTER_MARGIN] above the [screenHeight]: a section per
+     * [sectionSizes] entry (a header line, then that many [ACHIEVEMENT_ROW_HEIGHT] rows), sections
+     * [ACHIEVEMENT_SECTION_GAP] apart.
+     */
+    fun achievementsGeometry(
+        top: Int,
+        left: Int,
+        width: Int,
+        screenHeight: Int,
+        lineHeight: Int,
+        sectionSizes: List<Int>,
+    ): AchievementsGeometry {
+        val barY = top + lineHeight + TEXT_GAP
+        val listTop = barY + UiTheme.Sizing.PROGRESS_BAR_HEIGHT + OUTER_MARGIN
+        val sectionTops = mutableListOf<Int>()
+        var bottom = listTop
+        for (size in sectionSizes) {
+            val sectionTop = if (sectionTops.isEmpty()) listTop else bottom + ACHIEVEMENT_SECTION_GAP
+            sectionTops += sectionTop
+            bottom = achievementRowY(sectionTop, lineHeight, size)
+        }
+        return AchievementsGeometry(
+            summaryY = top,
+            barY = barY,
+            viewport = Rect(left, listTop, width, screenHeight - listTop - OUTER_MARGIN),
+            contentHeight = bottom - listTop,
+            sectionTops = sectionTops,
+        )
+    }
+
+    /** Top of achievement row [index] in a section whose header line ([lineHeight] tall) is at [sectionTop]. */
+    fun achievementRowY(sectionTop: Int, lineHeight: Int, index: Int): Int =
+        sectionTop + lineHeight + TEXT_GAP + index * ACHIEVEMENT_ROW_HEIGHT
 
     /** Horizontal distance from one card's left edge to the next column's. */
     private const val COLUMN_PITCH = CARD_WIDTH + CARD_GAP
