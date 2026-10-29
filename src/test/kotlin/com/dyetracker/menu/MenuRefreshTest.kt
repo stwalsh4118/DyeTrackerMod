@@ -22,6 +22,22 @@ class MenuRefreshTest {
     }
 
     @Test
+    fun `on the History tab Refresh fetches only the history`() {
+        assertEquals(
+            RefreshPlan(dyes = false, collection = false, achievements = false, history = true),
+            MenuRefresh.HISTORY_TAB,
+        )
+    }
+
+    @Test
+    fun `Refresh on the other tabs never fetches the history`() {
+        assertFalse(MenuRefresh.DYES_TAB.history)
+        assertFalse(MenuRefresh.ACHIEVEMENTS_TAB.history)
+        assertFalse(MenuRefresh.collectionTab(dyesLoaded = true).history)
+        assertFalse(MenuRefresh.collectionTab(dyesLoaded = false).history)
+    }
+
+    @Test
     fun `on the Collection tab with the dyes loaded Refresh fetches only the collection`() {
         assertEquals(
             RefreshPlan(dyes = false, collection = true, achievements = false),
@@ -84,5 +100,21 @@ class MenuRefreshTest {
             LoadFollowUp(collection = FollowUp.FETCH, achievements = FollowUp.FETCH),
             MenuRefresh.afterLoad(syncedFirst = true, achievementsHeld = true, onAchievementsTab = true),
         )
+    }
+
+    @Test
+    fun `a tab's data after a load without a sync first is ensured only on its tab`() {
+        assertEquals(FollowUp.NONE, MenuRefresh.tabFollowUp(syncedFirst = false, held = false, onTab = false))
+        assertEquals(FollowUp.NONE, MenuRefresh.tabFollowUp(syncedFirst = false, held = true, onTab = false))
+        assertEquals(FollowUp.ENSURE, MenuRefresh.tabFollowUp(syncedFirst = false, held = false, onTab = true))
+        assertEquals(FollowUp.ENSURE, MenuRefresh.tabFollowUp(syncedFirst = false, held = true, onTab = true))
+    }
+
+    @Test
+    fun `a tab's data after a sync first is fetched again when held or shown`() {
+        assertEquals(FollowUp.NONE, MenuRefresh.tabFollowUp(syncedFirst = true, held = false, onTab = false))
+        assertEquals(FollowUp.FETCH, MenuRefresh.tabFollowUp(syncedFirst = true, held = true, onTab = false))
+        assertEquals(FollowUp.FETCH, MenuRefresh.tabFollowUp(syncedFirst = true, held = false, onTab = true))
+        assertEquals(FollowUp.FETCH, MenuRefresh.tabFollowUp(syncedFirst = true, held = true, onTab = true))
     }
 }

@@ -2,6 +2,7 @@ package com.dyetracker.menu
 
 import com.dyetracker.api.AchievementsResponse
 import com.dyetracker.api.CollectionResponse
+import com.dyetracker.api.HistoryResponse
 
 /** A value kept in a [SessionCache], with when it was fetched (epoch ms). */
 data class Cached<T>(val value: T, val fetchedAtMs: Long)
@@ -36,3 +37,9 @@ val COLLECTION_CACHE = SessionCache<CollectionResponse>()
 
 /** The Achievements tab's achievements for the whole game session. */
 val ACHIEVEMENTS_CACHE = SessionCache<AchievementsResponse>()
+
+/**
+ * The History tab's history for the whole game session, per profile and period: the profile id
+ * passed in is [historyKey]'s `"$profileId|${period.apiValue}"`.
+ */
+val HISTORY_CACHE = SessionCache<HistoryResponse>()

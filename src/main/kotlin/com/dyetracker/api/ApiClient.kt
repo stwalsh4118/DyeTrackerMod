@@ -438,6 +438,48 @@ object ApiClient {
     }
 
     /**
+     * Fetch what the player gained on one profile over [period] (`1h`, `24h`, `7d` or `30d`) from
+     * the public `GET /api/v1/player/:username/profile/:profileId/history?period=…` endpoint. No
+     * auth required. Never throws — returns [ApiResult.Error] on non-200 / network failure.
+     */
+    fun fetchHistory(username: String, profileId: String, period: String): ApiResult<HistoryResponse> {
+        val url = "${ConfigManager.config.apiUrl}/api/v1/player/${encodePathSegment(username)}/profile/" +
+            "${encodePathSegment(profileId)}/history?period=${URLEncoder.encode(period, StandardCharsets.UTF_8)}"
+
+        DyeTrackerMod.info("API: GET {} (fetching history)", url)
+
+        return try {
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", CONTENT_TYPE_JSON)
+                .GET()
+                .timeout(Duration.ofSeconds(GET_REQUEST_TIMEOUT_SECONDS))
+                .build()
+
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            DyeTrackerMod.info("API: Response status={}", response.statusCode())
+
+            if (response.statusCode() == 200) {
+                val data = json.decodeFromString<HistoryResponse>(response.body())
+                DyeTrackerMod.info(
+                    "API: fetchHistory success, {} dye(s) for profile={} period={}",
+                    data.dyes.size,
+                    profileId,
+                    period,
+                )
+                ApiResult.Success(data)
+            } else {
+                val error = parseError(response.body())
+                DyeTrackerMod.warn("fetchHistory failed: {} ({})", error, response.statusCode())
+                ApiResult.Error(error, response.statusCode())
+            }
+        } catch (e: Exception) {
+            DyeTrackerMod.error("fetchHistory exception", e)
+            ApiResult.Error("Network error: ${e.message}")
+        }
+    }
+
+    /**
      * Fetch a player's SkyBlock profiles from the public `GET /api/v1/player/:username`
      * endpoint, used to resolve a typed profile `cute_name` to the `profileId` the dyes
      * endpoint requires. No auth required. Never throws — returns [ApiResult.Error] on

@@ -4,6 +4,7 @@ import com.dyetracker.ui.core.Rect
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Unit coverage for the menu card-grid geometry (tasks 67-1, 67-2), the Collection tab layout
@@ -420,5 +421,63 @@ class MenuLayoutTest {
     fun `achievement rows start a text gap below their section header`() {
         assertEquals(100 + 9 + 4, MenuLayout.achievementRowY(sectionTop = 100, lineHeight = 9, index = 0))
         assertEquals(100 + 9 + 4 + 2 * 30, MenuLayout.achievementRowY(sectionTop = 100, lineHeight = 9, index = 2))
+    }
+
+    /**
+     * The History tab's layout from y=50, 328 wide from x=10, with [pills] for its period pill row
+     * and [rowCount] rows; every character measures 6px.
+     */
+    private fun history(rowCount: Int, pills: List<Pair<String, String>> = emptyList()) =
+        MenuLayout.historyGeometry(
+            top = 50,
+            left = 10,
+            width = 328,
+            screenHeight = 400,
+            pillLabels = pills,
+            measure = { it.length * 6 },
+            rowCount = rowCount,
+        )
+
+    @Test
+    fun `history period pills start at the top and the list an outer margin below them`() {
+        val geometry = history(3, pills = listOf("HOUR" to "1h", "DAY" to "24h"))
+
+        assertEquals(
+            listOf("HOUR" to Rect(10, 50, 2 * 6 + 16, 16), "DAY" to Rect(10 + 28 + 4, 50, 3 * 6 + 16, 16)),
+            geometry.pills,
+        )
+        val top = 50 + 16 + 16
+        assertTrue(geometry.pills.all { it.second.bottom < geometry.viewport.y })
+        assertEquals(Rect(10, top, 328, 400 - top - 16), geometry.viewport)
+    }
+
+    @Test
+    fun `history list stays inside the panel`() {
+        val viewport = history(3, pills = listOf("DAY" to "24h")).viewport
+
+        assertTrue(viewport.x >= 10 && viewport.right <= 10 + 328)
+        assertTrue(viewport.y >= 50 && viewport.bottom <= 400 - 16)
+    }
+
+    @Test
+    fun `history rows stack a row height apart`() {
+        val geometry = history(3, pills = listOf("DAY" to "24h"))
+
+        assertEquals(3 * 32, geometry.contentHeight)
+        assertEquals(100, MenuLayout.historyRowY(listTop = 100, index = 0))
+        assertEquals(100 + 2 * 32, MenuLayout.historyRowY(listTop = 100, index = 2))
+    }
+
+    @Test
+    fun `no history rows have no content`() {
+        assertEquals(0, history(0, pills = listOf("DAY" to "24h")).contentHeight)
+    }
+
+    @Test
+    fun `history without pills puts the list an outer margin below the top`() {
+        val geometry = history(1)
+
+        assertEquals(emptyList(), geometry.pills)
+        assertEquals(50 + 16, geometry.viewport.y)
     }
 }

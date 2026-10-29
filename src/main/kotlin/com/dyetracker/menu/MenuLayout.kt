@@ -41,6 +41,13 @@ data class AchievementsGeometry(
     val sectionTops: List<Int>,
 )
 
+/**
+ * Where the History tab's parts sit below the profile strip: the period [pills] (`key to rect`, as
+ * [layoutPills] places them) and the scrolling [viewport] with its [contentHeight]: one row per
+ * dye, each at [MenuLayout.historyRowY].
+ */
+data class HistoryGeometry(val pills: List<Pair<String, Rect>>, val viewport: Rect, val contentHeight: Int)
+
 /** Sizes (GUI pixels) and card-grid geometry for the in-game DyeTracker menu. */
 object MenuLayout {
     /** Gap between the screen edges / header and the content. */
@@ -151,6 +158,9 @@ object MenuLayout {
     /** Height of the progress bar under a locked achievement's `Progress n / m` footer. */
     const val ACHIEVEMENT_PROGRESS_BAR_HEIGHT = 2
 
+    /** Height of one History row: a dye's icon box and the gap below it. */
+    const val HISTORY_ROW_HEIGHT = ICON_BOX + TEXT_GAP
+
     /** How long a Settings row's message after a click (unlinked, synced, nothing to sync) shows, in ms. */
     const val SETTINGS_MESSAGE_MS = 4_000L
 
@@ -259,6 +269,33 @@ object MenuLayout {
     /** Top of achievement row [index] in a section whose header line ([lineHeight] tall) is at [sectionTop]. */
     fun achievementRowY(sectionTop: Int, lineHeight: Int, index: Int): Int =
         sectionTop + lineHeight + TEXT_GAP + index * ACHIEVEMENT_ROW_HEIGHT
+
+    /**
+     * The History tab's layout from [top] down, [width] wide from [left]: the period [pillLabels]
+     * wrapping within [width] ([layoutPills], widths by [measure]), and [OUTER_MARGIN] below the
+     * last pill row (or [top], without pills) the scrolling list of [rowCount]
+     * [HISTORY_ROW_HEIGHT] rows down to [OUTER_MARGIN] above the [screenHeight].
+     */
+    fun historyGeometry(
+        top: Int,
+        left: Int,
+        width: Int,
+        screenHeight: Int,
+        pillLabels: List<Pair<String, String>>,
+        measure: (String) -> Int,
+        rowCount: Int,
+    ): HistoryGeometry {
+        val pills = layoutPills(pillLabels, measure, left, top, width)
+        val listTop = (pills.maxOfOrNull { it.second.bottom } ?: top) + OUTER_MARGIN
+        return HistoryGeometry(
+            pills = pills,
+            viewport = Rect(left, listTop, width, screenHeight - listTop - OUTER_MARGIN),
+            contentHeight = historyRowY(listTop, rowCount) - listTop,
+        )
+    }
+
+    /** Top of History row [index] in a list whose unscrolled top is [listTop]. */
+    fun historyRowY(listTop: Int, index: Int): Int = listTop + index * HISTORY_ROW_HEIGHT
 
     /** Horizontal distance from one card's left edge to the next column's. */
     private const val COLUMN_PITCH = CARD_WIDTH + CARD_GAP

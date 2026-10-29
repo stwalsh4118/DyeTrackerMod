@@ -258,3 +258,36 @@ data class AchievementsResponse(
     val unlockedCount: Int = 0,
     val totalCount: Int = 0
 )
+
+/**
+ * One dye the player made progress on in a [HistoryResponse]'s period: its [work] over the period
+ * (e.g. `1,000 skeletons`) and the [chance] (percent) of dropping it from that work, `null` when the
+ * dye has no drop chance.
+ */
+@Serializable
+data class HistoryDyeGain(
+    val dyeId: String = "",
+    val name: String = "",
+    val color: String = "",
+    val work: String = "",
+    val chance: Double? = null
+)
+
+/**
+ * Response from `GET /api/v1/player/:username/profile/:profileId/history?period=` (public
+ * endpoint): what the player gained over the [period] between the snapshots at [from] and [to]
+ * (epoch ms, `null` without any), from [snapshotCount] snapshots. History is recorded only for a
+ * [linked] player. [dyes] come sorted by chance (highest first, none last), then name. The JSON's
+ * `counters` are dropped by the client's `ignoreUnknownKeys` Json.
+ */
+@Serializable
+data class HistoryResponse(
+    val uuid: String = "",
+    val profileId: String = "",
+    val period: String = "",
+    val linked: Boolean = false,
+    val from: Long? = null,
+    val to: Long? = null,
+    val snapshotCount: Int = 0,
+    val dyes: List<HistoryDyeGain> = emptyList()
+)
