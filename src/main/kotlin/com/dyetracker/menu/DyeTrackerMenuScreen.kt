@@ -12,6 +12,10 @@ import com.dyetracker.DyeTrackerMod
 import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.PlayerRngData
 import com.dyetracker.data.RngDataStore
+import com.dyetracker.discord.DiscordHuntPickerScreen
+import com.dyetracker.discord.disableDiscordPresence
+import com.dyetracker.discord.enableDiscordPresence
+import com.dyetracker.dyeprogress.DyeCatalog
 import com.dyetracker.dyeprogress.DyeProgressPlacementEditor
 import com.dyetracker.dyeprogress.DyeProgressPoller
 import com.dyetracker.dyeprogress.DyeProgressWidgetConfig
@@ -91,11 +95,15 @@ import kotlin.math.roundToInt
  * status text is the shown tab's: how old its data is, "refreshing…" or "refresh failed". Refresh
  * fetches the shown tab's data again ([MenuRefresh]): on the Dyes tab the dyes and the collection,
  * on the Collection tab the collection (and the dyes while they aren't loaded).
- * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, the layout
- * editor), each control calling what its `/dyetracker` command calls. Settings state is read fresh
- * every frame, so a change made by a command meanwhile shows at once.
+ * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, Discord
+ * presence and its hunt dye, the layout editor), each control calling what its `/dyetracker`
+ * command calls. Settings state is read fresh every frame, so a change made by a command meanwhile
+ * shows at once. The Discord hunt row opens [DiscordHuntPickerScreen], which comes back to a new
+ * menu opened on the Settings tab ([openOnSettings]).
+ *
+ * @param openOnSettings open on the Settings tab instead of the Dyes tab.
  */
-class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
+class DyeTrackerMenuScreen(openOnSettings: Boolean = false) : Screen(Component.literal(TITLE)) {
 
     /** The menu's tabs, in header order; [label] is the tab pill's text. */
     private enum class MenuTab(val label: String) {
@@ -127,7 +135,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     }
 
     /** What a Settings row is about; picks what a click on its pill does. */
-    private enum class SettingsKey { ACCOUNT, SYNC, ROTATION, DYE_WIDGETS, GIFS, BOUNCE, EDIT_LAYOUT }
+    private enum class SettingsKey { ACCOUNT, SYNC, ROTATION, DYE_WIDGETS, GIFS, BOUNCE, DISCORD, DISCORD_HUNT, EDIT_LAYOUT }
 
     /**
      * One Settings row as of now: its [label], an optional [detail] line under it, and an optional
@@ -239,7 +247,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     private var pinMessage: PinMessage? = null
 
     /** The tab shown; kept while the screen is open. */
-    private var tab = MenuTab.DYES
+    private var tab = if (openOnSettings) MenuTab.SETTINGS else MenuTab.DYES
 
     /** The Unlink pill's two-click confirm. */
     private val unlinkConfirm = ConfirmClick()
@@ -699,6 +707,15 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 BounceController.setEnabled(enabled)
                 ConfigManager.setBounceEnabled(enabled)
             }
+            SettingsKey.DISCORD -> if (ConfigManager.isDiscordEnabled()) {
+                disableDiscordPresence()
+            } else {
+                enableDiscordPresence { hint -> Minecraft.getInstance().player?.sendSystemMessage(hint) }
+            }
+            // This screen's loads stop once it closes, so the picker comes back to a new one.
+            SettingsKey.DISCORD_HUNT -> Minecraft.getInstance().showScreen(
+                DiscordHuntPickerScreen(DyeTrackerMenuScreen(openOnSettings = true)),
+            )
             SettingsKey.EDIT_LAYOUT -> Minecraft.getInstance().showScreen(WidgetEditScreen())
         }
         return true
@@ -1091,8 +1108,22 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
                 NO_GIFS_TEXT,
             ),
             switchRow(SettingsKey.BOUNCE, BOUNCE_LABEL, BounceController.isEnabled()),
+            switchRow(SettingsKey.DISCORD, DISCORD_LABEL, ConfigManager.isDiscordEnabled()),
+            SettingsRow(
+                SettingsKey.DISCORD_HUNT,
+                DISCORD_HUNT_LABEL,
+                detail = discordHuntName(config.discordHuntDyeId),
+                pillLabel = DISCORD_HUNT_CHANGE,
+            ),
             SettingsRow(SettingsKey.EDIT_LAYOUT, EDIT_LAYOUT_LABEL, pillLabel = EDIT_LAYOUT_LABEL),
         )
+    }
+
+    /** The Discord hunt row's detail: [huntDyeId]'s [DyeCatalog] name (the id itself when unknown), or [DISCORD_HUNT_NONE]. */
+    private fun discordHuntName(huntDyeId: String): String = if (huntDyeId.isBlank()) {
+        DISCORD_HUNT_NONE
+    } else {
+        DyeCatalog.all.firstOrNull { it.dyeId == huntDyeId }?.displayName ?: huntDyeId
     }
 
     /** A row with an On/Off pill for one setting that is [on] or not. */
@@ -1829,6 +1860,14 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         private const val DYE_WIDGETS_LABEL = "Dye widgets"
         private const val GIFS_LABEL = "GIF overlays"
         private const val BOUNCE_LABEL = "Bounce"
+        private const val DISCORD_LABEL = "Discord presence"
+        private const val DISCORD_HUNT_LABEL = "Discord hunt"
+
+        /** The Discord hunt row's detail while no hunt dye is picked. */
+        private const val DISCORD_HUNT_NONE = "None"
+
+        /** The Discord hunt row's pill, opening the picker. */
+        private const val DISCORD_HUNT_CHANGE = "Change ▸"
 
         /** The Edit layout row's label, and its pill's. */
         private const val EDIT_LAYOUT_LABEL = "Edit layout"
