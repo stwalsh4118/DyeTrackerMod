@@ -97,6 +97,7 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 - **Account**: see which account is linked, or unlink it (click Unlink, then Confirm unlink).
 - **Sync**: send your tracked counts to DyeTracker now.
 - **Rotation widget**, **Dye widgets**, **GIF overlays** and **Bounce**: turn each on or off.
+  - The rotation widget shows the dyes on Vincent's Dyes screen and their boosts. When your account is linked, opening that screen also sends the rotation to DyeTracker, so it knows which dyes are boosted that SkyBlock year (Minecraft 26.1.2 and 26.2).
 - **Edit layout**: move and resize your HUD widgets.
 
 ## Building from Source
