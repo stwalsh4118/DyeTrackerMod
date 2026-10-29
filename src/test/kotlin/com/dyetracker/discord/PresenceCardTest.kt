@@ -12,14 +12,6 @@ class PresenceCardTest {
     private fun parse(json: String) = Json.parseToJsonElement(json).jsonObject
 
     @Test
-    fun `the tracer card is a playing card with the logo`() {
-        assertEquals(
-            parse("""{"type":0,"details":"Tracking dyes","assets":{"large_image":"dyetracker","large_text":"DyeTracker"}}"""),
-            TRACER_CARD.toActivityJson(),
-        )
-    }
-
-    @Test
     fun `a full card carries state, small image, start time and buttons`() {
         val card = PresenceCard(
             details = "d",

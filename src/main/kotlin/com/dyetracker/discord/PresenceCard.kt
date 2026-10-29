@@ -51,6 +51,3 @@ fun PresenceCard.toActivityJson(): JsonObject = buildJsonObject {
         }
     }
 }
-
-/** The fixed card the tracer shows while presence is on (77-4 replaces it with live stats). */
-val TRACER_CARD = PresenceCard(details = "Tracking dyes")

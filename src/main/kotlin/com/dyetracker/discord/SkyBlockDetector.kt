@@ -77,3 +77,11 @@ class SkyBlockSession(private val leaveDebounceMs: Long = SKYBLOCK_LEAVE_DEBOUNC
         offSinceMs = null
     }
 }
+
+/**
+ * What [SkyBlockTracker] publishes for the presence worker, as one immutable value so the worker
+ * never mixes two polls: whether the player is [active] on SkyBlock, when that session began
+ * ([startedAtMs], epoch ms, `null` while inactive) and whose stats the card shows ([username], the
+ * HUD username, `""` when unknown).
+ */
+data class SkyBlockSnapshot(val active: Boolean, val startedAtMs: Long?, val username: String)

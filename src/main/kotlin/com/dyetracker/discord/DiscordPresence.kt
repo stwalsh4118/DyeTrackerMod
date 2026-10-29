@@ -1,6 +1,7 @@
 package com.dyetracker.discord
 
 import com.dyetracker.DyeTrackerMod
+import com.dyetracker.api.ApiClient
 import com.dyetracker.config.ConfigManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -14,13 +15,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Discord timestamps are epoch seconds; the SkyBlock session start is epoch ms. */
-private const val MS_PER_SECOND = 1_000L
-
 /**
  * The Discord Rich Presence worker. One loop on a single-thread IO dispatcher reconciles the
  * wanted card with Discord every [PRESENCE_TICK_MS] (or sooner after [wake]); all Discord IPC runs
- * there, never on the client thread. Failures are logged and never reach the game.
+ * there, never on the client thread, and so do the blocking stats fetches. Failures are logged and
+ * never reach the game.
  *
  * With [DISCORD_APPLICATION_ID] blank, [start] logs once and never connects.
  */
@@ -31,6 +30,9 @@ object DiscordPresence {
     private val client = DiscordIpcClient(defaultIpcConnector(), DISCORD_APPLICATION_ID)
     private val pid = ProcessHandle.current().pid()
     private val sync = PresenceSync(client, pid)
+    private val stats = PresenceStatsCache(load = { username ->
+        loadPresenceStats(username, ApiClient::fetchProfiles, ApiClient::fetchDyeProgress, ApiClient::fetchCollection)
+    })
 
     @Volatile
     private var job: Job? = null
@@ -89,14 +91,18 @@ object DiscordPresence {
         }
     }
 
-    /** Reads only [ConfigManager] and the two published [SkyBlockTracker] fields, never Minecraft state. */
+    /**
+     * Reads only [ConfigManager] and one copy of [SkyBlockTracker.snapshot], never Minecraft state.
+     * Decides first whether a card is wanted and clears at once when not; only a wanted card waits
+     * for the stats (fetched when [PresenceStatsCache] says they are due).
+     */
     private fun tick() {
-        val wanted = if (ConfigManager.isDiscordEnabled() && SkyBlockTracker.active) {
-            TRACER_CARD.copy(startEpochSeconds = SkyBlockTracker.startedAtMs?.div(MS_PER_SECOND))
-        } else {
-            null
+        val skyBlock = SkyBlockTracker.snapshot
+        if (!ConfigManager.isDiscordEnabled() || !skyBlock.active) {
+            sync.reconcile(null)
+            return
         }
-        sync.reconcile(wanted)
+        sync.reconcile(buildPresenceCard(stats.get(skyBlock.username), skyBlock.startedAtMs))
     }
 }
 
