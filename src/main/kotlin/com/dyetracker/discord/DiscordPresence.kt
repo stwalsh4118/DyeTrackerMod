@@ -44,6 +44,9 @@ object DiscordPresence {
     @Volatile
     private var job: Job? = null
 
+    /** The username the last card handed to [sync] was for, or `null` after a clear. Worker only. */
+    private var sentForUsername: String? = null
+
     @Volatile
     private var blankIdLogged = false
 
@@ -104,17 +107,25 @@ object DiscordPresence {
      * Decides first whether a card is wanted and clears when not, without touching the stats. A
      * wanted card is built from the stats known now and the hunt dye (a due fetch starts in the
      * background); while a username's first fetch is still running the card is held back, so the
-     * stats card isn't stuck behind the send throttle after a bare one.
+     * stats card isn't stuck behind the send throttle after a bare one, or cleared when the card up
+     * is another player's (see [cardDecision]).
      */
     private fun tick() {
         val skyBlock = SkyBlockTracker.snapshot
-        if (!ConfigManager.isDiscordEnabled() || !skyBlock.active) {
-            sync.reconcile(null)
-            return
+        val wanted = ConfigManager.isDiscordEnabled() && skyBlock.active
+        // Only a wanted card touches the stats, so nothing is fetched while none is.
+        val known = if (wanted) stats.get(skyBlock.username) else null
+        when (cardDecision(wanted, stats.firstLoadPending, sentForUsername, skyBlock.username)) {
+            CardDecision.SKIP -> return
+            CardDecision.CLEAR -> {
+                sync.reconcile(null)
+                sentForUsername = null
+            }
+            CardDecision.SEND -> {
+                sync.reconcile(buildPresenceCard(known, skyBlock.startedAtMs, ConfigManager.discordHuntDyeId()))
+                sentForUsername = skyBlock.username
+            }
         }
-        val known = stats.get(skyBlock.username)
-        if (stats.firstLoadPending) return
-        sync.reconcile(buildPresenceCard(known, skyBlock.startedAtMs, ConfigManager.discordHuntDyeId()))
     }
 }
 
