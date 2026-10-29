@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -18,8 +19,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * The Discord Rich Presence worker. One loop on a single-thread IO dispatcher reconciles the
  * wanted card with Discord every [PRESENCE_TICK_MS] (or sooner after [wake]); all Discord IPC runs
- * there, never on the client thread, and so do the blocking stats fetches. Failures are logged and
- * never reach the game.
+ * there, never on the client thread. The blocking stats fetches run on their own IO scope, so a slow
+ * API never holds up the worker or a clear. Failures are logged and never reach the game.
  *
  * With [DISCORD_APPLICATION_ID] blank, [start] logs once and never connects.
  */
@@ -30,9 +31,15 @@ object DiscordPresence {
     private val client = DiscordIpcClient(defaultIpcConnector(), DISCORD_APPLICATION_ID)
     private val pid = ProcessHandle.current().pid()
     private val sync = PresenceSync(client, pid)
-    private val stats = PresenceStatsCache(load = { username ->
-        loadPresenceStats(username, ApiClient::fetchProfiles, ApiClient::fetchDyeProgress, ApiClient::fetchCollection)
-    })
+    /** Where the stats fetches run: off the worker, so a hanging GET can't delay a clear. */
+    private val statsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val stats = PresenceStatsCache(
+        // A finished load wakes the worker, so the card follows it without waiting out a tick.
+        launch = { block -> statsScope.async { block() }.also { it.invokeOnCompletion { wake() } } },
+        load = { username ->
+            loadPresenceStats(username, ApiClient::fetchProfiles, ApiClient::fetchDyeProgress, ApiClient::fetchCollection)
+        },
+    )
 
     @Volatile
     private var job: Job? = null
@@ -61,14 +68,15 @@ object DiscordPresence {
     }
 
     /**
-     * Cancel the loop, clear the card and close the Discord connection (on client stop). The clear
-     * runs on the worker and is waited for at most [SHUTDOWN_CLEAR_TIMEOUT_MS]; past that the
-     * connection is closed from here and the game goes on quitting. Final: the client is shut down,
-     * so it never connects again.
+     * Cancel the loop and any stats fetch, clear the card and close the Discord connection (on
+     * client stop). The clear runs on the worker and is waited for at most
+     * [SHUTDOWN_CLEAR_TIMEOUT_MS]; past that the connection is closed from here and the game goes on
+     * quitting. Final: the client is shut down, so it never connects again.
      */
     fun stop() {
         job?.cancel()
         job = null
+        statsScope.cancel()
         if (!runBounded(scope, SHUTDOWN_CLEAR_TIMEOUT_MS) { client.clearAndClose(pid) }) {
             DyeTrackerMod.debug("Discord presence clear did not finish in {}ms; closing", SHUTDOWN_CLEAR_TIMEOUT_MS)
         }
@@ -93,8 +101,10 @@ object DiscordPresence {
 
     /**
      * Reads only [ConfigManager] and one copy of [SkyBlockTracker.snapshot], never Minecraft state.
-     * Decides first whether a card is wanted and clears at once when not; only a wanted card waits
-     * for the stats (fetched when [PresenceStatsCache] says they are due).
+     * Decides first whether a card is wanted and clears when not, without touching the stats. A
+     * wanted card is built from the stats known now (a due fetch starts in the background); while a
+     * username's first fetch is still running the card is held back, so the stats card isn't stuck
+     * behind the send throttle after a bare one.
      */
     private fun tick() {
         val skyBlock = SkyBlockTracker.snapshot
@@ -102,7 +112,9 @@ object DiscordPresence {
             sync.reconcile(null)
             return
         }
-        sync.reconcile(buildPresenceCard(stats.get(skyBlock.username), skyBlock.startedAtMs))
+        val known = stats.get(skyBlock.username)
+        if (stats.firstLoadPending) return
+        sync.reconcile(buildPresenceCard(known, skyBlock.startedAtMs))
     }
 }
 

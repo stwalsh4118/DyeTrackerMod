@@ -96,8 +96,7 @@ class PresenceStatsTest {
     fun `owned dyes none of which are in the list count as none`() {
         val stats = loadPresenceStats(USERNAME, profilesOk(first), dyesOk(), collectionOk(listOf(CollectionEntry(dyeId = "x"))))
 
-        assertNull(stats?.owned)
-        assertNull(stats?.dropped)
+        assertEquals(PresenceStats(UUID, first.id, first.cuteName, catalog, owned = null, total = 3, dropped = null), stats)
     }
 
     @Test
