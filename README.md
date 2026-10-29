@@ -32,7 +32,7 @@ Some dyes depend on things the Hypixel API doesn't record. For these, the mod co
 
 ### Minecraft versions
 
-New features ship for Minecraft **26.1.2** and **26.2**. The **1.21.10** and **1.21.11** builds get bug fixes only.
+New features ship for Minecraft **26.1.2**, **26.2** and **26.3**. The **1.21.10** and **1.21.11** builds get bug fixes only.
 
 ## Installation
 
@@ -61,11 +61,11 @@ New features ship for Minecraft **26.1.2** and **26.2**. The **1.21.10** and **1
 | `/dyetracker link <code>` | Link your account using a code from the website |
 | `/dyetracker status` | Check your current link status |
 | `/dyetracker unlink` | Unlink your account |
-| `/dyetracker menu` | Open the in-game DyeTracker menu (Minecraft 26.1.2 and 26.2 only) |
+| `/dyetracker menu` | Open the in-game DyeTracker menu (Minecraft 26.1.2, 26.2 and 26.3 only) |
 
 ### In-game menu
 
-The menu is in the Minecraft **26.1.2** and **26.2** builds only.
+The menu is in the Minecraft **26.1.2**, **26.2** and **26.3** builds only.
 
 Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu** in **Controls → DyeTracker** (it has no key until you set one).
 
@@ -97,14 +97,14 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 - **Account**: see which account is linked, or unlink it (click Unlink, then Confirm unlink).
 - **Sync**: send your tracked counts to DyeTracker now.
 - **Rotation widget**, **Dye widgets**, **GIF overlays** and **Bounce**: turn each on or off.
-  - The rotation widget shows the dyes on Vincent's Dyes screen and their boosts. When your account is linked, opening that screen also sends the rotation to DyeTracker (whether or not the widget is on), so it knows which dyes are boosted that SkyBlock year (Minecraft 26.1.2 and 26.2).
+  - The rotation widget shows the dyes on Vincent's Dyes screen and their boosts. When your account is linked, opening that screen also sends the rotation to DyeTracker (whether or not the widget is on), so it knows which dyes are boosted that SkyBlock year (Minecraft 26.1.2, 26.2 and 26.3).
 - **Edit layout**: move and resize your HUD widgets.
 
 ### Dye widgets
 
 Click a dye in the menu's Dyes tab to pin it to your HUD. The widget shows the dye's name, your progress and a progress bar.
 
-**Rotation line** (Minecraft 26.1.2 and 26.2, accounts that have been linked)
+**Rotation line** (Minecraft 26.1.2, 26.2 and 26.3, accounts that have been linked)
 
 Under the bar, the widget shows what you did toward the dye this rotation (the current SkyBlock year, about 5 real days) and the chance that work alone gave you, at this year's boost if the dye is boosted:
 
@@ -118,7 +118,7 @@ The line is on by default. To hide it on one widget, open **Edit layout**, click
 
 ## Building from Source
 
-> **Minecraft 26.x is in development on the `mc-26x` branch.** This page describes the shipping **1.21.x** line (Yarn mappings, JDK 21). The 26.x line targets Minecraft **26.1.2** and **26.2** (unobfuscated) and requires **JDK 25** with the no-remap `net.fabricmc.fabric-loom` plugin; its build tasks target `:26.1.2` and `:26.2`. Full 26.x instructions will land with the first 26.x release.
+> **Minecraft 26.x is in development on the `mc-26x` branch.** This page describes the shipping **1.21.x** line (Yarn mappings, JDK 21). The 26.x line targets Minecraft **26.1.2**, **26.2** and **26.3** (unobfuscated) and requires **JDK 25** with the no-remap `net.fabricmc.fabric-loom` plugin; its build tasks target `:26.1.2`, `:26.2` and `:26.3`. Full 26.x instructions will land with the first 26.x release.
 
 The build is multi-version: a single `src/` tree compiles against every Minecraft version registered in `settings.gradle.kts`, producing one jar per version. This is wired with the [Stonecutter](https://stonecutter.kikugie.dev/) Gradle plugin.
 
