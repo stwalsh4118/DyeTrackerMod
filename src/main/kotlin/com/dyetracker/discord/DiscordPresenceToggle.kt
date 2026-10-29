@@ -1,11 +1,9 @@
 package com.dyetracker.discord
 
+import com.dyetracker.DyeTrackerMod
 import com.dyetracker.config.ConfigManager
 import net.minecraft.ChatFormatting
 import net.minecraft.network.chat.Component
-
-/** Before [DISCORD_HINT_TEXT] in the one-time hint, like the menu hint's prefix. */
-private const val DISCORD_HINT_PREFIX = "[DyeTracker]"
 
 /**
  * Turn Discord Rich Presence on (PBI 77), as `/dyetracker discord on` and the menu's Settings tab
@@ -18,7 +16,7 @@ fun enableDiscordPresence(sendHint: (Component) -> Unit) {
     DiscordPresence.wake()
     if (!shouldShowDiscordHint(ConfigManager.config)) return
     sendHint(
-        Component.literal(DISCORD_HINT_PREFIX).withStyle(ChatFormatting.LIGHT_PURPLE)
+        Component.literal(DyeTrackerMod.CHAT_PREFIX).withStyle(ChatFormatting.LIGHT_PURPLE)
             .append(Component.literal(DISCORD_HINT_TEXT).withStyle(ChatFormatting.GRAY)),
     )
     ConfigManager.update { it.copy(discordHintShown = true) }

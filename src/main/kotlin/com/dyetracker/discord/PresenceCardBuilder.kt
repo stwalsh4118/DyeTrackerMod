@@ -6,6 +6,9 @@ import com.dyetracker.dyeprogress.rotationPercentText
 /** Discord timestamps are epoch seconds; the SkyBlock session start is epoch ms. */
 private const val MS_PER_SECOND = 1_000L
 
+/** Between the parts of the stats line and of the hunt line. */
+private const val CARD_SEPARATOR = " · "
+
 /** The hunt odds from [HUNT_COMPLETE_PERCENT] up. */
 private const val HUNT_COMPLETE_TEXT = "100%"
 
@@ -43,7 +46,7 @@ fun buildPresenceCard(stats: PresenceStats?, sessionStartMs: Long?, huntDyeId: S
     val owned = stats?.owned
     val total = stats?.total
     val dropped = stats?.dropped
-    val state = if (owned != null && total != null && dropped != null) "$owned/$total dyes · $dropped dropped" else null
+    val state = if (owned != null && total != null && dropped != null) "$owned/$total dyes$CARD_SEPARATOR$dropped dropped" else null
     val buttons = if (stats != null && stats.uuid.isNotBlank() && stats.profileId.isNotBlank()) {
         listOf(PresenceButton(PROFILE_BUTTON_LABEL, "$DYETRACKER_SITE_URL/player/${stats.uuid}/profile/${stats.profileId}"))
     } else {
@@ -61,9 +64,9 @@ fun buildPresenceCard(stats: PresenceStats?, sessionStartMs: Long?, huntDyeId: S
     )
     if (huntDyeId.isBlank()) return card
     val entry = stats?.dyes?.firstOrNull { it.dyeId == huntDyeId }
-    val name = entry?.name ?: DyeCatalog.all.firstOrNull { it.dyeId == huntDyeId }?.displayName ?: huntDyeId
+    val name = entry?.name ?: DyeCatalog.displayNameOr(huntDyeId)
     val odds = huntOddsText(entry?.progress)
-    val details = if (odds != null) "$HUNT_PREFIX$name · $odds" else "$HUNT_PREFIX$name"
+    val details = if (odds != null) "$HUNT_PREFIX$name$CARD_SEPARATOR$odds" else "$HUNT_PREFIX$name"
     if (entry == null) return card.copy(details = details)
     return card.copy(
         details = details,

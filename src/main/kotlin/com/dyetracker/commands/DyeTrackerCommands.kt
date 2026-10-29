@@ -537,7 +537,7 @@ object DyeTrackerCommands {
      * wake the presence worker; an unknown id leaves the config as it was.
      */
     private fun handleDiscordHuntSet(source: FabricClientCommandSource, dyeId: String) {
-        val dye = DyeCatalog.all.firstOrNull { it.dyeId == dyeId }
+        val dye = DyeCatalog.byId(dyeId)
         if (dye == null) {
             source.sendFeedback(
                 Component.literal("Unknown dye '$dyeId'. Press Tab for the list.").withStyle(ChatFormatting.RED)
@@ -566,7 +566,7 @@ object DyeTrackerCommands {
         val name = if (huntDyeId.isBlank()) {
             "none"
         } else {
-            DyeCatalog.all.firstOrNull { it.dyeId == huntDyeId }?.displayName ?: huntDyeId
+            DyeCatalog.displayNameOr(huntDyeId)
         }
         source.sendFeedback(
             Component.literal("Discord hunt: $name").withStyle(ChatFormatting.GRAY)

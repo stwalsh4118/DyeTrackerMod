@@ -15,6 +15,9 @@ class DyeTrackerMod : ModInitializer {
     companion object {
         const val MOD_ID = "dyetracker"
         private const val LOG_PREFIX = "[DyeTracker] "
+
+        /** Before the mod's chat hints (the menu hint, the Discord hint). */
+        const val CHAT_PREFIX = "[DyeTracker]"
         val LOGGER: Logger = LoggerFactory.getLogger(MOD_ID)
 
         /**

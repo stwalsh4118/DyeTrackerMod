@@ -23,7 +23,6 @@ import net.minecraft.network.chat.Component
 object MenuKeybind {
 
     private const val TRANSLATION_KEY = "key.dyetracker.open_menu"
-    private const val HINT_PREFIX = "[DyeTracker]"
     private const val HINT_TEXT = " Open your dyes with /dyetracker menu, or bind a key in Controls → DyeTracker."
 
     private lateinit var menuKey: KeyMapping
@@ -65,7 +64,7 @@ object MenuKeybind {
         if (!shouldShowMenuHint(ConfigManager.config)) return
         val player = client.player ?: return
         player.sendSystemMessage(
-            Component.literal(HINT_PREFIX).withStyle(ChatFormatting.LIGHT_PURPLE)
+            Component.literal(DyeTrackerMod.CHAT_PREFIX).withStyle(ChatFormatting.LIGHT_PURPLE)
                 .append(Component.literal(HINT_TEXT).withStyle(ChatFormatting.GRAY)),
         )
         ConfigManager.update { it.copy(menuHintShown = true) }

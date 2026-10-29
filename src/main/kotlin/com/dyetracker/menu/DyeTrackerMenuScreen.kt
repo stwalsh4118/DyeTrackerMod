@@ -1123,7 +1123,7 @@ class DyeTrackerMenuScreen(openOnSettings: Boolean = false) : Screen(Component.l
     private fun discordHuntName(huntDyeId: String): String = if (huntDyeId.isBlank()) {
         DISCORD_HUNT_NONE
     } else {
-        DyeCatalog.all.firstOrNull { it.dyeId == huntDyeId }?.displayName ?: huntDyeId
+        DyeCatalog.displayNameOr(huntDyeId)
     }
 
     /** A row with an On/Off pill for one setting that is [on] or not. */

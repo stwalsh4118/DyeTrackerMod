@@ -29,7 +29,8 @@ data class PresenceStats(
 /**
  * Loads [username]'s card stats: their profiles, the one [MenuData.selectProfile] picks, its dyes
  * and the dyes they own on it. Blocking (the fetchers are the [com.dyetracker.api.ApiClient]
- * calls), so only the presence worker calls it.
+ * calls), so it runs on [DiscordPresence]'s stats IO scope (`statsScope`), never on the presence
+ * worker or the client thread.
  *
  * `null` for a blank [username] (nothing is fetched), a profiles error or no profile. A dyes error
  * leaves [PresenceStats.dyes] empty and all three numbers `null`; a collection error leaves owned
