@@ -39,7 +39,7 @@ class DiscordIpcClientTest {
 
     @AfterEach
     fun tearDown() {
-        clients.forEach { it.close(); it.shutdownWatchdog() }
+        clients.forEach { it.shutdown() }
         server.close()
         dir.toFile().deleteRecursively()
     }
@@ -277,6 +277,56 @@ class DiscordIpcClientTest {
 
         assertTrue(client.connect())
         assertEquals(2, server.connections)
+    }
+
+    @Test
+    fun `after shutdown connect is false and opens no connection`() {
+        var calls = 0
+        val unix = UnixIpcConnector { listOf(socket.toString()) }
+        val client = DiscordIpcClient(IpcConnector { calls++; unix.connect() }, APP_ID).also { clients += it }
+        assertTrue(client.connect())
+        assertEquals(1, calls)
+
+        client.shutdown()
+        assertTrue(server.awaitClientClosed(), "shutdown closed the connection")
+
+        assertFalse(client.connect())
+        assertFalse(client.isConnected)
+        assertEquals(1, calls, "the connector is not called after shutdown")
+        assertEquals(1, server.connections, "the server saw no new connection")
+    }
+
+    @Test
+    fun `a shutdown during the connector call closes the socket it returns`() {
+        lateinit var client: DiscordIpcClient
+        val unix = UnixIpcConnector { listOf(socket.toString()) }
+        client = DiscordIpcClient(IpcConnector { client.shutdown(); unix.connect() }, APP_ID).also { clients += it }
+
+        assertFalse(client.connect())
+        assertFalse(client.isConnected)
+        assertTrue(server.awaitClientClosed(), "the late socket was closed")
+        assertTrue(server.received.isEmpty(), "no handshake on the late socket")
+        assertFalse(client.connect(), "still shut down")
+        assertEquals(1, server.connections)
+    }
+
+    @Test
+    fun `a failed ping after shutdown does not reconnect through reconcile`() {
+        var now = 0L
+        val client = client()
+        val sync = PresenceSync(client, PID, ReconnectBackoff(), clock = { now }, log = {})
+        sync.reconcile(TRACER_CARD)
+        assertTrue(client.isConnected)
+        assertEquals(1, server.connections)
+
+        client.shutdown()
+        assertFalse(client.ping(), "no ping on a shut-down client")
+        now += IPC_HEALTH_CHECK_MS + RECONNECT_MAX_MS
+        sync.reconcile(TRACER_CARD)
+
+        assertFalse(client.isConnected)
+        assertEquals(1, server.connections, "reconcile did not reconnect")
+        assertEquals(1, server.setActivityArgs().size, "nothing more was sent")
     }
 
     private companion object {

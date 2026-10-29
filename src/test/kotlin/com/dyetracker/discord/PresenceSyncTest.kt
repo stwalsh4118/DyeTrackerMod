@@ -45,7 +45,7 @@ class PresenceSyncTest {
 
     @AfterEach
     fun tearDown() {
-        (extraClients + client).forEach { it.close(); it.shutdownWatchdog() }
+        (extraClients + client).forEach { it.shutdown() }
         server.close()
         dir.toFile().deleteRecursively()
     }

@@ -58,7 +58,8 @@ object DiscordPresence {
     /**
      * Cancel the loop, clear the card and close the Discord connection (on client stop). The clear
      * runs on the worker and is waited for at most [SHUTDOWN_CLEAR_TIMEOUT_MS]; past that the
-     * connection is closed from here and the game goes on quitting.
+     * connection is closed from here and the game goes on quitting. Final: the client is shut down,
+     * so it never connects again.
      */
     fun stop() {
         job?.cancel()
@@ -66,9 +67,8 @@ object DiscordPresence {
         if (!runBounded(scope, SHUTDOWN_CLEAR_TIMEOUT_MS) { client.clearAndClose(pid) }) {
             DyeTrackerMod.debug("Discord presence clear did not finish in {}ms; closing", SHUTDOWN_CLEAR_TIMEOUT_MS)
         }
-        // Covers a clear that timed out; a no-op after one that finished.
-        client.close()
-        client.shutdownWatchdog()
+        // Covers a clear that timed out, and keeps a late tick from reconnecting.
+        client.shutdown()
     }
 
     /** Run a tick soon instead of waiting out the interval, e.g. right after `/dyetracker discord on|off`. */

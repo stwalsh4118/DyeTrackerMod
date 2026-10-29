@@ -61,8 +61,12 @@ class DiscordIpcClient(
     /** Guards [watchdog]. */
     private val watchdogLock = Any()
 
-    /** Created on first use and again after [shutdownWatchdog], so the client stays usable. */
+    /** Created on first use; never again after [shutdown]. */
     private var watchdog: ScheduledExecutorService? = null
+
+    /** Set for good by [shutdown]: from then on [connect] fails without calling the connector. */
+    @Volatile
+    private var shutDown = false
 
     /** Whether a handshaken connection is open. */
     val isConnected: Boolean get() = channel != null
@@ -72,15 +76,16 @@ class DiscordIpcClient(
      * when already connected). A blank [applicationId] returns `false` without calling the
      * connector; no Discord, a CLOSE, EOF, a timeout or an I/O error return `false` with nothing
      * left open. A [close] that lands while the connector runs (game shutdown) wins: the channel it
-     * returns is closed and `false` returned.
+     * returns is closed and `false` returned. After [shutdown] it returns `false` without calling
+     * the connector, and a shutdown that lands while the connector runs closes the late channel.
      */
     fun connect(): Boolean {
-        if (applicationId.isBlank()) return false
+        if (applicationId.isBlank() || shutDown) return false
         if (isConnected) return true
         val closesBefore = synchronized(channelLock) { closes }
         val opened = connector.connect() ?: return false
         val kept = synchronized(channelLock) {
-            (closes == closesBefore).also { if (it) channel = opened }
+            (!shutDown && closes == closesBefore).also { if (it) channel = opened }
         }
         if (!kept) {
             closeQuietly(opened)
@@ -143,8 +148,14 @@ class DiscordIpcClient(
         closeQuietly(open)
     }
 
-    /** Stops the watchdog thread (game shutdown). A later request starts a new one. */
-    fun shutdownWatchdog() {
+    /**
+     * Shuts the client down for good (game shutdown): closes the connection and stops the watchdog
+     * thread. Afterwards [connect] always fails without calling the connector, and the watchdog is
+     * never started again. Safe from another thread, like [close].
+     */
+    fun shutdown() {
+        shutDown = true
+        close()
         synchronized(watchdogLock) {
             watchdog?.shutdownNow()
             watchdog = null
@@ -205,11 +216,13 @@ class DiscordIpcClient(
     private fun scheduleClose(open: IpcChannel): ScheduledFuture<*>? = try {
         watchdog().schedule({ closeQuietly(open) }, responseTimeoutMs, TimeUnit.MILLISECONDS)
     } catch (_: RejectedExecutionException) {
-        // Shut down between watchdog() and schedule(): game shutdown, so no request is guarded.
+        // Shut down (game shutdown) before or during this request, so no request is guarded.
         null
     }
 
+    /** The watchdog, started on first use; throws [RejectedExecutionException] after [shutdown]. */
     private fun watchdog(): ScheduledExecutorService = synchronized(watchdogLock) {
+        if (shutDown) throw RejectedExecutionException("Discord IPC client is shut down")
         watchdog ?: Executors.newSingleThreadScheduledExecutor { task ->
             Thread(task, WATCHDOG_THREAD_NAME).apply { isDaemon = true }
         }.also { watchdog = it }
