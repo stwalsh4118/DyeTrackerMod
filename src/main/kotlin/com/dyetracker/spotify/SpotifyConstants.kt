@@ -40,4 +40,19 @@ object SpotifyConstants {
 
     /** Label of the link back to Spotify (required by the Spotify Developer Policy). */
     const val LISTEN_ON_SPOTIFY = "LISTEN ON SPOTIFY"
+
+    /** Converts a token's `expires_in` seconds to the stored `expiresAtMs`. */
+    const val MS_PER_SECOND = 1000L
+
+    /** Refresh the access token this long before it expires. */
+    const val REFRESH_MARGIN_MS = 60_000L
+
+    /** A 429's wait when Spotify sends no usable `Retry-After` header. */
+    const val DEFAULT_RETRY_AFTER_SECONDS = 5L
+
+    /** [SpotifyResult.Failure.status] for a failure with no HTTP response (network only). */
+    const val STATUS_NO_RESPONSE = 0
+    const val HTTP_UNAUTHORIZED = 401
+    const val HTTP_FORBIDDEN = 403
+    const val HTTP_TOO_MANY_REQUESTS = 429
 }

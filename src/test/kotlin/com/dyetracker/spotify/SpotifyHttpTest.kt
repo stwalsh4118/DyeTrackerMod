@@ -16,7 +16,8 @@ import kotlin.test.assertNull
 /**
  * Unit coverage for [SpotifyHttp] (task 76-1) against a local JDK [HttpServer] fake: the token
  * exchange's form body and decoding, Spotify's error_description on a failure, and the
- * currently-playing request's header, query, 204 and track decoding.
+ * currently-playing request's header, query, 204 and track decoding. Task 76-2 adds the
+ * refresh form, the kept token error code, and 429's Retry-After.
  */
 class SpotifyHttpTest {
 
@@ -37,9 +38,13 @@ class SpotifyHttpTest {
     @AfterTest
     fun stop() = server.stop(0)
 
-    /** Serve [status] with [body] (null = no body) on [path], recording the request in [seen]. */
-    private fun serve(path: String, status: Int, body: String?) {
+    /**
+     * Serve [status] with [body] (null = no body) and [headers] on [path], recording the request
+     * in [seen].
+     */
+    private fun serve(path: String, status: Int, body: String?, headers: Map<String, String> = emptyMap()) {
         server.createContext(path) { exchange: HttpExchange ->
+            headers.forEach { (name, value) -> exchange.responseHeaders.add(name, value) }
             seen.method = exchange.requestMethod
             seen.body = exchange.requestBody.readBytes().toString(StandardCharsets.UTF_8)
             seen.query = exchange.requestURI.rawQuery
@@ -96,7 +101,7 @@ class SpotifyHttpTest {
         serve("/api/token", 400, """{"error":"invalid_grant","error_description":"Invalid authorization code"}""")
 
         assertEquals(
-            SpotifyResult.Failure(400, "Invalid authorization code"),
+            SpotifyResult.Failure(400, "Invalid authorization code", error = "invalid_grant"),
             http.exchangeCode("cid", "c", "r", "v"),
         )
     }
@@ -105,7 +110,10 @@ class SpotifyHttpTest {
     fun `exchangeCode failure falls back to error`() {
         serve("/api/token", 400, """{"error":"invalid_client"}""")
 
-        assertEquals(SpotifyResult.Failure(400, "invalid_client"), http.exchangeCode("cid", "c", "r", "v"))
+        assertEquals(
+            SpotifyResult.Failure(400, "invalid_client", error = "invalid_client"),
+            http.exchangeCode("cid", "c", "r", "v"),
+        )
     }
 
     @Test
@@ -219,5 +227,85 @@ class SpotifyHttpTest {
         serve("/api/token", 400, """{"error":"invalid_grant","error_description":"SECRETX" """)
 
         assertEquals(SpotifyResult.Failure(400, "HTTP 400"), http.exchangeCode("cid", "c", "r", "v"))
+    }
+
+    @Test
+    fun `refresh posts the refresh_token form and decodes the tokens`() {
+        serve("/api/token", 200, """{"access_token":"A2","token_type":"Bearer","expires_in":3600}""")
+
+        val result = http.refresh("cid", "R1")
+
+        assertEquals("POST", seen.method)
+        assertEquals("application/x-www-form-urlencoded", seen.contentType)
+        assertEquals(
+            mapOf("grant_type" to "refresh_token", "refresh_token" to "R1", "client_id" to "cid"),
+            form(seen.body),
+        )
+        assertEquals(SpotifyResult.Success(TokenResponse("A2", "Bearer", 3600, null)), result)
+    }
+
+    @Test
+    fun `refresh invalid_grant without a description keeps the code as message and error`() {
+        serve("/api/token", 400, """{"error":"invalid_grant"}""")
+
+        assertEquals(
+            SpotifyResult.Failure(400, "invalid_grant", error = "invalid_grant"),
+            http.refresh("cid", "R1"),
+        )
+    }
+
+    @Test
+    fun `refresh invalid_grant with a description uses it and keeps the code`() {
+        serve("/api/token", 400, """{"error":"invalid_grant","error_description":"Refresh token revoked"}""")
+
+        assertEquals(
+            SpotifyResult.Failure(400, "Refresh token revoked", error = "invalid_grant"),
+            http.refresh("cid", "R1"),
+        )
+    }
+
+    @Test
+    fun `a 200 refresh body that won't decode fails without echoing the tokens`() {
+        serve(
+            "/api/token",
+            200,
+            """{"access_token":"SECRETA","token_type":"Bearer","expires_in":"soon","refresh_token":"SECRETR"}""",
+        )
+
+        val result = http.refresh("cid", "R1")
+
+        assertIs<SpotifyResult.Failure>(result)
+        assertEquals(200, result.status)
+        assertFalse(result.message.contains("SECRETA"), result.message)
+        assertFalse(result.message.contains("SECRETR"), result.message)
+        assertNull(result.error)
+    }
+
+    @Test
+    fun `a 429 with Retry-After 7 waits 7 seconds`() {
+        serve("/v1/me/player/currently-playing", 429, null, mapOf("Retry-After" to "7"))
+
+        assertEquals(SpotifyResult.Failure(429, "Rate limited", retryAfterSeconds = 7), http.currentlyPlaying("A"))
+    }
+
+    @Test
+    fun `a 429 without Retry-After waits the default`() {
+        serve("/v1/me/player/currently-playing", 429, """{"error":{"status":429,"message":"API rate limit exceeded"}}""")
+
+        assertEquals(SpotifyResult.Failure(429, "Rate limited", retryAfterSeconds = 5), http.currentlyPlaying("A"))
+    }
+
+    @Test
+    fun `a 429 with a non-numeric Retry-After waits the default`() {
+        serve("/v1/me/player/currently-playing", 429, null, mapOf("Retry-After" to "Wed, 21 Oct 2026 07:28:00 GMT"))
+
+        assertEquals(SpotifyResult.Failure(429, "Rate limited", retryAfterSeconds = 5), http.currentlyPlaying("A"))
+    }
+
+    @Test
+    fun `a 429 from the token endpoint is rate limited too`() {
+        serve("/api/token", 429, null, mapOf("Retry-After" to "3"))
+
+        assertEquals(SpotifyResult.Failure(429, "Rate limited", retryAfterSeconds = 3), http.refresh("cid", "R1"))
     }
 }
