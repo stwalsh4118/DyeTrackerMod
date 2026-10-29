@@ -28,12 +28,34 @@ enum class PostedResult {
     DROP,
 }
 
+/** Whether a [FetchState.Loaded] is being fetched again in the background, and how that went. */
+enum class RefreshStatus {
+    /** Not being fetched again; the data is the last fetch's. */
+    IDLE,
+
+    /** A background fetch runs while the cached data shows ("refreshing…"). */
+    REFRESHING,
+
+    /** The last background fetch failed; the cached data still shows ("refresh failed"). */
+    FAILED,
+}
+
 /** A [TabFetch]'s last fetch, for the profile [profileId]. */
 sealed class FetchState<out T> {
     abstract val profileId: String
 
+    /** A fetch runs with nothing cached to show. */
     data class Loading(override val profileId: String) : FetchState<Nothing>()
-    data class Loaded<out T>(override val profileId: String, val data: T) : FetchState<T>()
+
+    /** [data] fetched at [fetchedAtMs] (epoch ms), and whether it is being fetched again ([refresh]). */
+    data class Loaded<out T>(
+        override val profileId: String,
+        val data: T,
+        val fetchedAtMs: Long,
+        val refresh: RefreshStatus = RefreshStatus.IDLE,
+    ) : FetchState<T>()
+
+    /** The fetch failed with nothing cached to show. */
     data class Failed(override val profileId: String, val message: String) : FetchState<Nothing>()
 }
 
@@ -43,11 +65,16 @@ sealed class FetchState<out T> {
  * when this was [close]d, a newer [fetch] started meanwhile, or the profile [shownProfileId] gives
  * is no longer the one fetched; in that last case the state is cleared ([PostedResult.CLEAR]).
  * Only the latest fetch's state is kept.
+ *
+ * A fetch whose player and profile are in [cache] shows the cached data at once and fetches in the
+ * background; an applied success is written to [cache], stamped with [now] (epoch ms).
  */
 class TabFetch<T>(
     private val scope: CoroutineScope,
     private val post: (() -> Unit) -> Unit,
     private val shownProfileId: () -> String?,
+    private val cache: SessionCache<T>,
+    private val now: () -> Long = System::currentTimeMillis,
 ) {
     /** The last fetch's state; `null` until the first [fetch]. */
     var state: FetchState<T>? = null
@@ -62,12 +89,18 @@ class TabFetch<T>(
     /** Set by [close]; a result posted afterwards is dropped. */
     private var closed = false
 
-    /** A fetch is running (for whichever profile). */
-    val busy: Boolean get() = state is FetchState.Loading
+    /** A fetch is running (for whichever profile), behind Loading or in the background. */
+    val busy: Boolean
+        get() = when (val current = state) {
+            is FetchState.Loading -> true
+            is FetchState.Loaded -> current.refresh == RefreshStatus.REFRESHING
+            null, is FetchState.Failed -> false
+        }
 
     /**
      * Whether [profileId] needs a fetch: none is loaded or running for it (the last one was for
-     * another profile, failed, or none ran).
+     * another profile, failed with nothing cached, or none ran). Cached data whose background fetch
+     * failed counts as loaded.
      */
     fun needsFetch(profileId: String): Boolean = when (stateFor(profileId)) {
         null, is FetchState.Failed -> true
@@ -81,14 +114,19 @@ class TabFetch<T>(
     fun loadedFor(profileId: String): T? = (stateFor(profileId) as? FetchState.Loaded)?.data
 
     /**
-     * Starts fetching [profileId]'s data with the blocking [call], cancelling a running fetch, and
-     * shows Loading. Once posted, as [dispositionOf] says: the result becomes Loaded or Failed (a
-     * thrown exception too) and [onApplied] runs, or the state is cleared, or it is dropped.
+     * Starts fetching [username]'s profile [profileId] with the blocking [call], cancelling a
+     * running fetch. Its [cache] entry shows at once, refreshing in the background; without one it
+     * shows Loading. Once posted, as [dispositionOf] says: the result is applied and [onApplied]
+     * runs, or the state is cleared, or it is dropped. Applied, a success becomes Loaded and goes
+     * into [cache]; an error (a thrown exception too) keeps the cached data with the refresh
+     * [failed][RefreshStatus.FAILED], or without one becomes Failed.
      */
-    fun fetch(profileId: String, call: () -> ApiClient.ApiResult<T>, onApplied: () -> Unit = {}) {
+    fun fetch(username: String, profileId: String, call: () -> ApiClient.ApiResult<T>, onApplied: () -> Unit = {}) {
         val myRequest = ++request
         job?.cancel()
-        state = FetchState.Loading(profileId)
+        val cached = cache.get(username, profileId)
+        state = cached?.let { FetchState.Loaded(profileId, it.value, it.fetchedAtMs, RefreshStatus.REFRESHING) }
+            ?: FetchState.Loading(profileId)
         job = scope.launch {
             val result = try {
                 call()
@@ -107,8 +145,14 @@ class TabFetch<T>(
                     PostedResult.APPLY -> Unit
                 }
                 state = when (result) {
-                    is ApiClient.ApiResult.Success -> FetchState.Loaded(profileId, result.data)
-                    is ApiClient.ApiResult.Error -> FetchState.Failed(profileId, result.message)
+                    is ApiClient.ApiResult.Success -> {
+                        val fetchedAtMs = now()
+                        cache.put(username, profileId, result.data, fetchedAtMs)
+                        FetchState.Loaded(profileId, result.data, fetchedAtMs)
+                    }
+                    is ApiClient.ApiResult.Error ->
+                        cached?.let { FetchState.Loaded(profileId, it.value, it.fetchedAtMs, RefreshStatus.FAILED) }
+                            ?: FetchState.Failed(profileId, result.message)
                 }
                 onApplied()
             }

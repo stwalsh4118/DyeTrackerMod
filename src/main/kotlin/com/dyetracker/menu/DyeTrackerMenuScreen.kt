@@ -75,8 +75,9 @@ import kotlin.math.roundToInt
  * dyes the player owns on that profile, like the website's Collection page ([CollectionTabView]),
  * with category chips (owned/total each) and an All / Owned / Unowned filter of its own, kept while
  * the screen is open. The collection is fetched alongside the dyes (each load landing on a profile
- * without one, each profile switch, Refresh; and opening the Collection tab after a failure),
- * dropping a result for another profile or one a newer request superseded ([collectionFetch]).
+ * without one, each profile switch, Refresh on the Dyes or Collection tab; and opening the
+ * Collection tab after a failure), dropping a result for another profile or one a newer request
+ * superseded ([collectionFetch]).
  * Once loaded, the Dyes tab's cards of owned dyes show an OBTAINED badge and the strip's totals
  * count the obtained dyes; until then (or after a collection error) they show as without it.
  * The Achievements tab keeps the profile strip and shows that profile's achievements in category
@@ -84,6 +85,11 @@ import kotlin.math.roundToInt
  * with an All / Unlocked / Locked status filter of its own, kept while the screen is open.
  * They are fetched only for that tab: on opening it, on a profile switch or Refresh while it shows,
  * and when a load lands while it shows ([achievementsFetch], which drops a stale result likewise).
+ * Like the dyes, every fetched collection and achievements goes into a session cache
+ * ([COLLECTION_CACHE], [ACHIEVEMENTS_CACHE]); a profile's cached entry shows at once while it is
+ * fetched again in the background, and a failed background fetch keeps it on screen. The strip's
+ * status text is the shown tab's: how old its data is, "refreshing…" or "refresh failed". Refresh
+ * fetches the shown tab's data again: on the Dyes tab the dyes and the collection.
  * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, the layout
  * editor), each control calling what its `/dyetracker` command calls. Settings state is read fresh
  * every frame, so a change made by a command meanwhile shows at once.
@@ -262,36 +268,41 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
     private var statusFilter = StatusFilter.ALL
 
     /**
-     * Refresh is ignored: a dyes load runs, or on the Collection tab a collection fetch does, or on
-     * the Achievements tab an achievements fetch does. On the Dyes tab this is just [fetchRunning].
+     * Refresh is ignored while the shown tab's fetch runs: on the Collection tab a collection fetch,
+     * on the Achievements tab an achievements fetch, else a dyes load ([fetchRunning]).
      */
     private val refreshBlocked: Boolean
-        get() = fetchRunning ||
-            (tab == MenuTab.COLLECTION && collectionFetch.busy) ||
-            (tab == MenuTab.ACHIEVEMENTS && achievementsFetch.busy)
+        get() = when (tab) {
+            MenuTab.COLLECTION -> collectionFetch.busy
+            MenuTab.ACHIEVEMENTS -> achievementsFetch.busy
+            MenuTab.DYES, MenuTab.SETTINGS -> fetchRunning
+        }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * The collection for the profile the strip shows, one result shared by the Dyes tab's OBTAINED
-     * badges and totals and the Collection tab; a result posted after the screen closed, a newer
-     * collection fetch started or the strip moved to another profile is dropped.
+     * badges and totals and the Collection tab, cached in [COLLECTION_CACHE]; a result posted after
+     * the screen closed, a newer collection fetch started or the strip moved to another profile is
+     * dropped.
      */
     private val collectionFetch = TabFetch<CollectionResponse>(
         scope,
         post = { Minecraft.getInstance().execute(it) },
         shownProfileId = { strip?.profile?.id },
+        cache = COLLECTION_CACHE,
     )
 
     /**
-     * The achievements of the profile the strip shows, for the Achievements tab only; a result
-     * posted after the screen closed, a newer achievements fetch started or the strip moved to
-     * another profile is dropped.
+     * The achievements of the profile the strip shows, for the Achievements tab only, cached in
+     * [ACHIEVEMENTS_CACHE]; a result posted after the screen closed, a newer achievements fetch
+     * started or the strip moved to another profile is dropped.
      */
     private val achievementsFetch = TabFetch<AchievementsResponse>(
         scope,
         post = { Minecraft.getInstance().execute(it) },
         shownProfileId = { strip?.profile?.id },
+        cache = ACHIEVEMENTS_CACHE,
     )
 
     override fun init() {
@@ -384,7 +395,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * Fetches the collection of the profile the strip shows ([ApiClient.fetchCollection]) on
-     * [Dispatchers.IO] via [collectionFetch], which drops a stale result on the render thread.
+     * [Dispatchers.IO] via [collectionFetch], which drops a stale result on the render thread and
+     * shows a [COLLECTION_CACHE] entry meanwhile.
      * Before the first load gives the strip a profile there is nothing to fetch; [applyResult]
      * fetches once it lands. The Collection grid's scroll resets for another profile.
      */
@@ -392,7 +404,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         val target = strip ?: return
         val profileId = target.profile.id
         if (collectionFetch.state?.profileId != profileId) collectionScroll = 0
-        collectionFetch.fetch(profileId, { ApiClient.fetchCollection(target.username, profileId) }) {
+        collectionFetch.fetch(target.username, profileId, { ApiClient.fetchCollection(target.username, profileId) }) {
             clampCollectionScroll()
         }
     }
@@ -405,7 +417,8 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
     /**
      * Fetches the achievements of the profile the strip shows ([ApiClient.fetchAchievements]) on
-     * [Dispatchers.IO] via [achievementsFetch], which drops a stale result on the render thread.
+     * [Dispatchers.IO] via [achievementsFetch], which drops a stale result on the render thread and
+     * shows an [ACHIEVEMENTS_CACHE] entry meanwhile.
      * Before the first load gives the strip a profile there is nothing to fetch; [applyResult]
      * fetches once it lands. The Achievements list's scroll resets for another profile.
      */
@@ -413,7 +426,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         val target = strip ?: return
         val profileId = target.profile.id
         if (achievementsFetch.state?.profileId != profileId) achievementsScroll = 0
-        achievementsFetch.fetch(profileId, { ApiClient.fetchAchievements(target.username, profileId) }) {
+        achievementsFetch.fetch(target.username, profileId, { ApiClient.fetchAchievements(target.username, profileId) }) {
             clampAchievementsScroll()
         }
     }
@@ -518,9 +531,14 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
             }
             if (layout.refreshPill?.rect?.contains(click.x(), click.y()) == true) {
                 if (!refreshBlocked) {
-                    fetchProfile(currentStrip)
-                    fetchCollection()
-                    if (tab == MenuTab.ACHIEVEMENTS) fetchAchievements()
+                    when (tab) {
+                        MenuTab.COLLECTION -> fetchCollection()
+                        MenuTab.ACHIEVEMENTS -> fetchAchievements()
+                        MenuTab.DYES, MenuTab.SETTINGS -> {
+                            fetchProfile(currentStrip)
+                            fetchCollection() // the Dyes tab's OBTAINED badges and totals
+                        }
+                    }
                 }
                 return true
             }
@@ -871,8 +889,9 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
      * After the username, the profile pill: `Profile: <name> ▸` when [strip] can cycle, else
      * without the arrow, its name shortened with `…` so it ends before the Refresh pill (or the
      * row's end). Right-aligned: the status text, the Refresh pill, then the totals. The Refresh
-     * pill always shows unless not even `Profile:  ▸` fits beside it; the status and totals show
-     * only over loaded dyes, and when space is short the totals go first, then the status text.
+     * pill always shows unless not even `Profile:  ▸` fits beside it; the status text shows over the
+     * shown tab's loaded data ([stripStatus]) and the totals only over loaded dyes, and when space is
+     * short the totals go first, then the status text.
      * No pill is selected-styled.
      */
     private fun stripLayout(strip: StripState, row: Rect): StripLayout {
@@ -900,7 +919,7 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
 
         val loaded = state as? ViewState.Loaded
         var spare = row.right - (profilePill.rect.right + gap + refreshWidth)
-        val status = loaded?.let { statusText() }?.takeIf { (text, _) -> font.width(text) + gap <= spare }
+        val status = stripStatus()?.takeIf { (text, _) -> font.width(text) + gap <= spare }
         if (status != null) spare -= font.width(status.first) + gap
         val totals = loaded?.let { stripTotalsText(it.result.dyes) }?.takeIf { font.width(it) + gap <= spare }
 
@@ -930,11 +949,34 @@ class DyeTrackerMenuScreen : Screen(Component.literal(TITLE)) {
         return MenuCollection.obtainedTotalsText(MenuCollection.summary(cells).owned, totals.dyes, totals.complete)
     }
 
-    /** The strip's status text and its color: "refreshing…", else "refresh failed", else the data's age. */
-    private fun statusText(): Pair<String, Int> = when {
-        refreshing -> REFRESHING_TEXT to UiTheme.Colors.TEXT_MUTED
-        refreshFailed -> REFRESH_FAILED_TEXT to UiTheme.Colors.STATUS_ERROR
-        else -> formatAge(System.currentTimeMillis(), fetchedAtMs) to UiTheme.Colors.TEXT_MUTED
+    /**
+     * The strip's status text and its color for the shown tab's data: on the Collection tab the
+     * collection of the loaded dyes' profile, on the Achievements tab the achievements of the strip's
+     * profile, else the loaded dyes. `null` while that data isn't loaded.
+     */
+    private fun stripStatus(): Pair<String, Int>? {
+        val loaded = state as? ViewState.Loaded
+        val tabState = when (tab) {
+            MenuTab.COLLECTION -> loaded?.let { collectionFetch.stateFor(it.result.profile.id) }
+            MenuTab.ACHIEVEMENTS -> strip?.profile?.id?.let(achievementsFetch::stateFor)
+            MenuTab.DYES, MenuTab.SETTINGS -> return loaded?.let { statusText(fetchedAtMs, dyesRefresh) }
+        }
+        return (tabState as? FetchState.Loaded)?.let { statusText(it.fetchedAtMs, it.refresh) }
+    }
+
+    /** The loaded dyes' background load, as [RefreshStatus]: running, else failed, else idle. */
+    private val dyesRefresh: RefreshStatus
+        get() = when {
+            refreshing -> RefreshStatus.REFRESHING
+            refreshFailed -> RefreshStatus.FAILED
+            else -> RefreshStatus.IDLE
+        }
+
+    /** A status text and its color: "refreshing…", else "refresh failed", else the age of data fetched at [fetchedAtMs]. */
+    private fun statusText(fetchedAtMs: Long, refresh: RefreshStatus): Pair<String, Int> = when (refresh) {
+        RefreshStatus.REFRESHING -> REFRESHING_TEXT to UiTheme.Colors.TEXT_MUTED
+        RefreshStatus.FAILED -> REFRESH_FAILED_TEXT to UiTheme.Colors.STATUS_ERROR
+        RefreshStatus.IDLE -> formatAge(System.currentTimeMillis(), fetchedAtMs) to UiTheme.Colors.TEXT_MUTED
     }
 
     /**
