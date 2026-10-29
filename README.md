@@ -7,6 +7,7 @@ A Fabric mod for Minecraft that integrates with the [DyeTracker](https://dyetrac
 - Link your Minecraft account to DyeTracker securely via Mojang session verification
 - Automatically sync your player stats with the website
 - No API keys or passwords required - uses Minecraft's built-in authentication
+- Discord Rich Presence (26.x, opt-in): show your collection, total dyes dropped and the dye you're hunting on your Discord profile while you play SkyBlock.
 
 ### Dyes the mod counts for you
 
@@ -62,6 +63,8 @@ New features ship for Minecraft **26.1.2** and **26.2**. The **1.21.10** and **1
 | `/dyetracker status` | Check your current link status |
 | `/dyetracker unlink` | Unlink your account |
 | `/dyetracker menu` | Open the in-game DyeTracker menu (Minecraft 26.1.2 and 26.2 only) |
+| `/dyetracker discord <on\|off>` | Turn [Discord Rich Presence](#discord-rich-presence) on or off; `/dyetracker discord` on its own shows whether it's on (Minecraft 26.1.2 and 26.2 only) |
+| `/dyetracker discord hunt <dye\|clear>` | Pick the dye your Discord card says you're hunting (Tab completes it), or clear it; `/dyetracker discord hunt` on its own shows the current pick (Minecraft 26.1.2 and 26.2 only) |
 
 ### In-game menu
 
@@ -99,6 +102,35 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 - **Rotation widget**, **Dye widgets**, **GIF overlays** and **Bounce**: turn each on or off.
   - The rotation widget shows the dyes on Vincent's Dyes screen and their boosts. When your account is linked, opening that screen also sends the rotation to DyeTracker (whether or not the widget is on), so it knows which dyes are boosted that SkyBlock year (Minecraft 26.1.2 and 26.2).
 - **Edit layout**: move and resize your HUD widgets.
+
+### Discord Rich Presence
+
+Discord Rich Presence is in the Minecraft **26.1.2** and **26.2** builds only. It's off until you turn it on.
+
+While you play Hypixel SkyBlock, your Discord profile shows a DyeTracker card:
+
+- `Hunting Nadeshiko · 0.03%`: the dye you're hunting and your progress on it, when you've picked one. Dyes with no drop chance show the name only.
+- `17/42 dyes · 23 dropped`: how many dyes you own and how many have dropped for you in total. This line shows once your collection is recorded (open Vincent's Dye Guide while your account is linked).
+- The hunted dye's art as the big picture, with the DyeTracker logo small. With no hunt picked, the DyeTracker logo.
+- How long you've been on SkyBlock.
+- A **View on DyeTracker** button to your profile page on the website. Other people see it; you don't.
+
+**Turn it on**
+
+- Settings tab → **Discord presence**, or `/dyetracker discord on`.
+- Pick a hunt: Settings tab → **Discord hunt** → **Change ▸** (search, click a dye, or **Clear**), or `/dyetracker discord hunt <dye>` (Tab completes the dye).
+
+**When it shows**
+
+- Only on Hypixel SkyBlock. It clears about 10 seconds after you leave SkyBlock (for a lobby or another server), and right away when you disconnect or quit.
+- The card updates at most every 15 seconds.
+
+**What you need**
+
+- The Discord **desktop** app running. The browser version of Discord can't show it. On Linux, the Flatpak and Snap Discord work too.
+- In Discord settings → **Activity Privacy**, **Share your detected activities with others** turned on.
+
+**Lunar Client:** Lunar's launcher sets its own Discord status, and that one wins. Turn it off: launcher gear icon → **General** → **Discord Rich Presence**. The same goes for other launchers with their own Discord status. The first time you turn presence on, the mod prints these steps in chat.
 
 ### Dye widgets
 
@@ -196,6 +228,7 @@ The mod stores its configuration in `.minecraft/config/dyetracker.json`. This in
 | Dye counts (excavations, Dark Auctions, gift rewards, potions brewed) | Dye progress on the website | DyeTracker API |
 | Dye collection from Vincent's Dye Guide (the dyes you own, how many, and when you got them) | Collection tab and the website | DyeTracker API |
 | Vincent's rotation (the dye ids on his Dyes screen, their boosts, and the SkyBlock year), linked accounts only | Knowing which dyes are boosted each SkyBlock year | DyeTracker API |
+| Your DyeTracker stats (read from the DyeTracker API the mod already uses) and hunt dye, only while [Discord Rich Presence](#discord-rich-presence) is on (off by default) | Shown on your Discord profile while enabled | The local Discord app (Discord shows it to people who can see your profile) |
 
 Once you've linked your account, each time your dye progress is looked up (by the mod, the menu or the website), DyeTracker also saves the stat counters behind it on its server, at most once every 5 minutes and only when they changed. It uses them to show what you did this rotation (see [Dye widgets](#dye-widgets)) and keeps them. This keeps happening after you unlink in the mod (see [Data storage](#data-storage)).
 
