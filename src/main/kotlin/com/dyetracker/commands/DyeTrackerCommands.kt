@@ -13,6 +13,7 @@ import com.dyetracker.overlay.OverlayAddPipeline
 import com.dyetracker.rotation.DyeSprites
 import com.dyetracker.rotation.RotationPlacementEditor
 import com.dyetracker.rotation.RotationWidgetConfig
+import com.dyetracker.spotify.SpotifyActions
 import com.dyetracker.sync.SyncManager
 import com.dyetracker.ui.bounce.BounceController
 import com.dyetracker.ui.edit.WidgetEditScreen
@@ -39,6 +40,7 @@ object DyeTrackerCommands {
 
     private const val GIF_URL_DISPLAY_MAX = 60
     private const val GIF_URL_TRUNCATE_AT = 57
+    private const val SPOTIFY_USAGE = "/dyetracker spotify clientid <id> | login | now"
     private val gifCommandScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** IO scope for the async dye-widget add command (profile resolution). */
@@ -316,6 +318,44 @@ object DyeTrackerCommands {
                             1
                         }
                 )
+                .then(
+                    ClientCommands.literal("spotify")
+                        .then(
+                            ClientCommands.literal("clientid")
+                                .then(
+                                    ClientCommands.argument("id", StringArgumentType.word())
+                                        .executes { context ->
+                                            handleSpotifyClientIdCommand(
+                                                context.source,
+                                                StringArgumentType.getString(context, "id"),
+                                            )
+                                            1
+                                        }
+                                )
+                                .executes { context ->
+                                    sendSpotifyUsage(context.source)
+                                    1
+                                }
+                        )
+                        .then(
+                            ClientCommands.literal("login")
+                                .executes { context ->
+                                    handleSpotifyLoginCommand(context.source)
+                                    1
+                                }
+                        )
+                        .then(
+                            ClientCommands.literal("now")
+                                .executes { context ->
+                                    handleSpotifyNowCommand(context.source)
+                                    1
+                                }
+                        )
+                        .executes { context ->
+                            sendSpotifyUsage(context.source)
+                            1
+                        }
+                )
                 .executes { context ->
                     showHelp(context.source)
                     1
@@ -408,6 +448,34 @@ object DyeTrackerCommands {
         // Opening it here would be undone at once: the chat screen closes itself after the
         // command runs. MenuKeybind opens it on the next tick instead. The screen is the feedback.
         MenuKeybind.requestOpen()
+    }
+
+    private fun sendSpotifyUsage(source: FabricClientCommandSource) {
+        source.sendFeedback(
+            Component.literal("Usage: $SPOTIFY_USAGE")
+                .withStyle(ChatFormatting.YELLOW)
+        )
+    }
+
+    private fun handleSpotifyClientIdCommand(source: FabricClientCommandSource, id: String) {
+        when (SpotifyActions.setClientId(id)) {
+            SpotifyActions.SetClientIdResult.Saved -> source.sendFeedback(
+                Component.literal("Spotify Client ID saved. Now run /dyetracker spotify login")
+                    .withStyle(ChatFormatting.GREEN)
+            )
+            SpotifyActions.SetClientIdResult.Invalid -> source.sendFeedback(
+                Component.literal("That isn't a Spotify Client ID (32 hex characters, from your app's Settings page).")
+                    .withStyle(ChatFormatting.RED)
+            )
+        }
+    }
+
+    private fun handleSpotifyLoginCommand(source: FabricClientCommandSource) {
+        SpotifyActions.login { source.sendFeedback(it) }
+    }
+
+    private fun handleSpotifyNowCommand(source: FabricClientCommandSource) {
+        SpotifyActions.now { source.sendFeedback(it) }
     }
 
     private fun handleRotationToggleCommand(source: FabricClientCommandSource) {
@@ -1134,6 +1202,14 @@ object DyeTrackerCommands {
                 .withStyle(ChatFormatting.YELLOW)
                 .append(
                     Component.literal(" - Open the DyeTracker menu")
+                        .withStyle(ChatFormatting.GRAY)
+                )
+        )
+        source.sendFeedback(
+            Component.literal("  $SPOTIFY_USAGE")
+                .withStyle(ChatFormatting.YELLOW)
+                .append(
+                    Component.literal(" - Show your Spotify now playing")
                         .withStyle(ChatFormatting.GRAY)
                 )
         )
