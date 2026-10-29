@@ -128,6 +128,13 @@ class HistoryBarsTest {
     }
 
     @Test
+    fun `a six hour bucket's tooltip carries its date`() {
+        val bucket = HistoryBucket(start = oct26Midnight + 6 * hour, end = oct26Midnight + 12 * hour, work = 42.0)
+
+        assertEquals("Oct 26 06:00–12:00: 42", barTooltip(bucket, ZoneOffset.UTC))
+    }
+
+    @Test
     fun `a day bucket's tooltip is its date and work`() {
         val bucket = HistoryBucket(start = oct26Midnight, end = oct26Midnight + day, work = 1_000_000.0)
 

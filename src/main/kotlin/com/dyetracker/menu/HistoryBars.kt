@@ -15,6 +15,9 @@ data class BarRect(val x: Int, val y: Int, val width: Int, val height: Int)
 /** A bar's time slice when it is shorter than this (ms): the tooltip shows its times, else its day. */
 private const val MS_PER_DAY = 86_400_000L
 
+/** A slice this long or longer (but under a day) gets its date in the tooltip. */
+private const val DATED_BUCKET_MIN_MS = 6 * 3_600_000L
+
 /** A bar's start and end time, e.g. `14:00`. */
 private val BAR_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT)
 
@@ -99,14 +102,16 @@ fun sliceLabel(period: HistoryPeriod): String = when (period) {
 fun chartTitle(name: String, period: HistoryPeriod): String = "$name$TITLE_SEPARATOR${sliceLabel(period)}"
 
 /**
- * A hovered bar's text: `14:00–15:00: 1,234` for a slice shorter than a day, `Oct 26: 1,234` for a
- * day, in [zone]; the work grouped by thousands (one decimal when not whole), or `no data`.
+ * A hovered bar's text: `14:00–15:00: 1,234` for a slice under 6 hours, `Oct 26 06:00–12:00: 1,234` for
+ * 6 hours up to a day, `Oct 26: 1,234` for a day, in [zone]; the work grouped by thousands (one decimal when not whole), or `no data`.
  */
 fun barTooltip(bucket: HistoryBucket, zone: ZoneId): String {
     val start = Instant.ofEpochMilli(bucket.start).atZone(zone)
-    val time = if (bucket.end - bucket.start < MS_PER_DAY) {
+    val length = bucket.end - bucket.start
+    val time = if (length < MS_PER_DAY) {
         val end = Instant.ofEpochMilli(bucket.end).atZone(zone)
-        "${start.format(BAR_TIME_FORMAT)}$TIME_RANGE_SEPARATOR${end.format(BAR_TIME_FORMAT)}"
+        val range = "${start.format(BAR_TIME_FORMAT)}$TIME_RANGE_SEPARATOR${end.format(BAR_TIME_FORMAT)}"
+        if (length >= DATED_BUCKET_MIN_MS) "${start.format(BAR_DAY_FORMAT)} $range" else range
     } else {
         start.format(BAR_DAY_FORMAT)
     }
