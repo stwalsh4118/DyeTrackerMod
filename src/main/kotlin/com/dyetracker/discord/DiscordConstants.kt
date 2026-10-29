@@ -22,3 +22,11 @@ const val SHUTDOWN_CLEAR_TIMEOUT_MS = 1_000L
 const val IPC_PIPE_POLL_MS = 10L
 /** While connected and idle this long, the worker pings Discord to notice a quit/restart. */
 const val IPC_HEALTH_CHECK_MS = 30_000L
+/** Hypixel's server domain; any address ending in it counts (mc.hypixel.net, hypixel.net:25565). */
+const val HYPIXEL_DOMAIN = "hypixel.net"
+/** Hypixel's SkyBlock sidebar title contains this once formatting is stripped. */
+const val SKYBLOCK_SIDEBAR_MARKER = "SKYBLOCK"
+/** How often (client ticks) the SkyBlock check runs. */
+const val SKYBLOCK_POLL_TICKS = 20
+/** Off SkyBlock for less than this keeps the card (lobby hops, server swaps). */
+const val SKYBLOCK_LEAVE_DEBOUNCE_MS = 10_000L

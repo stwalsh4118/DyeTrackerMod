@@ -14,6 +14,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
+/** Discord timestamps are epoch seconds; the SkyBlock session start is epoch ms. */
+private const val MS_PER_SECOND = 1_000L
+
 /**
  * The Discord Rich Presence worker. One loop on a single-thread IO dispatcher reconciles the
  * wanted card with Discord every [PRESENCE_TICK_MS] (or sooner after [wake]); all Discord IPC runs
@@ -86,8 +89,13 @@ object DiscordPresence {
         }
     }
 
+    /** Reads only [ConfigManager] and the two published [SkyBlockTracker] fields, never Minecraft state. */
     private fun tick() {
-        val wanted = if (ConfigManager.isDiscordEnabled()) TRACER_CARD else null
+        val wanted = if (ConfigManager.isDiscordEnabled() && SkyBlockTracker.active) {
+            TRACER_CARD.copy(startEpochSeconds = SkyBlockTracker.startedAtMs?.div(MS_PER_SECOND))
+        } else {
+            null
+        }
         sync.reconcile(wanted)
     }
 }
