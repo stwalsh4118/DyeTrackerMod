@@ -167,6 +167,12 @@ object UiTheme {
 
         /** A locked achievement's tier pill; the website `AchievementTierBadge`'s muted `#4b5563`. */
         const val TIER_LOCKED: Int = 0xFF_4B_55_63.toInt()
+
+        /** Spotify now-playing panel; Spotify's fallback background (`#191414`) at the panel alpha. */
+        const val SPOTIFY_FALLBACK_BACKGROUND: Int = 0xC8_19_14_14.toInt()
+
+        /** Spotify's brand green (`#1ED760`), the now-playing progress fill. */
+        const val SPOTIFY_GREEN: Int = 0xFF_1E_D7_60.toInt()
     }
 
     /** Spacing tokens in GUI pixels. */

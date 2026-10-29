@@ -55,4 +55,26 @@ object SpotifyConstants {
     const val HTTP_UNAUTHORIZED = 401
     const val HTTP_FORBIDDEN = 403
     const val HTTP_TOO_MANY_REQUESTS = 429
+
+    /** How often the HUD poller asks Spotify what's playing. */
+    const val POLL_INTERVAL_MS = 5_000L
+
+    /** Stable id of the singleton now-playing widget (its placement and edit-entry key). */
+    const val WIDGET_ID = "spotify_now_playing"
+
+    /** Texture ids of the bundled Spotify icons, for `ImageTextureManager` and `SpriteWidget`. */
+    const val ICON_GREEN_ID = "spotify/icon_green"
+    const val ICON_WHITE_ID = "spotify/icon_white"
+
+    /** Classpath directory (under `resources/`) holding the bundled Spotify icon PNGs. */
+    const val ICON_RESOURCE_DIR = "assets/dyetracker/spotify"
+
+    /** Width of the widget's text column (title, subtitle, bar + times) in GUI pixels. */
+    const val TEXT_WIDTH_PX = 120
+
+    /** Draws the 32 px icon PNG at 12 GUI px. */
+    const val ICON_SCALE = 0.375f
+
+    /** Vertical gap between the widget's lines (title, subtitle, bar), in GUI pixels. */
+    const val LINE_GAP_PX = 3
 }

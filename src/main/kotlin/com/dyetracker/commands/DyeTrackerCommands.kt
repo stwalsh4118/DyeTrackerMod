@@ -14,6 +14,7 @@ import com.dyetracker.rotation.DyeSprites
 import com.dyetracker.rotation.RotationPlacementEditor
 import com.dyetracker.rotation.RotationWidgetConfig
 import com.dyetracker.spotify.SpotifyActions
+import com.dyetracker.spotify.SpotifyHudFeature
 import com.dyetracker.sync.SyncManager
 import com.dyetracker.ui.bounce.BounceController
 import com.dyetracker.ui.edit.WidgetEditScreen
@@ -40,7 +41,7 @@ object DyeTrackerCommands {
 
     private const val GIF_URL_DISPLAY_MAX = 60
     private const val GIF_URL_TRUNCATE_AT = 57
-    private const val SPOTIFY_USAGE = "/dyetracker spotify clientid <id> | login | logout | now"
+    private const val SPOTIFY_USAGE = "/dyetracker spotify clientid <id> | login | logout | now | toggle | edit"
     private val gifCommandScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** IO scope for the async dye-widget add command (profile resolution). */
@@ -358,6 +359,20 @@ object DyeTrackerCommands {
                                     1
                                 }
                         )
+                        .then(
+                            ClientCommands.literal("toggle")
+                                .executes { context ->
+                                    handleSpotifyToggleCommand(context.source)
+                                    1
+                                }
+                        )
+                        .then(
+                            ClientCommands.literal("edit")
+                                .executes { context ->
+                                    handleSpotifyEditCommand(context.source)
+                                    1
+                                }
+                        )
                         .executes { context ->
                             handleSpotifyStatusCommand(context.source)
                             1
@@ -493,6 +508,21 @@ object DyeTrackerCommands {
 
     private fun handleSpotifyNowCommand(source: FabricClientCommandSource) {
         SpotifyActions.now { source.sendFeedback(it) }
+    }
+
+    private fun handleSpotifyToggleCommand(source: FabricClientCommandSource) {
+        val visible = SpotifyActions.toggleWidget()
+        source.sendFeedback(
+            Component.literal("Spotify widget ${if (visible) "shown" else "hidden"}.")
+                .withStyle(if (visible) ChatFormatting.GREEN else ChatFormatting.YELLOW)
+        )
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun handleSpotifyEditCommand(source: FabricClientCommandSource) {
+        // The same shared edit screen as `rotation edit`, opened on the next tick (the chat screen
+        // closes itself after the command). The screen is the feedback.
+        SpotifyHudFeature.requestEditScreen()
     }
 
     private fun handleRotationToggleCommand(source: FabricClientCommandSource) {

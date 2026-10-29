@@ -1,6 +1,7 @@
 package com.dyetracker.spotify
 
 import com.dyetracker.DyeTrackerMod
+import com.dyetracker.config.ConfigManager
 import net.minecraft.ChatFormatting
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.ClickEvent
@@ -182,6 +183,14 @@ object SpotifyActions {
     fun logout(feedback: (Component) -> Unit) {
         SpotifySessions.default.logout()
         feedback(Component.literal("Logged out of Spotify.").withStyle(ChatFormatting.GREEN))
+    }
+
+    /** Show or hide the now-playing widget; returns whether it is now shown. */
+    fun toggleWidget(): Boolean {
+        val current = ConfigManager.spotifyPlacements.all().firstOrNull()?.visible ?: SpotifyWidgetConfig().visible
+        val visible = !current
+        SpotifyPlacementEditor.setVisible(SpotifyConstants.WIDGET_ID, visible)
+        return visible
     }
 
     /** The one-line Spotify status. A cheap read of the saved file, safe on the client thread. */

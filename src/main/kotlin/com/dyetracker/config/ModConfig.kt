@@ -4,6 +4,7 @@ import com.dyetracker.data.DyeRotation
 import com.dyetracker.dyeprogress.DyeProgressWidgetConfig
 import com.dyetracker.overlay.GifOverlayConfig
 import com.dyetracker.rotation.RotationWidgetConfig
+import com.dyetracker.spotify.SpotifyWidgetConfig
 import kotlinx.serialization.Serializable
 
 /**
@@ -75,7 +76,14 @@ data class ModConfig(
      * it never prints again. Defaults to false so existing config files load unchanged and their
      * players get the hint once. See PBI-67.
      */
-    val menuHintShown: Boolean = false
+    val menuHintShown: Boolean = false,
+
+    /**
+     * Placement (position/scale/visibility) of the singleton Spotify now-playing HUD widget. Null
+     * until first seeded; the Spotify feature seeds a default on startup, and existing config
+     * files without this field load unchanged. See PBI-76.
+     */
+    val spotifyWidget: SpotifyWidgetConfig? = null,
 ) {
     companion object {
         const val DEFAULT_API_URL = "https://dye-tracker-api.seanwalsh4118-7a3.workers.dev"

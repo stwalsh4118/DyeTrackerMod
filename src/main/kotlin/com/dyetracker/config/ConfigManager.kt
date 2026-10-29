@@ -5,6 +5,7 @@ import com.dyetracker.data.DyeRotation
 import com.dyetracker.dyeprogress.DyeProgressWidgetConfig
 import com.dyetracker.overlay.GifOverlayConfig
 import com.dyetracker.rotation.RotationWidgetConfig
+import com.dyetracker.spotify.SpotifyWidgetConfig
 import com.dyetracker.ui.persist.PlacementStore
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -25,6 +26,7 @@ object ConfigManager {
     private val gifsLock = Any()
     private val rotationLock = Any()
     private val dyeProgressLock = Any()
+    private val spotifyLock = Any()
 
     /**
      * Persisted placement store for the GIF/image HUD overlays. Provides the generic
@@ -61,6 +63,18 @@ object ConfigManager {
         write = { config = config.copy(dyeProgressWidgets = it) },
         persist = { save() },
         lock = dyeProgressLock,
+    )
+
+    /**
+     * Placement store for the singleton Spotify now-playing widget (PBI 76). Bridges the single
+     * nullable [ModConfig.spotifyWidget] field to the list-based [PlacementStore] (0-or-1
+     * elements), exactly like [rotationPlacements].
+     */
+    val spotifyPlacements: PlacementStore<SpotifyWidgetConfig> = PlacementStore(
+        read = { config.spotifyWidget?.let { listOf(it) } ?: emptyList() },
+        write = { config = config.copy(spotifyWidget = it.firstOrNull()) },
+        persist = { save() },
+        lock = spotifyLock,
     )
 
     private val json = Json {
