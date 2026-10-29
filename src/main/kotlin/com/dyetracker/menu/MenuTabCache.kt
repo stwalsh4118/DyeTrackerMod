@@ -12,6 +12,7 @@ data class Cached<T>(val value: T, val fetchedAtMs: Long)
  * (never persisted) so reopening the tab or switching back to a profile shows data at once, like
  * [MenuCache] does for the Dyes tab. Usernames are matched case-insensitively. Not synchronized:
  * only touched on the render thread.
+ * The History tab's "profile" is its profile and period ([historyKey]).
  */
 class SessionCache<T> {
     private val entries = HashMap<String, Cached<T>>()

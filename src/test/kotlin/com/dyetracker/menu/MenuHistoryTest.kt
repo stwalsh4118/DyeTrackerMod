@@ -9,9 +9,15 @@ import kotlin.test.assertNull
 /** Unit coverage for the History tab's periods, chance text, state messages and rows (75-1). */
 class MenuHistoryTest {
 
-    /** A linked response with [snapshotCount] snapshots up to [to]. */
-    private fun response(linked: Boolean = true, to: Long? = TO, snapshotCount: Int = 14) =
-        HistoryResponse(linked = linked, from = FROM, to = to, snapshotCount = snapshotCount)
+    private val bone = HistoryDyeGain("bone", "Bone Dye", "#e3dac9", "1,000 skeletons", 0.0027)
+
+    /** A linked response with [snapshotCount] snapshots up to [to] and the [dyes] gained. */
+    private fun response(
+        linked: Boolean = true,
+        to: Long? = TO,
+        snapshotCount: Int = 14,
+        dyes: List<HistoryDyeGain> = listOf(bone),
+    ) = HistoryResponse(linked = linked, from = FROM, to = to, snapshotCount = snapshotCount, dyes = dyes)
 
     @Test
     fun `the default period is 24h`() {
@@ -67,15 +73,21 @@ class MenuHistoryTest {
     }
 
     @Test
+    fun `snapshots in the period without any dye work say nothing was gained in it`() {
+        assertEquals(
+            "Nothing gained in the last 30d.",
+            historyStateMessage(response(snapshotCount = 3, dyes = emptyList()), HistoryPeriod.MONTH),
+        )
+    }
+
+    @Test
     fun `snapshots in the period show the list`() {
         assertNull(historyStateMessage(response(snapshotCount = 1), HistoryPeriod.HOUR))
     }
 
     @Test
     fun `a row reads the name and the work, with the chance on the right`() {
-        val gain = HistoryDyeGain("bone", "Bone Dye", "#e3dac9", "1,000 skeletons", 0.0027)
-
-        assertEquals("Bone Dye · 1,000 skeletons" to "0.0027%", historyRowText(gain))
+        assertEquals("Bone Dye · 1,000 skeletons" to "0.0027%", historyRowText(bone))
     }
 
     @Test

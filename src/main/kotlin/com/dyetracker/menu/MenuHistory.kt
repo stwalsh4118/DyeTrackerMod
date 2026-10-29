@@ -38,12 +38,12 @@ fun historyChanceText(chance: Double?): String = chance?.let(::rotationPercentTe
 /**
  * What the History tab says instead of its list for [response] over [period]: the link hint for an
  * unlinked player, a no-history-yet hint without any snapshot, `Nothing gained in the last 24h.`
- * without a snapshot in the period; `null` when the list shows.
+ * without a snapshot in the period or without any dye work in it; `null` when the list shows.
  */
 fun historyStateMessage(response: HistoryResponse, period: HistoryPeriod): String? = when {
     !response.linked -> NOT_LINKED_TEXT
     response.to == null -> NO_HISTORY_TEXT
-    response.snapshotCount == 0 -> "$NOTHING_GAINED_PREFIX${period.label}$NOTHING_GAINED_SUFFIX"
+    response.snapshotCount == 0 || response.dyes.isEmpty() -> "$NOTHING_GAINED_PREFIX${period.label}$NOTHING_GAINED_SUFFIX"
     else -> null
 }
 
