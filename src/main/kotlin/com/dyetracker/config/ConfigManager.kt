@@ -9,6 +9,7 @@ import com.dyetracker.spotify.SpotifyWidgetConfig
 import com.dyetracker.ui.persist.PlacementStore
 import com.dyetracker.ui.theme.ThemePresets
 import com.dyetracker.ui.theme.ThemeState
+import com.dyetracker.ui.theme.clampHudAlpha
 import com.dyetracker.ui.theme.resetCustom
 import com.dyetracker.ui.theme.startCustomEdit
 import com.dyetracker.ui.theme.validOverrides
@@ -257,6 +258,15 @@ object ConfigManager {
 
     /** Whether there is a Custom slot (PBI 81): at least one valid override ([validOverrides]). */
     fun hasCustomTheme(): Boolean = validOverrides(config).isNotEmpty()
+
+    /** The saved background alpha of the HUD widget panels (PBI 81), `0..255` once applied. */
+    fun hudPanelAlpha(): Int = config.hudPanelAlpha
+
+    /**
+     * Persist the HUD panel alpha ([clampHudAlpha]), flushing to disk immediately via the standard
+     * [update] path, which also makes it the live alpha. Touches no theme field.
+     */
+    fun setHudPanelAlpha(alpha: Int) = update { it.copy(hudPanelAlpha = clampHudAlpha(alpha)) }
 
     /**
      * Resets the configuration to default values and saves to disk.

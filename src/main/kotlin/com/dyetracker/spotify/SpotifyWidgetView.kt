@@ -10,7 +10,9 @@ import com.dyetracker.ui.core.Widget
 import com.dyetracker.ui.layout.Column
 import com.dyetracker.ui.layout.Row
 import com.dyetracker.ui.texture.ImageTextureManager
+import com.dyetracker.ui.theme.ThemeState
 import com.dyetracker.ui.theme.UiTheme
+import com.dyetracker.ui.theme.themeWithAlpha
 import net.minecraft.client.Minecraft
 
 /**
@@ -117,7 +119,10 @@ object SpotifyWidgetView {
         SpotifyIcon.WHITE -> SpotifyConstants.ICON_WHITE_ID
     }
 
-    /** [lines] in a column on [colors]' panel, with [art] at their left when there is one. */
+    /**
+     * [lines] in a column on [colors]' panel, with [art] at their left when there is one. The panel
+     * fill takes the HUD opacity ([ThemeState.hudPanelAlpha]).
+     */
     private fun panel(
         lines: List<Widget>,
         colors: SpotifyColors,
@@ -131,7 +136,7 @@ object SpotifyWidgetView {
         )
         return PanelWidget(
             child = if (art == null) text else Row(children = listOf(art, text), spacing = UiTheme.Spacing.INNER_GAP),
-            background = tone(colors.background, paused),
+            background = tone(themeWithAlpha(ThemeState.hudPanelAlpha, colors.background), paused),
             border = tone(colors.border, paused),
         )
     }

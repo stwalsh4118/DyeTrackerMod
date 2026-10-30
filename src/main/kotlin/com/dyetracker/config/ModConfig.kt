@@ -5,6 +5,7 @@ import com.dyetracker.dyeprogress.DyeProgressWidgetConfig
 import com.dyetracker.overlay.GifOverlayConfig
 import com.dyetracker.rotation.RotationWidgetConfig
 import com.dyetracker.spotify.SpotifyWidgetConfig
+import com.dyetracker.ui.theme.HUD_PANEL_ALPHA_DEFAULT
 import com.dyetracker.ui.theme.ThemePresets
 import kotlinx.serialization.Serializable
 
@@ -126,6 +127,11 @@ data class ModConfig(
      * are ignored.
      */
     val themeCustomOverrides: Map<String, String> = emptyMap(),
+
+    /**
+     * Background alpha (0–255) of the HUD widget panels (PBI 81), on every theme. 200 is the original look.
+     */
+    val hudPanelAlpha: Int = HUD_PANEL_ALPHA_DEFAULT,
 ) {
     companion object {
         const val DEFAULT_API_URL = "https://dye-tracker-api.seanwalsh4118-7a3.workers.dev"

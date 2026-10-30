@@ -1,9 +1,12 @@
 package com.dyetracker.config
 
+import com.dyetracker.ui.theme.HUD_PANEL_ALPHA_DEFAULT
 import com.dyetracker.ui.theme.ResolvedTheme
+import com.dyetracker.ui.theme.ThemeState
 import com.dyetracker.ui.theme.resolveTheme
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -12,6 +15,7 @@ import kotlin.test.assertTrue
  * Pure-JVM tests for the PBI 81 `themeKey`: it defaults to `default`, config files that predate it
  * load that way, and any value round-trips through JSON unchanged so the pick survives a restart.
  * The Custom slot (task 81-4) defaults to an empty slot on Default and round-trips the same way.
+ * The HUD opacity (task 81-5) defaults to 200, round-trips, and is clamped when applied.
  * Mirrors [ConfigManager]'s JSON settings; no Minecraft runtime.
  */
 class ModConfigThemeTest {
@@ -20,6 +24,11 @@ class ModConfigThemeTest {
         prettyPrint = true
         encodeDefaults = true
         ignoreUnknownKeys = true
+    }
+
+    @AfterTest
+    fun resetThemeState() {
+        ThemeState.apply(ModConfig())
     }
 
     @Test
@@ -66,5 +75,34 @@ class ModConfigThemeTest {
         assertEquals("custom", reloaded.themeKey)
         assertEquals("dye:jade", reloaded.themeCustomBase)
         assertEquals(overrides, reloaded.themeCustomOverrides)
+    }
+
+    @Test
+    fun `config files predating the HUD opacity load 200`() {
+        val legacy = """{ "apiUrl": "https://example.test", "themeKey": "neutral" }"""
+        assertEquals(200, json.decodeFromString<ModConfig>(legacy).hudPanelAlpha)
+    }
+
+    @Test
+    fun `the HUD opacity round-trips through JSON so it survives a restart`() {
+        val saved = json.encodeToString(ModConfig(hudPanelAlpha = 64))
+        assertTrue(saved.contains("hudPanelAlpha"), "key is written to disk")
+        assertEquals(64, json.decodeFromString<ModConfig>(saved).hudPanelAlpha)
+    }
+
+    @Test
+    fun `applying an out-of-range HUD opacity clamps it`() {
+        ThemeState.apply(ModConfig(hudPanelAlpha = 999))
+        assertEquals(255, ThemeState.hudPanelAlpha)
+        ThemeState.apply(ModConfig(hudPanelAlpha = -1))
+        assertEquals(0, ThemeState.hudPanelAlpha)
+    }
+
+    @Test
+    fun `applying a config sets the HUD opacity`() {
+        ThemeState.apply(ModConfig(themeKey = "neutral", hudPanelAlpha = 64))
+        assertEquals(64, ThemeState.hudPanelAlpha)
+        ThemeState.apply(ModConfig())
+        assertEquals(HUD_PANEL_ALPHA_DEFAULT, ThemeState.hudPanelAlpha)
     }
 }
