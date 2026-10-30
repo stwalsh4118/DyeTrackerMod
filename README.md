@@ -67,6 +67,10 @@ New features ship for Minecraft **26.1.2**, **26.2** and **26.3**. The **1.21.10
 | `/dyetracker discord <on\|off>` | Turn [Discord Rich Presence](#discord-rich-presence) on or off; `/dyetracker discord` on its own shows whether it's on (Minecraft 26.1.2, 26.2 and 26.3 only) |
 | `/dyetracker discord hunt <dye\|clear>` | Pick the dye your Discord card says you're hunting (Tab completes it), or clear it; `/dyetracker discord hunt` on its own shows the current pick (Minecraft 26.1.2, 26.2 and 26.3 only) |
 | `/dyetracker spotify …` | Set up and control the Spotify widget (see [Spotify widget](#spotify-widget); Minecraft 26.1.2, 26.2 and 26.3 only) |
+| `/dyetracker theme` | Show your current [theme](#themes) (Minecraft 26.1.2, 26.2 and 26.3 only) |
+| `/dyetracker theme <name>` | Switch to a preset theme: `default`, `neutral`, `midnight`, `forest`, `sunset` or `ice` (Tab completes it; Minecraft 26.1.2, 26.2 and 26.3 only) |
+| `/dyetracker theme dye <dye>` | Theme the mod after a dye (Tab completes it; Minecraft 26.1.2, 26.2 and 26.3 only) |
+| `/dyetracker theme custom` | Switch back to your Custom theme, once you have one (Minecraft 26.1.2, 26.2 and 26.3 only) |
 
 ### In-game menu
 
@@ -114,6 +118,57 @@ Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu**
 - **Discord presence** and **Discord hunt**: see [Discord Rich Presence](#discord-rich-presence).
 - **Edit layout**: move and resize your HUD widgets.
 - **Spotify**: log in or out, your Client ID, the Spotify widget and **Tint all widgets** (see [Spotify widget](#spotify-widget)). Scroll down the tab to reach it.
+- **Theme**: shows your current theme; **Customize ▸** opens the Theme screen (see [Themes](#themes)).
+
+### Themes
+
+Themes are in the Minecraft **26.1.2**, **26.2** and **26.3** builds only.
+
+A theme sets the colors of the menu, its screens and your HUD widgets. Pick one on the Theme screen (Settings tab → **Theme** → **Customize ▸**) or with `/dyetracker theme`.
+
+The Theme screen has the preset buttons, **Dye ▸**, **Custom** (once you have one), six color boxes, a **HUD opacity** slider, a live preview, **Reset** and **Done**.
+
+**Presets**
+
+| Preset | Look |
+|--------|------|
+| `default` | The original look: magenta and cyan on near-black. You start on this one. |
+| `neutral` | Grays in place of the magenta and cyan |
+| `midnight` | Periwinkle and lavender on deep navy |
+| `forest` | Green and gold on dark green |
+| `sunset` | Coral and amber on dark plum |
+| `ice` | Aqua and periwinkle on dark slate |
+
+**Dye themes**
+
+- Theme the mod after any of the 42 dyes: **Dye ▸** on the Theme screen (search, then click a dye), or `/dyetracker theme dye <dye>` (Tab completes the dye).
+- They work without linking your account.
+- The dye's color becomes the accent. Dark dyes are lightened so text stays readable, and panels stay dark.
+
+**Custom**
+
+- The six color boxes are **Accent**, **Accent 2**, **Panel**, **Border**, **Text** and **Text 2**. Type a color as `RRGGBB` or `#RRGGBB`.
+- Editing a color while you're on another theme starts a new Custom theme based on that theme. There's one Custom slot, so this replaces the Custom theme you had.
+- An invalid color turns the box red and isn't saved.
+- **Reset** clears your colors and goes back to the theme your Custom theme was based on.
+- The **Custom** button shows once you have a Custom theme. Click it, or run `/dyetracker theme custom`, to switch back to it.
+
+**HUD opacity**
+
+- The **HUD opacity** slider sets how see-through the backgrounds of the rotation, dye progress and Spotify widgets are. It starts at 78%, the original look.
+- It works on every theme, and moving it doesn't switch you to Custom. Menus and screens stay solid.
+
+**What never changes**
+
+Themes leave these colors alone:
+
+- Boost 2x and 3x colors
+- Achievement tier colors
+- The owned greens and the estimated badge
+- Error red
+- Each dye widget's own dye color
+- Chat colors
+- Minecraft's own buttons, text boxes and sliders
 
 ### Discord Rich Presence
 
@@ -190,7 +245,7 @@ If login says port 43821 is in use, close whatever is using it and run `/dyetrac
 - A paused song dims the widget and its time reads "Paused".
 - With nothing playing for 30 seconds, the widget hides until something plays again.
 - Press `G` (or run `/dyetracker spotify edit`) for edit mode: move or scale the widget, or click it and press **E** to hide it (press **E** again to bring it back).
-- **Tint all widgets** colors the rotation and dye progress widgets with the album colors too (GIF overlays keep their own look). It works with the Spotify widget hidden.
+- **Tint all widgets** colors the rotation and dye progress widgets with the album colors too (GIF overlays keep their own look). It works with the Spotify widget hidden. While it's on, the album colors replace your [theme](#themes)'s panel background and border on those widgets, whether the song is playing or paused.
 
 No beat sync: Spotify no longer offers tempo or beat data to new apps.
 
@@ -277,6 +332,15 @@ That's it — no source duplication, no branch fork, no manual `gradle.propertie
 ## Configuration
 
 The mod stores its configuration in `.minecraft/config/dyetracker.json`. This includes your linked account credentials (stored locally and securely).
+
+The [theme](#themes) settings (Minecraft 26.1.2, 26.2 and 26.3):
+
+| Key | Default | What it does |
+|-----|---------|--------------|
+| `themeKey` | `"default"` | The active theme: a preset (`default`, `neutral`, `midnight`, `forest`, `sunset` or `ice`), `dye:<id>` for a dye theme (e.g. `dye:nadeshiko`), or `custom` for your Custom theme. An unknown value shows Default. |
+| `themeCustomBase` | `"default"` | The theme your Custom theme is based on. |
+| `themeCustomOverrides` | `{}` | Your Custom theme's colors, as `RRGGBB`, under the keys `accentPrimary`, `accentSecondary`, `panelBackground`, `panelBorder`, `textPrimary` and `textSecondary` (Accent, Accent 2, Panel, Border, Text and Text 2 on the Theme screen). Invalid entries are ignored. |
+| `hudPanelAlpha` | `200` | How solid the HUD widget backgrounds are, from `0` (clear) to `255` (solid). `200` is the HUD opacity slider's 78%. |
 
 ## Privacy & Security
 
