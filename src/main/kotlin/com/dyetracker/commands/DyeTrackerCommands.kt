@@ -408,6 +408,13 @@ object DyeTrackerCommands {
                                 }
                         )
                         .then(
+                            ClientCommands.literal(ThemePresets.CUSTOM)
+                                .executes { context ->
+                                    handleThemeCustom(context.source)
+                                    1
+                                }
+                        )
+                        .then(
                             ClientCommands.argument("preset", StringArgumentType.word())
                                 .suggests { _, builder ->
                                     SharedSuggestionProvider.suggest(ThemePresets.PRESET_KEYS, builder)
@@ -835,6 +842,24 @@ object DyeTrackerCommands {
         ConfigManager.setThemeKey(key)
         source.sendFeedback(
             Component.literal("$THEME_LABEL${ThemePresets.displayName(key)}.").withStyle(ChatFormatting.GREEN)
+        )
+    }
+
+    /**
+     * Switch to the saved Custom slot (PBI 81) when there is one; the save makes it the active theme
+     * on the next frame. Without a slot the config is left as it was.
+     */
+    private fun handleThemeCustom(source: FabricClientCommandSource) {
+        if (!ConfigManager.hasCustomTheme()) {
+            source.sendFeedback(
+                Component.literal("No custom theme yet. Edit a color in Settings > Theme.").withStyle(ChatFormatting.RED)
+            )
+            return
+        }
+        ConfigManager.setThemeKey(ThemePresets.CUSTOM)
+        source.sendFeedback(
+            Component.literal("$THEME_LABEL${ThemePresets.displayName(ThemePresets.CUSTOM)}.")
+                .withStyle(ChatFormatting.GREEN)
         )
     }
 
@@ -1557,11 +1582,12 @@ object DyeTrackerCommands {
                 )
         )
         source.sendFeedback(
-            Component.literal("  $THEME_USAGE | dye <dye>")
+            Component.literal("  $THEME_USAGE | dye <dye> | ${ThemePresets.CUSTOM}")
                 .withStyle(ChatFormatting.YELLOW)
                 .append(
                     Component.literal(
-                        " - Pick a theme (${ThemePresets.PRESET_KEYS.joinToString()}) or theme the mod after a dye"
+                        " - Pick a theme (${ThemePresets.PRESET_KEYS.joinToString()}), theme the mod after a dye," +
+                            " or switch back to your custom theme"
                     )
                         .withStyle(ChatFormatting.GRAY)
                 )

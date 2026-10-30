@@ -16,21 +16,23 @@ private const val DYE_BUTTON_NAME = "Dye"
 private const val OPENS_SCREEN_SUFFIX = " ▸"
 
 /**
- * One button on the Theme screen (PBI 81): the theme [key] it applies (a preset key, or
- * [DYE_BUTTON_KEY]), its [label], and whether it is the active theme's ([selected]).
+ * One button on the Theme screen (PBI 81): the theme [key] it applies (a preset key, [DYE_BUTTON_KEY]
+ * or [ThemePresets.CUSTOM]), its [label], and whether it is the active theme's ([selected]).
  */
 data class ThemeButton(val key: String, val label: String, val selected: Boolean)
 
 /**
  * The Theme screen's buttons with [activeKey] the theme in use: one per [ThemePresets.PRESET_KEYS]
- * ([ThemePresets.displayName]), then the dye button, `Dye ▸`. The active theme's button is
- * selected and its label starts with `✔ `; while a dye theme is active the dye button names the
- * dye instead (`✔ Jade ▸`). Any other key resolves to Default, so Default is marked then.
+ * ([ThemePresets.displayName]), then the dye button, `Dye ▸`, then, only when [hasCustom] (a Custom
+ * slot exists), `Custom`. The active theme's button is selected and its label starts with `✔ `;
+ * while a dye theme is active the dye button names the dye instead (`✔ Jade ▸`). Any other key,
+ * including `custom` with no Custom slot, marks Default.
  */
-fun themeButtons(activeKey: String): List<ThemeButton> {
+fun themeButtons(activeKey: String, hasCustom: Boolean): List<ThemeButton> {
     val activeDyeId = ThemePresets.dyeIdOf(activeKey)
+    val customSelected = hasCustom && activeKey == ThemePresets.CUSTOM
     val activePreset = when {
-        activeDyeId != null -> null
+        activeDyeId != null || customSelected -> null
         activeKey in ThemePresets.PRESET_KEYS -> activeKey
         else -> ThemePresets.DEFAULT
     }
@@ -40,7 +42,10 @@ fun themeButtons(activeKey: String): List<ThemeButton> {
     }
     val dyeSelected = activeDyeId != null
     val dyeName = activeDyeId?.let { DyeCatalog.displayNameOr(it) } ?: DYE_BUTTON_NAME
-    return presets + ThemeButton(DYE_BUTTON_KEY, marked(dyeName, dyeSelected) + OPENS_SCREEN_SUFFIX, dyeSelected)
+    val buttons = presets + ThemeButton(DYE_BUTTON_KEY, marked(dyeName, dyeSelected) + OPENS_SCREEN_SUFFIX, dyeSelected)
+    if (!hasCustom) return buttons
+    val customName = ThemePresets.displayName(ThemePresets.CUSTOM)
+    return buttons + ThemeButton(ThemePresets.CUSTOM, marked(customName, customSelected), customSelected)
 }
 
 /** [label], led by [SELECTED_PREFIX] when [selected]. */
