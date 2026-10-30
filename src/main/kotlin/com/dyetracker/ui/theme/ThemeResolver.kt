@@ -3,22 +3,19 @@ package com.dyetracker.ui.theme
 import com.dyetracker.config.ModConfig
 
 /**
- * The theme [config] picks (PBI 81): Neutral for [ThemePresets.NEUTRAL]; the dye's [dyePalette] for
- * a dye key whose dye has a color; the Custom slot for [ThemePresets.CUSTOM] (see [resolveCustom]);
- * Default for [ThemePresets.DEFAULT], a blank key, a dye key with an unknown dye or any key it
- * doesn't know. Default is always [ResolvedTheme.DEFAULT], never derived.
+ * The theme [config] picks (PBI 81): for a preset other than Default, its palette derived
+ * ([ResolvedTheme.derive] of [ThemePresets.paletteFor]); the dye's [dyePalette] for a dye key whose
+ * dye has a color; the Custom slot for [ThemePresets.CUSTOM] (see [resolveCustom]); Default for
+ * [ThemePresets.DEFAULT], a blank key, a dye key with an unknown dye or any key it doesn't know.
+ * Default is always [ResolvedTheme.DEFAULT], never derived.
  */
 fun resolveTheme(config: ModConfig): ResolvedTheme =
     if (config.themeKey == ThemePresets.CUSTOM) resolveCustom(config) else resolveKey(config.themeKey)
 
 /** The theme of the non-custom key [key], as [resolveTheme] describes. */
 private fun resolveKey(key: String): ResolvedTheme {
-    val dyeId = ThemePresets.dyeIdOf(key)
-    return when {
-        dyeId != null -> ResolvedTheme.derive(dyePalette(DyeThemeColors.COLORS.getValue(dyeId)))
-        key == ThemePresets.NEUTRAL -> ResolvedTheme.derive(ThemePresets.NEUTRAL_PALETTE)
-        else -> ResolvedTheme.DEFAULT
-    }
+    if (key == ThemePresets.DEFAULT) return ResolvedTheme.DEFAULT
+    return ThemePresets.paletteFor(key)?.let(ResolvedTheme::derive) ?: ResolvedTheme.DEFAULT
 }
 
 /**

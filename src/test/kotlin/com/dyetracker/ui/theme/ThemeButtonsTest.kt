@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
  * Unit coverage for [themeButtons] (task 81-3): one button per preset then the dye button, the
  * active theme's marked and selected, an unknown key falling back to Default. Task 81-4 adds the
  * Custom button, there only while a Custom slot exists. Task 81-5 adds [selectedThemeKey]: which
- * theme the buttons mark for a config.
+ * theme the buttons mark for a config. Task 81-6 adds the Midnight, Forest, Sunset and Ice buttons.
  */
 class ThemeButtonsTest {
 
@@ -18,7 +18,7 @@ class ThemeButtonsTest {
     fun `Default active marks the Default button`() {
         val buttons = themeButtons("default", false)
 
-        assertEquals(listOf("✔ Default", "Neutral", "Dye ▸"), buttons.map { it.label })
+        assertEquals(listOf("✔ Default", "Neutral", "Midnight", "Forest", "Sunset", "Ice", "Dye ▸"), buttons.map { it.label })
         assertEquals(listOf("default"), buttons.filter { it.selected }.map { it.key })
     }
 
@@ -26,8 +26,19 @@ class ThemeButtonsTest {
     fun `Neutral active marks the Neutral button`() {
         val buttons = themeButtons("neutral", false)
 
-        assertEquals(listOf("Default", "✔ Neutral", "Dye ▸"), buttons.map { it.label })
+        assertEquals(listOf("Default", "✔ Neutral", "Midnight", "Forest", "Sunset", "Ice", "Dye ▸"), buttons.map { it.label })
         assertEquals(listOf("neutral"), buttons.filter { it.selected }.map { it.key })
+    }
+
+    @Test
+    fun `Sunset active shows the six presets then the dye button, Sunset marked`() {
+        val buttons = themeButtons("sunset", false)
+
+        assertEquals(
+            listOf("Default", "Neutral", "Midnight", "Forest", "✔ Sunset", "Ice", "Dye ▸"),
+            buttons.map { it.label },
+        )
+        assertEquals(listOf("sunset"), buttons.filter { it.selected }.map { it.key })
     }
 
     @Test
@@ -42,7 +53,7 @@ class ThemeButtonsTest {
     fun `an unknown key marks Default, as it resolves to Default`() {
         val buttons = themeButtons("bogus", false)
 
-        assertEquals(listOf("✔ Default", "Neutral", "Dye ▸"), buttons.map { it.label })
+        assertEquals(listOf("✔ Default", "Neutral", "Midnight", "Forest", "Sunset", "Ice", "Dye ▸"), buttons.map { it.label })
         assertEquals(listOf("default"), buttons.filter { it.selected }.map { it.key })
     }
 
@@ -65,7 +76,7 @@ class ThemeButtonsTest {
     fun `Custom active shows the Custom button last, marked and selected`() {
         val buttons = themeButtons("custom", true)
 
-        assertEquals(listOf("Default", "Neutral", "Dye ▸", "✔ Custom"), buttons.map { it.label })
+        assertEquals(listOf("Default", "Neutral", "Midnight", "Forest", "Sunset", "Ice", "Dye ▸", "✔ Custom"), buttons.map { it.label })
         assertEquals(listOf("custom"), buttons.filter { it.selected }.map { it.key })
     }
 

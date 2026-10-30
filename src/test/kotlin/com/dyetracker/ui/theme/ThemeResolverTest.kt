@@ -36,11 +36,6 @@ class ThemeResolverTest {
     }
 
     @Test
-    fun `preset keys are default then neutral`() {
-        assertEquals(listOf("default", "neutral"), ThemePresets.PRESET_KEYS)
-    }
-
-    @Test
     fun `displayName names each preset and falls back to Default`() {
         assertEquals("Default", ThemePresets.displayName("default"))
         assertEquals("Neutral", ThemePresets.displayName("neutral"))
