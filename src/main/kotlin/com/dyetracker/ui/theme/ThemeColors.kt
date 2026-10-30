@@ -6,7 +6,7 @@ import com.dyetracker.spotify.lerpColor
 private const val ALPHA_SHIFT = 24
 
 /** Keeps only the RGB channels of an ARGB color. */
-private const val RGB_MASK = 0x00FFFFFF
+internal const val RGB_MASK = 0x00FFFFFF
 
 /** Full alpha, so two RGB colors lerp as opaque colors. */
 private const val OPAQUE = 0xFF000000.toInt()

@@ -114,6 +114,18 @@ data class ModConfig(
      * files load unchanged.
      */
     val themeKey: String = ThemePresets.DEFAULT,
+
+    /**
+     * The base theme of the saved Custom slot (PBI 81): any non-custom theme key. Unknown or
+     * `custom` resolves to Default.
+     */
+    val themeCustomBase: String = ThemePresets.DEFAULT,
+
+    /**
+     * The Custom slot's color overrides (PBI 81): `ThemeOverrides.KEYS` → `RRGGBB`. Invalid entries
+     * are ignored.
+     */
+    val themeCustomOverrides: Map<String, String> = emptyMap(),
 ) {
     companion object {
         const val DEFAULT_API_URL = "https://dye-tracker-api.seanwalsh4118-7a3.workers.dev"

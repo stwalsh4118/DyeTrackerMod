@@ -14,11 +14,15 @@ object ThemePresets {
     /** Key of the Neutral theme: grays in place of the magenta and cyan accents. */
     const val NEUTRAL = "neutral"
 
+    /** Key of the saved Custom slot: a base theme plus color overrides. Not a preset. */
+    const val CUSTOM = "custom"
+
     /** The start of a dye theme's key; the dye id follows it (`dye:nadeshiko`). */
     const val DYE_PREFIX = "dye:"
 
     private const val DEFAULT_NAME = "Default"
     private const val NEUTRAL_NAME = "Neutral"
+    private const val CUSTOM_NAME = "Custom"
 
     /** Follows the dye's name in a dye theme's name (`Nadeshiko dye`). */
     private const val DYE_NAME_SUFFIX = " dye"
@@ -58,18 +62,19 @@ object ThemePresets {
         textSecondary = BASE_TEXT_SECONDARY,
     )
 
-    /** The preset keys, in the order the command and the Theme screen list them. */
+    /** The preset keys, in the order the command and the Theme screen list them. [CUSTOM] is not one. */
     val PRESET_KEYS: List<String> = listOf(DEFAULT, NEUTRAL)
 
     /**
-     * The name shown for [key]: the preset's name, or `"<dye name> dye"` for a dye theme. Anything
-     * else, including a dye key with an unknown dye, shows as Default.
+     * The name shown for [key]: the preset's name, `Custom` for [CUSTOM], or `"<dye name> dye"` for a
+     * dye theme. Anything else, including a dye key with an unknown dye, shows as Default.
      */
     fun displayName(key: String): String {
         val dyeId = dyeIdOf(key)
         return when {
             dyeId != null -> "${DyeCatalog.displayNameOr(dyeId)}$DYE_NAME_SUFFIX"
             key == NEUTRAL -> NEUTRAL_NAME
+            key == CUSTOM -> CUSTOM_NAME
             else -> DEFAULT_NAME
         }
     }

@@ -9,6 +9,9 @@ import com.dyetracker.spotify.SpotifyWidgetConfig
 import com.dyetracker.ui.persist.PlacementStore
 import com.dyetracker.ui.theme.ThemePresets
 import com.dyetracker.ui.theme.ThemeState
+import com.dyetracker.ui.theme.resetCustom
+import com.dyetracker.ui.theme.startCustomEdit
+import com.dyetracker.ui.theme.validOverrides
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import net.fabricmc.loader.api.FabricLoader
@@ -242,6 +245,18 @@ object ConfigManager {
     fun setThemeKey(key: String) {
         update { it.copy(themeKey = key) }
     }
+
+    /**
+     * Set the Custom slot's override [overrideKey] (a `ThemeOverrides.KEYS` key) to [rgb] via
+     * [startCustomEdit] and the standard [update] path, so Custom is active from the next frame.
+     */
+    fun editCustomColor(overrideKey: String, rgb: Int) = update { startCustomEdit(it, overrideKey, rgb) }
+
+    /** Clear the Custom slot's overrides and switch to its base theme ([resetCustom]), via the standard [update] path. */
+    fun resetCustomTheme() = update { resetCustom(it) }
+
+    /** Whether there is a Custom slot (PBI 81): at least one valid override ([validOverrides]). */
+    fun hasCustomTheme(): Boolean = validOverrides(config).isNotEmpty()
 
     /**
      * Resets the configuration to default values and saves to disk.
