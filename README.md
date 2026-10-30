@@ -150,7 +150,7 @@ The Theme screen has the preset buttons, **Dye ▸**, **Custom** (once you have 
 - The six color boxes are **Accent**, **Accent 2**, **Panel**, **Border**, **Text** and **Text 2**. Type a color as `RRGGBB` or `#RRGGBB`.
 - Editing a color while you're on another theme starts a new Custom theme based on that theme. There's one Custom slot, so this replaces the Custom theme you had.
 - An invalid color turns the box red and isn't saved.
-- **Reset** clears your colors and goes back to the theme your Custom theme was based on.
+- **Reset** works only while Custom is active. It deletes your custom colors and goes back to the theme Custom was based on, so the **Custom** button disappears and `/dyetracker theme custom` says there's no custom theme.
 - The **Custom** button shows once you have a Custom theme. Click it, or run `/dyetracker theme custom`, to switch back to it.
 
 **HUD opacity**
@@ -331,7 +331,7 @@ That's it — no source duplication, no branch fork, no manual `gradle.propertie
 
 ## Configuration
 
-The mod stores its configuration in `.minecraft/config/dyetracker.json`. This includes your linked account credentials (stored locally and securely).
+The mod stores its configuration in `.minecraft/config/dyetracker/config.json`. This includes your linked account credentials (stored locally and securely).
 
 The [theme](#themes) settings (Minecraft 26.1.2, 26.2 and 26.3):
 
@@ -339,8 +339,10 @@ The [theme](#themes) settings (Minecraft 26.1.2, 26.2 and 26.3):
 |-----|---------|--------------|
 | `themeKey` | `"default"` | The active theme: a preset (`default`, `neutral`, `midnight`, `forest`, `sunset` or `ice`), `dye:<id>` for a dye theme (e.g. `dye:nadeshiko`), or `custom` for your Custom theme. An unknown value shows Default. |
 | `themeCustomBase` | `"default"` | The theme your Custom theme is based on. |
-| `themeCustomOverrides` | `{}` | Your Custom theme's colors, as `RRGGBB`, under the keys `accentPrimary`, `accentSecondary`, `panelBackground`, `panelBorder`, `textPrimary` and `textSecondary` (Accent, Accent 2, Panel, Border, Text and Text 2 on the Theme screen). Invalid entries are ignored. |
+| `themeCustomOverrides` | `{}` | Your Custom theme's colors, as `RRGGBB`, under the keys `accentPrimary`, `accentSecondary`, `panelBackground`, `panelBorder`, `textPrimary` and `textSecondary` (Accent, Accent 2, Panel, Border, Text and Text 2 on the Theme screen). An entry is ignored when its value isn't a 6-digit hex color or its key isn't one of these. |
 | `hudPanelAlpha` | `200` | How solid the HUD widget backgrounds are, from `0` (clear) to `255` (solid). `200` is the HUD opacity slider's 78%. |
+
+If you edit the file by hand, override values must be quoted strings, like `"panelBackground": "202020"`. A value of the wrong type, like an unquoted `202020`, makes the mod ignore the whole file and start from defaults, and the next save writes those defaults over it. That loses your linked account, widget placements and GIFs.
 
 ## Privacy & Security
 
