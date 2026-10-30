@@ -2,7 +2,6 @@ package com.dyetracker.ui.theme
 
 import com.dyetracker.client.showScreen
 import com.dyetracker.config.ConfigManager
-import com.dyetracker.dyeprogress.DyeCatalog
 import com.dyetracker.menu.MenuLayout
 import com.dyetracker.ui.core.HorizontalAlignment
 import com.dyetracker.ui.core.UiDraw
@@ -76,7 +75,7 @@ class ThemeScreen(private val parent: Screen?) : Screen(Component.literal(TITLE)
             DyePickerScreen(
                 parent = this,
                 title = DYE_PICKER_TITLE,
-                options = DyeCatalog.all.filter { it.dyeId in DyeThemeColors.COLORS },
+                options = themeDyeOptions(),
                 current = { ThemePresets.dyeIdOf(ConfigManager.themeKey()) ?: "" },
                 onPick = { ConfigManager.setThemeKey(ThemePresets.dyeKey(it)) },
                 onClear = null,

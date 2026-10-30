@@ -1,6 +1,7 @@
 package com.dyetracker.ui.theme
 
 import com.dyetracker.dyeprogress.DyeCatalog
+import com.dyetracker.dyeprogress.DyeOption
 
 /** [ThemeButton.key] of the Theme screen's dye button, which opens the dye picker. */
 const val DYE_BUTTON_KEY = "dye"
@@ -44,3 +45,6 @@ fun themeButtons(activeKey: String): List<ThemeButton> {
 
 /** [label], led by [SELECTED_PREFIX] when [selected]. */
 private fun marked(label: String, selected: Boolean): String = if (selected) SELECTED_PREFIX + label else label
+
+/** The dyes the Theme screen's dye picker offers: the [DyeCatalog] dyes with a theme color in [DyeThemeColors.COLORS]. */
+fun themeDyeOptions(): List<DyeOption> = DyeCatalog.all.filter { it.dyeId in DyeThemeColors.COLORS }

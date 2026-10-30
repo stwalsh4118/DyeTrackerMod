@@ -385,7 +385,8 @@ object DyeTrackerCommands {
                 )
                 .then(
                     ClientCommands.literal("theme")
-                        // Before the argument, so `dye` is never read as a preset name.
+                        // Literals before the argument: Brigadier tries literals first whatever the order,
+                        // so this only keeps the tree readable.
                         .then(
                             ClientCommands.literal("dye")
                                 .then(

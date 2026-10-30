@@ -2,6 +2,7 @@ package com.dyetracker.ui.picker
 
 import com.dyetracker.dyeprogress.DyeCatalog
 import com.dyetracker.ui.theme.DyeThemeColors
+import com.dyetracker.ui.theme.themeDyeOptions
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -65,7 +66,7 @@ class PickerRowsTest {
 
     @Test
     fun `a query over the theme dyes finds Jade and no retired dye`() {
-        val themeDyes = DyeCatalog.all.filter { it.dyeId in DyeThemeColors.COLORS }
+        val themeDyes = themeDyeOptions()
 
         val rows = pickerRows(query = "ja", current = "", visible = PICKER_VISIBLE_ROWS, options = themeDyes)
 
@@ -75,7 +76,7 @@ class PickerRowsTest {
 
     @Test
     fun `a retired dye in the catalog is not among the theme dyes`() {
-        val themeDyes = DyeCatalog.all.filter { it.dyeId in DyeThemeColors.COLORS }
+        val themeDyes = themeDyeOptions()
 
         val rows = pickerRows(query = WARDEN, current = "", visible = PICKER_VISIBLE_ROWS, options = themeDyes)
 
