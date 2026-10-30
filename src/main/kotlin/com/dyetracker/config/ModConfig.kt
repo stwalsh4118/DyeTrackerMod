@@ -5,6 +5,7 @@ import com.dyetracker.dyeprogress.DyeProgressWidgetConfig
 import com.dyetracker.overlay.GifOverlayConfig
 import com.dyetracker.rotation.RotationWidgetConfig
 import com.dyetracker.spotify.SpotifyWidgetConfig
+import com.dyetracker.ui.theme.ThemePresets
 import kotlinx.serialization.Serializable
 
 /**
@@ -106,6 +107,13 @@ data class ModConfig(
      * unchanged. See PBI-76.
      */
     val spotifyTintAll: Boolean = false,
+
+    /**
+     * The active theme key (PBI 81): a preset id from `ThemePresets.PRESET_KEYS` (later `dye:<id>`
+     * or `custom`). Unknown values resolve to Default. Defaults to Default so existing config
+     * files load unchanged.
+     */
+    val themeKey: String = ThemePresets.DEFAULT,
 ) {
     companion object {
         const val DEFAULT_API_URL = "https://dye-tracker-api.seanwalsh4118-7a3.workers.dev"
