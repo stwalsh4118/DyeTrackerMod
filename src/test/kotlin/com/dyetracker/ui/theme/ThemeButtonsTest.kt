@@ -1,5 +1,6 @@
 package com.dyetracker.ui.theme
 
+import com.dyetracker.config.ModConfig
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -8,7 +9,8 @@ import kotlin.test.assertTrue
 /**
  * Unit coverage for [themeButtons] (task 81-3): one button per preset then the dye button, the
  * active theme's marked and selected, an unknown key falling back to Default. Task 81-4 adds the
- * Custom button, there only while a Custom slot exists.
+ * Custom button, there only while a Custom slot exists. Task 81-5 adds [selectedThemeKey]: which
+ * theme the buttons mark for a config.
  */
 class ThemeButtonsTest {
 
@@ -73,5 +75,36 @@ class ThemeButtonsTest {
 
         assertEquals(ThemeButton("custom", "Custom", selected = false), buttons.last())
         assertEquals(listOf("neutral"), buttons.filter { it.selected }.map { it.key })
+    }
+
+    @Test
+    fun `the selected key is the theme key when it is not custom`() {
+        assertEquals("neutral", selectedThemeKey(ModConfig(themeKey = "neutral")))
+        assertEquals("dye:jade", selectedThemeKey(ModConfig(themeKey = "dye:jade")))
+    }
+
+    @Test
+    fun `the selected key is custom while Custom is active with a slot`() {
+        val config = ModConfig(
+            themeKey = "custom",
+            themeCustomBase = "neutral",
+            themeCustomOverrides = mapOf("accentPrimary" to "FF7A59"),
+        )
+        assertEquals("custom", selectedThemeKey(config))
+    }
+
+    @Test
+    fun `custom with no valid slot selects the slot's base, the theme on screen`() {
+        val config = ModConfig(
+            themeKey = "custom",
+            themeCustomBase = "dye:jade",
+            themeCustomOverrides = mapOf("accentPrimary" to "not-hex"),
+        )
+        assertEquals("dye:jade", selectedThemeKey(config))
+    }
+
+    @Test
+    fun `custom with no slot on an unknown base selects Default`() {
+        assertEquals("default", selectedThemeKey(ModConfig(themeKey = "custom", themeCustomBase = "bogus")))
     }
 }

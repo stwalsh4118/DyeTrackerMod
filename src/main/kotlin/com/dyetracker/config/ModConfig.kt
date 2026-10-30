@@ -109,9 +109,9 @@ data class ModConfig(
     val spotifyTintAll: Boolean = false,
 
     /**
-     * The active theme key (PBI 81): a preset id from `ThemePresets.PRESET_KEYS` (later `dye:<id>`
-     * or `custom`). Unknown values resolve to Default. Defaults to Default so existing config
-     * files load unchanged.
+     * The active theme key (PBI 81): a preset id from `ThemePresets.PRESET_KEYS`, `dye:<id>` for a
+     * dye theme, or `custom` for the Custom slot. Unknown values resolve to Default. Defaults to
+     * Default so existing config files load unchanged.
      */
     val themeKey: String = ThemePresets.DEFAULT,
 

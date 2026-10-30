@@ -98,6 +98,6 @@ fun validOverrides(config: ModConfig): Map<String, Int> =
  * override in place of its field; a [ThemeOverrides.PANEL_BORDER] override is opaque.
  */
 fun effectivePalette(config: ModConfig): ThemePalette {
-    val base = ThemePresets.paletteFor(config.themeCustomBase) ?: ThemePresets.DEFAULT_PALETTE
+    val base = ThemePresets.paletteFor(customBaseKey(config)) ?: ThemePresets.DEFAULT_PALETTE
     return validOverrides(config).entries.fold(base) { palette, (key, rgb) -> palette.withOverride(key, rgb) }
 }

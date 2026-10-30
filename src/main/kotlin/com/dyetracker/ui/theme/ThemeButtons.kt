@@ -1,5 +1,6 @@
 package com.dyetracker.ui.theme
 
+import com.dyetracker.config.ModConfig
 import com.dyetracker.dyeprogress.DyeCatalog
 import com.dyetracker.dyeprogress.DyeOption
 
@@ -47,6 +48,14 @@ fun themeButtons(activeKey: String, hasCustom: Boolean): List<ThemeButton> {
     val customName = ThemePresets.displayName(ThemePresets.CUSTOM)
     return buttons + ThemeButton(ThemePresets.CUSTOM, marked(customName, customSelected), customSelected)
 }
+
+/**
+ * The theme key the Theme screen's buttons mark for [config]: its [ModConfig.themeKey], except
+ * `custom` with no Custom slot ([validOverrides] empty, only from a hand-edited config), which shows
+ * its base theme ([customBaseKey]) and so marks that.
+ */
+fun selectedThemeKey(config: ModConfig): String =
+    if (config.themeKey == ThemePresets.CUSTOM && validOverrides(config).isEmpty()) customBaseKey(config) else config.themeKey
 
 /** [label], led by [SELECTED_PREFIX] when [selected]. */
 private fun marked(label: String, selected: Boolean): String = if (selected) SELECTED_PREFIX + label else label

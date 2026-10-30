@@ -48,8 +48,8 @@ class ThemeScreen(private val parent: Screen?) : Screen(Component.literal(TITLE)
 
     override fun init() {
         super.init()
-        val activeKey = ConfigManager.themeKey()
-        val buttons = themeButtons(activeKey, ConfigManager.hasCustomTheme())
+        val selectedKey = selectedThemeKey(ConfigManager.config)
+        val buttons = themeButtons(selectedKey, ConfigManager.hasCustomTheme())
         val contentWidth = THEME_PANEL_WIDTH - 2 * PANEL_PADDING_PX
         val slots = wrapIntoRows(buttons.map { font.width(it.label) + 2 * BUTTON_TEXT_PADDING_PX }, contentWidth)
         val rowCount = (slots.maxOfOrNull { it.row } ?: 0) + 1
@@ -78,7 +78,7 @@ class ThemeScreen(private val parent: Screen?) : Screen(Component.literal(TITLE)
         val reset = Button.builder(Component.literal(RESET_LABEL)) { reset() }
             .bounds(bottomLeft, top + doneDy, BOTTOM_BUTTON_WIDTH_PX, BUTTON_HEIGHT_PX)
             .build()
-        reset.active = activeKey == ThemePresets.CUSTOM
+        reset.active = selectedKey == ThemePresets.CUSTOM
         addRenderableWidget(reset)
         addRenderableWidget(
             Button.builder(Component.literal(DONE_LABEL)) { onClose() }
