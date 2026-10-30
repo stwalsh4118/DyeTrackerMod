@@ -18,12 +18,15 @@ import kotlin.math.roundToInt
  * Picks the theme (PBI 81), opened from the menu's Settings tab: one button per preset, a dye
  * button and, once there is a Custom slot, a Custom button ([themeButtons]), wrapping into rows; six
  * labeled hex boxes, one per [ThemeOverrides.KEYS] color, showing the active theme's colors
- * ([overrideBoxText]); a live preview of a HUD panel and a menu card drawn every frame with the
- * active [UiTheme.Colors] (never the Spotify tint, so it shows the theme itself); and Reset and Done.
+ * ([overrideBoxText]); the HUD opacity slider ([HudOpacitySlider]); a live preview of a HUD panel
+ * (at the HUD opacity) and a menu card drawn every frame with the active [UiTheme.Colors] (never the
+ * Spotify tint, so it shows the theme itself); and Reset and Done.
  * A preset or Custom button applies at once; the dye button opens a [DyePickerScreen] over the dyes
  * that have a theme color, which comes back here. A valid hex in a box saves it to the Custom slot
  * at once ([ConfigManager.editCustomColor]); an invalid one turns the box red and saves nothing.
- * Switching theme and Reset refill the boxes; typing never does. Done or Esc goes back to [parent].
+ * Switching theme and Reset refill the boxes; typing never does. The slider works on every theme
+ * and never switches to Custom; closing the screen saves an opacity not yet saved
+ * ([saveHudOpacity]). Done or Esc goes back to [parent].
  */
 class ThemeScreen(private val parent: Screen?) : Screen(Component.literal(TITLE)) {
 
@@ -55,7 +58,8 @@ class ThemeScreen(private val parent: Screen?) : Screen(Component.literal(TITLE)
         val rowCount = (slots.maxOfOrNull { it.row } ?: 0) + 1
         overridesDy = BUTTONS_DY + rowCount * BUTTON_HEIGHT_PX + (rowCount - 1) * BUTTON_GAP_PX + SECTION_GAP_PX
         val overrideRows = (ThemeOverrides.KEYS.size + OVERRIDE_COLUMNS - 1) / OVERRIDE_COLUMNS
-        previewDy = overridesDy + overrideRows * FIELD_HEIGHT_PX + (overrideRows - 1) * BUTTON_GAP_PX + SECTION_GAP_PX
+        val sliderDy = overridesDy + overrideRows * FIELD_HEIGHT_PX + (overrideRows - 1) * BUTTON_GAP_PX + SECTION_GAP_PX
+        previewDy = sliderDy + SLIDER_HEIGHT_PX + SECTION_GAP_PX
         val doneDy = previewDy + PREVIEW_HEIGHT_PX + SECTION_GAP_PX
         panelHeight = doneDy + BUTTON_HEIGHT_PX + PANEL_PADDING_PX
 
@@ -74,6 +78,7 @@ class ThemeScreen(private val parent: Screen?) : Screen(Component.literal(TITLE)
             )
         }
         addOverrideBoxes(left, top + overridesDy)
+        addRenderableWidget(HudOpacitySlider(left, top + sliderDy, contentWidth, SLIDER_HEIGHT_PX))
         val bottomLeft = left + (contentWidth - BOTTOM_ROW_WIDTH_PX) / 2
         val reset = Button.builder(Component.literal(RESET_LABEL)) { reset() }
             .bounds(bottomLeft, top + doneDy, BOTTOM_BUTTON_WIDTH_PX, BUTTON_HEIGHT_PX)
@@ -198,6 +203,12 @@ class ThemeScreen(private val parent: Screen?) : Screen(Component.literal(TITLE)
         Minecraft.getInstance().showScreen(parent)
     }
 
+    /** Leaving the screen, by Done, Esc or the dye picker, saves an opacity the slider has not saved yet. */
+    override fun removed() {
+        saveHudOpacity()
+        super.removed()
+    }
+
     override fun isPauseScreen(): Boolean = false
 
     override fun extractBackground(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
@@ -250,7 +261,7 @@ class ThemeScreen(private val parent: Screen?) : Screen(Component.literal(TITLE)
         }
     }
 
-    /** The HUD sample: a rotation widget's panel and lines, in the theme's HUD colors. */
+    /** The HUD sample: a rotation widget's panel, at the HUD opacity, and lines, in the theme's HUD colors. */
     private fun drawHudSample(context: GuiGraphicsExtractor, x: Int, y: Int, boxWidth: Int) {
         UiDraw.filledBox(
             context,
@@ -258,7 +269,7 @@ class ThemeScreen(private val parent: Screen?) : Screen(Component.literal(TITLE)
             y,
             boxWidth,
             PREVIEW_HEIGHT_PX,
-            UiTheme.Colors.PANEL_BACKGROUND,
+            themeWithAlpha(ThemeState.hudPanelAlpha, UiTheme.Colors.PANEL_BACKGROUND),
             UiTheme.Colors.PANEL_BORDER,
         )
         val textX = x + PREVIEW_PADDING_PX
@@ -401,6 +412,9 @@ class ThemeScreen(private val parent: Screen?) : Screen(Component.literal(TITLE)
 
         /** Reset and Done side by side, centred as one row. */
         const val BOTTOM_ROW_WIDTH_PX = 2 * BOTTOM_BUTTON_WIDTH_PX + BUTTON_GAP_PX
+
+        /** The HUD opacity slider's height: a vanilla button's. */
+        const val SLIDER_HEIGHT_PX = 20
 
         /** The override boxes' height: a vanilla text box's. */
         const val FIELD_HEIGHT_PX = 20
