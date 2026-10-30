@@ -26,6 +26,7 @@ import com.dyetracker.sync.SyncManager
 import com.dyetracker.ui.bounce.BounceController
 import com.dyetracker.ui.edit.WidgetEditScreen
 import com.dyetracker.ui.texture.ImageTextureManager
+import com.dyetracker.ui.theme.ThemePresets
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.StringArgumentType
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +52,10 @@ object DyeTrackerCommands {
     private const val GIF_URL_TRUNCATE_AT = 57
     /** The `/dyetracker discord hunt` usage, shown in its status and in the help. */
     private const val DISCORD_HUNT_USAGE = "/dyetracker discord hunt <dye|clear>"
+    /** The `/dyetracker theme` usage, shown in the help. */
+    private const val THEME_USAGE = "/dyetracker theme <name>"
+    /** Label before the theme name in the theme status and confirmation. */
+    private const val THEME_LABEL = "Theme: "
     private const val SPOTIFY_USAGE =
         "/dyetracker spotify help | clientid <id> | login | logout | now | toggle | edit | tint on|off|toggle"
 
@@ -372,6 +377,24 @@ object DyeTrackerCommands {
                         // Bare `/dyetracker discord` prints the status.
                         .executes { context ->
                             handleDiscordCommand(context.source, null)
+                            1
+                        }
+                )
+                .then(
+                    ClientCommands.literal("theme")
+                        .then(
+                            ClientCommands.argument("preset", StringArgumentType.word())
+                                .suggests { _, builder ->
+                                    SharedSuggestionProvider.suggest(ThemePresets.PRESET_KEYS, builder)
+                                }
+                                .executes { context ->
+                                    handleThemeSet(context.source, StringArgumentType.getString(context, "preset"))
+                                    1
+                                }
+                        )
+                        // Bare `/dyetracker theme` prints the active theme.
+                        .executes { context ->
+                            handleThemeStatus(context.source)
                             1
                         }
                 )
@@ -740,6 +763,35 @@ object DyeTrackerCommands {
         DiscordPresence.wake()
         source.sendFeedback(
             Component.literal("Discord hunt cleared.").withStyle(ChatFormatting.YELLOW)
+        )
+    }
+
+    /** Print the active theme's name (PBI 81). */
+    private fun handleThemeStatus(source: FabricClientCommandSource) {
+        source.sendFeedback(
+            Component.literal(THEME_LABEL)
+                .withStyle(ChatFormatting.GRAY)
+                .append(
+                    Component.literal("${ThemePresets.displayName(ConfigManager.themeKey())}.")
+                        .withStyle(ChatFormatting.WHITE)
+                )
+        )
+    }
+
+    /**
+     * Switch to the preset [key] (PBI 81) when it is exactly one of [ThemePresets.PRESET_KEYS]; the
+     * save makes it the active theme on the next frame. An unknown key leaves the config as it was.
+     */
+    private fun handleThemeSet(source: FabricClientCommandSource, key: String) {
+        if (key !in ThemePresets.PRESET_KEYS) {
+            source.sendFeedback(
+                Component.literal("Unknown theme '$key'. Press Tab for the list.").withStyle(ChatFormatting.RED)
+            )
+            return
+        }
+        ConfigManager.setThemeKey(key)
+        source.sendFeedback(
+            Component.literal("$THEME_LABEL${ThemePresets.displayName(key)}.").withStyle(ChatFormatting.GREEN)
         )
     }
 
@@ -1458,6 +1510,14 @@ object DyeTrackerCommands {
                 .withStyle(ChatFormatting.YELLOW)
                 .append(
                     Component.literal(" - Pick the dye your Discord card shows")
+                        .withStyle(ChatFormatting.GRAY)
+                )
+        )
+        source.sendFeedback(
+            Component.literal("  $THEME_USAGE")
+                .withStyle(ChatFormatting.YELLOW)
+                .append(
+                    Component.literal(" - Pick a theme (${ThemePresets.PRESET_KEYS.joinToString()})")
                         .withStyle(ChatFormatting.GRAY)
                 )
         )

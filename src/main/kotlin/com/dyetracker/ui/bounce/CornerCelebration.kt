@@ -50,8 +50,11 @@ object CornerCelebration {
 
     private val TWO_PI = 2.0 * PI
 
-    /** Confetti palette, sourced from existing [UiTheme] tokens (gold, green, white, magenta). */
-    private val PARTICLE_COLORS = intArrayOf(
+    /**
+     * Confetti palette, sourced from existing [UiTheme] tokens (gold, green, white, magenta). Read
+     * at each [spawn] so the white and magenta follow the active theme (PBI 81).
+     */
+    private fun particleColors(): IntArray = intArrayOf(
         UiTheme.Colors.BOOST_3X and RGB_MASK,
         UiTheme.Colors.BOOST_2X and RGB_MASK,
         UiTheme.Colors.TEXT_PRIMARY and RGB_MASK,
@@ -72,6 +75,7 @@ object CornerCelebration {
     fun spawn(rectX: Float, rectY: Float, rectW: Float, rectH: Float) {
         val originX = rectX + rectW / 2f
         val originY = rectY + rectH / 2f
+        val colors = particleColors()
         repeat(PARTICLE_COUNT) {
             val angle = random.nextDouble(0.0, TWO_PI)
             val speed = random.nextDouble(PARTICLE_MIN_SPEED.toDouble(), PARTICLE_MAX_SPEED.toDouble()).toFloat()
@@ -81,7 +85,7 @@ object CornerCelebration {
                     y = originY,
                     vx = (cos(angle) * speed).toFloat(),
                     vy = (sin(angle) * speed).toFloat(),
-                    colorRgb = PARTICLE_COLORS[random.nextInt(PARTICLE_COLORS.size)],
+                    colorRgb = colors[random.nextInt(colors.size)],
                 ),
             )
         }

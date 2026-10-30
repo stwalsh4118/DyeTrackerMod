@@ -7,6 +7,8 @@ import com.dyetracker.overlay.GifOverlayConfig
 import com.dyetracker.rotation.RotationWidgetConfig
 import com.dyetracker.spotify.SpotifyWidgetConfig
 import com.dyetracker.ui.persist.PlacementStore
+import com.dyetracker.ui.theme.ThemePresets
+import com.dyetracker.ui.theme.ThemeState
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import net.fabricmc.loader.api.FabricLoader
@@ -125,15 +127,18 @@ object ConfigManager {
                     DyeTrackerMod.warn("Failed to parse config file, using defaults: {}", e.message)
                     ModConfig()
                 }
+                ThemeState.apply(config)
                 DyeTrackerMod.info("Config loaded: apiUrl={}", config.apiUrl)
             } else {
                 DyeTrackerMod.info("Config file not found, creating default at {}", configPath.toAbsolutePath())
                 config = ModConfig()
+                ThemeState.apply(config)
                 save()
             }
         } catch (e: Exception) {
             DyeTrackerMod.error("Failed to load configuration", e)
             config = ModConfig()
+            ThemeState.apply(config)
         }
     }
 
@@ -158,6 +163,7 @@ object ConfigManager {
      */
     fun update(updater: (ModConfig) -> ModConfig) {
         config = updater(config)
+        ThemeState.apply(config)
         save()
     }
 
@@ -224,6 +230,17 @@ object ConfigManager {
     /** Persist the "Tint all widgets" flag, flushing to disk immediately via the standard [update] path. */
     fun setSpotifyTintAll(enabled: Boolean) {
         update { it.copy(spotifyTintAll = enabled) }
+    }
+
+    /** The active theme key (PBI 81): a [ThemePresets] key, or any other string, which resolves to Default. */
+    fun themeKey(): String = config.themeKey
+
+    /**
+     * Persist the theme key, flushing to disk immediately via the standard [update] path, which also
+     * makes it the active theme for the next frame.
+     */
+    fun setThemeKey(key: String) {
+        update { it.copy(themeKey = key) }
     }
 
     /**

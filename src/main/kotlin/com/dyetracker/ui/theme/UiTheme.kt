@@ -21,23 +21,23 @@ object UiTheme {
         /** Dim wash painted behind edit-mode content. */
         const val BACKDROP: Int = 0x80_00_00_00.toInt()
 
-        /** Default panel/background fill. */
-        const val PANEL_BACKGROUND: Int = 0xC8_10_10_10.toInt()
+        /** Default panel/background fill. Follows the active theme (PBI 81). */
+        val PANEL_BACKGROUND: Int get() = ThemeState.active.panelBackground
 
-        /** Default 1px panel border. */
-        const val PANEL_BORDER: Int = 0xFF_55_55_55.toInt()
+        /** Default 1px panel border. Follows the active theme (PBI 81). */
+        val PANEL_BORDER: Int get() = ThemeState.active.panelBorder
 
-        /** Border drawn around the focused widget in edit mode. */
-        const val FOCUS_BORDER: Int = 0xFF_FF_FF_FF.toInt()
+        /** Border drawn around the focused widget in edit mode. Follows the active theme (PBI 81). */
+        val FOCUS_BORDER: Int get() = ThemeState.active.focusBorder
 
-        /** Primary (high-emphasis) text. */
-        const val TEXT_PRIMARY: Int = 0xFF_FF_FF_FF.toInt()
+        /** Primary (high-emphasis) text. Follows the active theme (PBI 81). */
+        val TEXT_PRIMARY: Int get() = ThemeState.active.textPrimary
 
-        /** Secondary (low-emphasis) text. */
-        const val TEXT_SECONDARY: Int = 0xFF_BF_BF_BF.toInt()
+        /** Secondary (low-emphasis) text. Follows the active theme (PBI 81). */
+        val TEXT_SECONDARY: Int get() = ThemeState.active.textSecondary
 
-        /** Success/neutral status text. */
-        const val STATUS_OK: Int = 0xFF_BF_BF_BF.toInt()
+        /** Success/neutral status text. Follows the active theme (PBI 81). */
+        val STATUS_OK: Int get() = ThemeState.active.statusOk
 
         /** Error status text. */
         const val STATUS_ERROR: Int = 0xFF_FF_55_55.toInt()
@@ -57,8 +57,8 @@ object UiTheme {
         /** Progress-bar track (unfilled portion); a subtle translucent white, seeded from the website overlay's `white/5` track. */
         const val PROGRESS_TRACK: Int = 0x33_FF_FF_FF.toInt()
 
-        /** Default progress-bar fill; seeded from the website single-dye overlay's default accent (`#e225f4`). Callers may override per dye color. */
-        const val PROGRESS_FILL: Int = 0xFF_E2_25_F4.toInt()
+        /** Default progress-bar fill; seeded from the website single-dye overlay's default accent (`#e225f4`). Callers may override per dye color. Follows the active theme (PBI 81). */
+        val PROGRESS_FILL: Int get() = ThemeState.active.progressFill
 
         /** Faint border around an icon box, mirroring the website overlay icon's `border-white/10`. */
         const val ICON_BOX_BORDER: Int = 0x1A_FF_FF_FF.toInt()
@@ -66,38 +66,38 @@ object UiTheme {
         /** Neutral (no-accent) icon-box tint, used when no dye accent color is available. */
         const val ICON_BOX_TINT: Int = 0x14_FF_FF_FF.toInt()
 
-        /** In-game menu backdrop; the website's `--color-background-dark` (`#000000`), slightly see-through. */
-        const val MENU_BACKGROUND: Int = 0xF0_00_00_00.toInt()
+        /** In-game menu backdrop; the website's `--color-background-dark` (`#000000`), slightly see-through. Follows the active theme (PBI 81). */
+        val MENU_BACKGROUND: Int get() = ThemeState.active.menuBackground
 
-        /** In-game menu header/surface fill; the website's `--color-surface-dark` (`#0a0a0a`). */
-        const val MENU_SURFACE: Int = 0xFF_0A_0A_0A.toInt()
+        /** In-game menu header/surface fill; the website's `--color-surface-dark` (`#0a0a0a`). Follows the active theme (PBI 81). */
+        val MENU_SURFACE: Int get() = ThemeState.active.menuSurface
 
-        /** In-game menu card fill; the website's `--color-card-dark` (`#111111`). */
-        const val CARD_BACKGROUND: Int = 0xFF_11_11_11.toInt()
+        /** In-game menu card fill; the website's `--color-card-dark` (`#111111`). Follows the active theme (PBI 81). */
+        val CARD_BACKGROUND: Int get() = ThemeState.active.cardBackground
 
-        /** In-game menu card border; the website Card's `border-white/10`. */
-        const val CARD_BORDER: Int = 0x1A_FF_FF_FF
+        /** In-game menu card border; the website Card's `border-white/10`. Follows the active theme (PBI 81). */
+        val CARD_BORDER: Int get() = ThemeState.active.cardBorder
 
-        /** Primary accent (title, active tab); the website's `--color-primary` (`#e225f4`). */
-        const val ACCENT_PRIMARY: Int = 0xFF_E2_25_F4.toInt()
+        /** Primary accent (title, active tab); the website's `--color-primary` (`#e225f4`). Follows the active theme (PBI 81). */
+        val ACCENT_PRIMARY: Int get() = ThemeState.active.accentPrimary
 
-        /** Secondary accent; the website's `--color-secondary` (`#00f0ff`). */
-        const val ACCENT_SECONDARY: Int = 0xFF_00_F0_FF.toInt()
+        /** Secondary accent; the website's `--color-secondary` (`#00f0ff`). Follows the active theme (PBI 81). */
+        val ACCENT_SECONDARY: Int get() = ThemeState.active.accentSecondary
 
-        /** Subtle text (percentages, status messages); the website's `slate-400` (`#94a3b8`). */
-        const val TEXT_SUBTLE: Int = 0xFF_94_A3_B8.toInt()
+        /** Subtle text (percentages, status messages); the website's `slate-400` (`#94a3b8`). Follows the active theme (PBI 81). */
+        val TEXT_SUBTLE: Int get() = ThemeState.active.textSubtle
 
-        /** Muted text; the website's `slate-500` (`#64748b`). */
-        const val TEXT_MUTED: Int = 0xFF_64_74_8B.toInt()
+        /** Muted text; the website's `slate-500` (`#64748b`). Follows the active theme (PBI 81). */
+        val TEXT_MUTED: Int get() = ThemeState.active.textMuted
 
-        /** Menu card `MOD` (verified) badge text; the website Badge `verified` variant's `text-primary` (`#e225f4`). */
-        const val BADGE_MOD_TEXT: Int = 0xFF_E2_25_F4.toInt()
+        /** Menu card `MOD` (verified) badge text; the website Badge `verified` variant's `text-primary` (`#e225f4`). Follows the active theme (PBI 81). */
+        val BADGE_MOD_TEXT: Int get() = ThemeState.active.badgeModText
 
-        /** Menu card `MOD` badge fill; the website Badge `verified` variant's `bg-primary/10`. */
-        const val BADGE_MOD_BG: Int = 0x1A_E2_25_F4
+        /** Menu card `MOD` badge fill; the website Badge `verified` variant's `bg-primary/10`. Follows the active theme (PBI 81). */
+        val BADGE_MOD_BG: Int get() = ThemeState.active.badgeModBg
 
-        /** Menu card `MOD` badge border; the website Badge `verified` variant's `border-primary/30`. */
-        const val BADGE_MOD_BORDER: Int = 0x4D_E2_25_F4
+        /** Menu card `MOD` badge border; the website Badge `verified` variant's `border-primary/30`. Follows the active theme (PBI 81). */
+        val BADGE_MOD_BORDER: Int get() = ThemeState.active.badgeModBorder
 
         /** Menu card `ESTIMATED` badge text; the website Badge `estimated` variant's `text-amber-400` (`#fbbf24`). */
         const val BADGE_ESTIMATED_TEXT: Int = 0xFF_FB_BF_24.toInt()
@@ -108,8 +108,8 @@ object UiTheme {
         /** Menu card `ESTIMATED` badge border; the website Badge `estimated` variant's `border-amber-500/20` (`#f59e0b`). */
         const val BADGE_ESTIMATED_BORDER: Int = 0x33_F5_9E_0B
 
-        /** Menu card `MOD ONLY` / `NOT TRACKABLE` badge text; the website Badge `muted` variant's `text-slate-500` (`#64748b`). */
-        const val BADGE_MUTED_TEXT: Int = 0xFF_64_74_8B.toInt()
+        /** Menu card `MOD ONLY` / `NOT TRACKABLE` badge text; the website Badge `muted` variant's `text-slate-500` (`#64748b`). Follows the active theme (PBI 81). */
+        val BADGE_MUTED_TEXT: Int get() = ThemeState.active.badgeMutedText
 
         /** Menu card muted badge fill; the website Badge `muted` variant's `bg-white/5`. */
         const val BADGE_MUTED_BG: Int = 0x0D_FF_FF_FF
@@ -120,8 +120,8 @@ object UiTheme {
         /** Menu card icon box fill; the website DyeCard icon box's `bg-black` (`#000000`). */
         const val ICON_BOX_BACKGROUND: Int = 0xFF_00_00_00.toInt()
 
-        /** Selected menu pill fill and border; the website primary Button's `bg-white`. */
-        const val PILL_SELECTED_BG: Int = 0xFF_FF_FF_FF.toInt()
+        /** Selected menu pill fill and border; the website primary Button's `bg-white`. Follows the active theme (PBI 81). */
+        val PILL_SELECTED_BG: Int get() = ThemeState.active.pillSelectedBg
 
         /** Selected menu pill label; the website primary Button's `text-black`. */
         const val PILL_SELECTED_TEXT: Int = 0xFF_00_00_00.toInt()
@@ -129,11 +129,11 @@ object UiTheme {
         /** Hovered unselected menu pill border; the website secondary Button's `hover:border-white/30`. */
         const val PILL_HOVER_BORDER: Int = 0x4D_FF_FF_FF
 
-        /** Menu toggle pill fill when on; the website Badge `success` variant's `bg-secondary/10`. */
-        const val TOGGLE_ON_BG: Int = 0x1A_00_F0_FF
+        /** Menu toggle pill fill when on; the website Badge `success` variant's `bg-secondary/10`. Follows the active theme (PBI 81). */
+        val TOGGLE_ON_BG: Int get() = ThemeState.active.toggleOnBg
 
-        /** Menu toggle pill border when on; the website Badge `success` variant's `border-secondary/20`. */
-        const val TOGGLE_ON_BORDER: Int = 0x33_00_F0_FF
+        /** Menu toggle pill border when on; the website Badge `success` variant's `border-secondary/20`. Follows the active theme (PBI 81). */
+        val TOGGLE_ON_BORDER: Int get() = ThemeState.active.toggleOnBorder
 
         /** Menu Collection tab's summary bar fill; the website Collection page's `bg-emerald-500` (`#10b981`). */
         const val COLLECTION_ACCENT: Int = 0xFF_10_B9_81.toInt()
