@@ -1,7 +1,7 @@
-package com.dyetracker.discord
+package com.dyetracker.ui.picker
 
 import com.dyetracker.client.showScreen
-import com.dyetracker.config.ConfigManager
+import com.dyetracker.dyeprogress.DyeOption
 import com.dyetracker.ui.core.HorizontalAlignment
 import com.dyetracker.ui.core.UiDraw
 import com.dyetracker.ui.theme.UiTheme
@@ -13,13 +13,26 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.network.chat.Component
 
 /**
- * Picks the Discord card's hunt dye (PBI 77), opened from the menu's Settings tab: a search field
- * over a fixed pool of [PICKER_VISIBLE_ROWS] dye-row buttons ([pickerRows], the current pick
- * marked and listed first), a `+N more` line when more dyes match, and Clear / Done buttons.
- * Picking a dye or Clear saves it and wakes the presence worker; Done or Esc changes nothing. All
- * of them go back to [parent].
+ * Picks one dye out of [options] (PBI 77, generalized in PBI 81): a search field over a fixed pool
+ * of [PICKER_VISIBLE_ROWS] dye-row buttons ([pickerRows], the [current] pick marked and listed
+ * first), a `+N more` line when more dyes match, and Clear / Done buttons; Clear is there only
+ * when [onClear] is given. Picking a dye calls [onPick] with its id, Clear calls [onClear]; Done
+ * or Esc changes nothing. All of them go back to [parent].
+ *
+ * @param title shown at the top of the panel.
+ * @param current the current pick's dye id, blank for none; read each time the rows refresh.
  */
-class DiscordHuntPickerScreen(private val parent: Screen?) : Screen(Component.literal(TITLE)) {
+class DyePickerScreen(
+    private val parent: Screen?,
+    title: String,
+    private val options: List<DyeOption>,
+    private val current: () -> String,
+    private val onPick: (String) -> Unit,
+    private val onClear: (() -> Unit)?,
+) : Screen(Component.literal(title)) {
+
+    /** The panel's title text. */
+    private val titleText = title
 
     /** The search text; kept across [init] so a resize doesn't lose it. */
     private var query = ""
@@ -54,11 +67,13 @@ class DiscordHuntPickerScreen(private val parent: Screen?) : Screen(Component.li
         }
 
         val buttonsY = top + BUTTONS_DY
-        addRenderableWidget(
-            Button.builder(Component.literal(CLEAR_LABEL)) { clear() }
-                .bounds(left, buttonsY, BUTTON_WIDTH_PX, CONTROL_HEIGHT_PX)
-                .build(),
-        )
+        if (onClear != null) {
+            addRenderableWidget(
+                Button.builder(Component.literal(CLEAR_LABEL)) { clear(onClear) }
+                    .bounds(left, buttonsY, BUTTON_WIDTH_PX, CONTROL_HEIGHT_PX)
+                    .build(),
+            )
+        }
         addRenderableWidget(
             Button.builder(Component.literal(DONE_LABEL)) { onClose() }
                 .bounds(left + contentWidth - BUTTON_WIDTH_PX, buttonsY, BUTTON_WIDTH_PX, CONTROL_HEIGHT_PX)
@@ -70,31 +85,29 @@ class DiscordHuntPickerScreen(private val parent: Screen?) : Screen(Component.li
 
     /** Recompute [shown] for [query] and the current pick, and repaint the row-button pool. */
     private fun refreshRows() {
-        val current = ConfigManager.discordHuntDyeId()
-        shown = pickerRows(query, current, PICKER_VISIBLE_ROWS)
+        val picked = current()
+        shown = pickerRows(query, picked, PICKER_VISIBLE_ROWS, options)
         for ((index, button) in rowButtons.withIndex()) {
             val option = shown.rows.getOrNull(index)
             button.visible = option != null
             button.active = option != null
             if (option != null) {
-                val marker = if (option.dyeId == current) PICKED_PREFIX else UNPICKED_PREFIX
+                val marker = if (option.dyeId == picked) PICKED_PREFIX else UNPICKED_PREFIX
                 button.message = Component.literal(marker + option.displayName)
             }
         }
     }
 
-    /** Save row [index]'s dye as the hunt, wake the presence worker and go back. */
+    /** Hand row [index]'s dye to [onPick] and go back. */
     private fun pick(index: Int) {
         val option = shown.rows.getOrNull(index) ?: return
-        ConfigManager.setDiscordHuntDyeId(option.dyeId)
-        DiscordPresence.wake()
+        onPick(option.dyeId)
         onClose()
     }
 
-    /** Clear the hunt, wake the presence worker and go back. */
-    private fun clear() {
-        ConfigManager.setDiscordHuntDyeId("")
-        DiscordPresence.wake()
+    /** Run [clearPick] and go back. */
+    private fun clear(clearPick: () -> Unit) {
+        clearPick()
         onClose()
     }
 
@@ -127,7 +140,7 @@ class DiscordHuntPickerScreen(private val parent: Screen?) : Screen(Component.li
         UiDraw.drawText(
             context,
             font,
-            TITLE,
+            titleText,
             left,
             top + TITLE_DY,
             UiTheme.Colors.TEXT_PRIMARY,
@@ -145,7 +158,6 @@ class DiscordHuntPickerScreen(private val parent: Screen?) : Screen(Component.li
     private fun panelTop(): Int = maxOf(PANEL_MIN_TOP_PX, (height - PANEL_HEIGHT_PX) / 2)
 
     private companion object {
-        const val TITLE = "Discord hunt"
         const val SEARCH_LABEL = "Search dyes"
         const val SEARCH_HINT = "Search dyes…"
         const val CLEAR_LABEL = "Clear"

@@ -15,7 +15,7 @@ import com.dyetracker.DyeTrackerMod
 import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.PlayerRngData
 import com.dyetracker.data.RngDataStore
-import com.dyetracker.discord.DiscordHuntPickerScreen
+import com.dyetracker.discord.DiscordPresence
 import com.dyetracker.discord.disableDiscordPresence
 import com.dyetracker.discord.enableDiscordPresence
 import com.dyetracker.dyeprogress.DyeCatalog
@@ -41,6 +41,7 @@ import com.dyetracker.ui.core.Rect
 import com.dyetracker.ui.core.RenderContext
 import com.dyetracker.ui.core.UiDraw
 import com.dyetracker.ui.edit.WidgetEditScreen
+import com.dyetracker.ui.picker.DyePickerScreen
 import com.dyetracker.ui.texture.ImageTextureManager
 import com.dyetracker.ui.theme.UiTheme
 import com.mojang.blaze3d.platform.InputConstants
@@ -118,7 +119,7 @@ import kotlin.math.roundToInt
  * presence and its hunt dye, Spotify, the layout editor), each control calling what its
  * `/dyetracker` command calls. Settings state is read fresh every frame, so a change made by a
  * command meanwhile shows at once. The panel scrolls when its rows don't fit ([settingsScroll]).
- * The Discord hunt row opens [DiscordHuntPickerScreen], which comes back to a new menu opened on
+ * The Discord hunt row opens a [DyePickerScreen], which comes back to a new menu opened on
  * the Settings tab ([openOnSettings]). The Spotify Client ID row holds a vanilla [EditBox]
  * ([clientIdField]), there only while the Settings tab shows. The menu has no key handling of its
  * own: vanilla routes keys to the focused field first, its Escape still closes the menu, and the
@@ -931,7 +932,20 @@ class DyeTrackerMenuScreen(openOnSettings: Boolean = false) : Screen(Component.l
             }
             // This screen's loads stop once it closes, so the picker comes back to a new one.
             SettingsKey.DISCORD_HUNT -> Minecraft.getInstance().showScreen(
-                DiscordHuntPickerScreen(DyeTrackerMenuScreen(openOnSettings = true)),
+                DyePickerScreen(
+                    parent = DyeTrackerMenuScreen(openOnSettings = true),
+                    title = DISCORD_HUNT_LABEL,
+                    options = DyeCatalog.all,
+                    current = { ConfigManager.discordHuntDyeId() },
+                    onPick = {
+                        ConfigManager.setDiscordHuntDyeId(it)
+                        DiscordPresence.wake()
+                    },
+                    onClear = {
+                        ConfigManager.setDiscordHuntDyeId("")
+                        DiscordPresence.wake()
+                    },
+                ),
             )
             // NOT_SET_UP's pill is inactive, so a click only gets here logged out or connected.
             SettingsKey.SPOTIFY -> if (SpotifySessions.default.status() == SessionStatus.CONNECTED) {
@@ -2373,6 +2387,8 @@ class DyeTrackerMenuScreen(openOnSettings: Boolean = false) : Screen(Component.l
         private const val GIFS_LABEL = "GIF overlays"
         private const val BOUNCE_LABEL = "Bounce"
         private const val DISCORD_LABEL = "Discord presence"
+
+        /** The Discord hunt row's label, and the hunt picker's title. */
         private const val DISCORD_HUNT_LABEL = "Discord hunt"
 
         /** The Discord hunt row's detail while no hunt dye is picked. */

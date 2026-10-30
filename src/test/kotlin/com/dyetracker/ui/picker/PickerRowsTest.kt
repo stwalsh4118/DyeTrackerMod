@@ -1,12 +1,13 @@
-package com.dyetracker.discord
+package com.dyetracker.ui.picker
 
 import com.dyetracker.dyeprogress.DyeCatalog
+import com.dyetracker.ui.theme.DyeThemeColors
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** [pickerRows]: the hunt picker's filtered, capped dye list with the current pick first. */
-class HuntPickerRowsTest {
+/** [pickerRows]: the dye picker's filtered, capped dye list with the current pick first. */
+class PickerRowsTest {
 
     @Test
     fun `an empty query shows the first catalog dyes and counts the rest`() {
@@ -52,7 +53,42 @@ class HuntPickerRowsTest {
         assertEquals(0, rows.more)
     }
 
+    @Test
+    fun `options narrow the rows to those dyes`() {
+        val options = DyeCatalog.all.take(3)
+
+        val rows = pickerRows(query = "", current = "", visible = PICKER_VISIBLE_ROWS, options = options)
+
+        assertEquals(options, rows.rows)
+        assertEquals(0, rows.more)
+    }
+
+    @Test
+    fun `a query over the theme dyes finds Jade and no retired dye`() {
+        val themeDyes = DyeCatalog.all.filter { it.dyeId in DyeThemeColors.COLORS }
+
+        val rows = pickerRows(query = "ja", current = "", visible = PICKER_VISIBLE_ROWS, options = themeDyes)
+
+        assertTrue(rows.rows.any { it.dyeId == JADE }, "rows: ${rows.rows}")
+        assertTrue(rows.rows.all { it.dyeId in DyeThemeColors.COLORS }, "rows: ${rows.rows}")
+    }
+
+    @Test
+    fun `a retired dye in the catalog is not among the theme dyes`() {
+        val themeDyes = DyeCatalog.all.filter { it.dyeId in DyeThemeColors.COLORS }
+
+        val rows = pickerRows(query = WARDEN, current = "", visible = PICKER_VISIBLE_ROWS, options = themeDyes)
+
+        assertTrue(DyeCatalog.all.any { it.dyeId == WARDEN })
+        assertEquals(emptyList(), rows.rows)
+        assertEquals(0, rows.more)
+    }
+
     private companion object {
         const val NADESHIKO = "nadeshiko"
+        const val JADE = "jade"
+
+        /** A retired Fire Sale dye: in the catalog, without a theme color. */
+        const val WARDEN = "warden"
     }
 }

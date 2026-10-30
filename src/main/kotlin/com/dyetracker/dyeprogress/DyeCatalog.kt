@@ -21,13 +21,13 @@ object DyeCatalog {
     }
 
     /**
-     * Options matching [query] (case-insensitive substring of the display name or id). An empty
-     * query returns [all]; no match returns an empty list.
+     * The [options] (by default [all]) matching [query] (case-insensitive substring of the display
+     * name or id), in their order. An empty query returns [options]; no match returns an empty list.
      */
-    fun filter(query: String): List<DyeOption> {
+    fun filter(query: String, options: List<DyeOption> = all): List<DyeOption> {
         val q = query.trim().lowercase()
-        if (q.isEmpty()) return all
-        return all.filter { it.displayName.lowercase().contains(q) || it.dyeId.lowercase().contains(q) }
+        if (q.isEmpty()) return options
+        return options.filter { it.displayName.lowercase().contains(q) || it.dyeId.lowercase().contains(q) }
     }
 
     /** The option whose id is exactly [dyeId], or `null` when the dye isn't in the catalog. */
