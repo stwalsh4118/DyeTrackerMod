@@ -70,7 +70,7 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * The in-game DyeTracker menu (`/dyetracker menu`), styled after the website: a header bar with
+ * The in-game DyeTracker menu (`/dyetracker`), styled after the website: a header bar with
  * the title and a tab bar, a profile strip (the player's name, a profile pill that cycles their
  * SkyBlock profiles, how old the data is, a Refresh pill, and totals), category filter pills and
  * a sort pill (like the website's `CategoryFilters`), over a scrolling grid of the player's own

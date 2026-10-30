@@ -4,7 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** Unit coverage for [MenuOpenRequest]: the one-shot flag `/dyetracker menu` sets for the next tick. */
+/** Unit coverage for [MenuOpenRequest]: the one-shot flag `/dyetracker` sets for the next tick. */
 class MenuOpenRequestTest {
 
     @Test

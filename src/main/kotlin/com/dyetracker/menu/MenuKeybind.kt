@@ -18,13 +18,13 @@ import net.minecraft.network.chat.Component
 /**
  * Registers the "Open DyeTracker Menu" keybind, unbound by default so it never clashes with
  * another key; players bind it in Controls → DyeTracker. Also prints a one-time chat hint on
- * the first join, so players find the menu (`/dyetracker menu`) and the key. The command opens
+ * the first join, so players find the menu (`/dyetracker`) and the key. The command opens
  * the menu through [requestOpen], on the next tick.
  */
 object MenuKeybind {
 
     private const val TRANSLATION_KEY = "key.dyetracker.open_menu"
-    private const val HINT_TEXT = " Open your dyes with /dyetracker menu, or bind a key in Controls → DyeTracker."
+    private const val HINT_TEXT = " Open your dyes with /dyetracker, or bind a key in Controls → DyeTracker."
 
     private lateinit var menuKey: KeyMapping
     private val openRequest = MenuOpenRequest()

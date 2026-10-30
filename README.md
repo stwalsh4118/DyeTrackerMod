@@ -63,7 +63,8 @@ New features ship for Minecraft **26.1.2**, **26.2** and **26.3**. The **1.21.10
 | `/dyetracker link <code>` | Link your account using a code from the website |
 | `/dyetracker status` | Check your current link status |
 | `/dyetracker unlink` | Unlink your account |
-| `/dyetracker menu` | Open the in-game DyeTracker menu (Minecraft 26.1.2, 26.2 and 26.3 only) |
+| `/dyetracker` | Open the in-game DyeTracker menu (`/dyetracker menu` also works; Minecraft 26.1.2, 26.2 and 26.3 only) |
+| `/dyetracker help` | List every command (Minecraft 26.1.2, 26.2 and 26.3 only) |
 | `/dyetracker discord <on\|off>` | Turn [Discord Rich Presence](#discord-rich-presence) on or off; `/dyetracker discord` on its own shows whether it's on (Minecraft 26.1.2, 26.2 and 26.3 only) |
 | `/dyetracker discord hunt <dye\|clear>` | Pick the dye your Discord card says you're hunting (Tab completes it), or clear it; `/dyetracker discord hunt` on its own shows the current pick (Minecraft 26.1.2, 26.2 and 26.3 only) |
 | `/dyetracker spotify …` | Set up and control the Spotify widget (see [Spotify widget](#spotify-widget); Minecraft 26.1.2, 26.2 and 26.3 only) |
@@ -76,7 +77,7 @@ New features ship for Minecraft **26.1.2**, **26.2** and **26.3**. The **1.21.10
 
 The menu is in the Minecraft **26.1.2**, **26.2** and **26.3** builds only.
 
-Open the menu with `/dyetracker menu`, or bind a key to **Open DyeTracker Menu** in **Controls → DyeTracker** (it has no key until you set one).
+Open the menu with `/dyetracker`, or bind a key to **Open DyeTracker Menu** in **Controls → DyeTracker** (it has no key until you set one).
 
 **Dyes tab**
 

@@ -439,6 +439,13 @@ object DyeTrackerCommands {
                         }
                 )
                 .then(
+                    ClientCommands.literal("help")
+                        .executes { context ->
+                            showHelp(context.source)
+                            1
+                        }
+                )
+                .then(
                     ClientCommands.literal("spotify")
                         .then(
                             ClientCommands.literal("help")
@@ -533,8 +540,9 @@ object DyeTrackerCommands {
                             1
                         }
                 )
+                // Bare `/dyetracker` opens the menu; the command list is `/dyetracker help`.
                 .executes { context ->
-                    showHelp(context.source)
+                    handleMenuCommand(context.source)
                     1
                 }
         )
@@ -1594,7 +1602,7 @@ object DyeTrackerCommands {
                 )
         )
         source.sendFeedback(
-            Component.literal("  /dyetracker menu")
+            Component.literal("  /dyetracker")
                 .withStyle(ChatFormatting.YELLOW)
                 .append(
                     Component.literal(" - Open the DyeTracker menu")

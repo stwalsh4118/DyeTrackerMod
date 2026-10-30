@@ -3,7 +3,7 @@ package com.dyetracker.menu
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * A one-shot "open the menu" request, set by `/dyetracker menu` and taken on the next client tick.
+ * A one-shot "open the menu" request, set by `/dyetracker` and taken on the next client tick.
  *
  * The command can't open the menu itself: vanilla `ChatScreen.keyPressed` runs the command and
  * then closes the chat with `setScreen(null)` in the same call, which closes a screen the command

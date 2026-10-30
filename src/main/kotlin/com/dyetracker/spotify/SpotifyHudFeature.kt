@@ -57,7 +57,7 @@ object SpotifyHudFeature {
     /**
      * Open the HUD edit screen on the next client tick. `/dyetracker spotify edit` can't open it
      * itself: the chat screen that ran the command closes itself right after, closing the edit
-     * screen with it (the same reason `/dyetracker menu` opens on the next tick).
+     * screen with it (the same reason `/dyetracker` opens on the next tick).
      */
     fun requestEditScreen() {
         editRequest.request()
