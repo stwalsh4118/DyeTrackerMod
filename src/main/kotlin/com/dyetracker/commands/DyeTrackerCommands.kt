@@ -26,6 +26,7 @@ import com.dyetracker.sync.SyncManager
 import com.dyetracker.ui.bounce.BounceController
 import com.dyetracker.ui.edit.WidgetEditScreen
 import com.dyetracker.ui.texture.ImageTextureManager
+import com.dyetracker.ui.theme.DyeThemeColors
 import com.dyetracker.ui.theme.ThemePresets
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.StringArgumentType
@@ -54,6 +55,8 @@ object DyeTrackerCommands {
     private const val DISCORD_HUNT_USAGE = "/dyetracker discord hunt <dye|clear>"
     /** The `/dyetracker theme` usage, shown in the help. */
     private const val THEME_USAGE = "/dyetracker theme <name>"
+    /** The `/dyetracker theme dye` usage, shown when the dye is missing. */
+    private const val THEME_DYE_USAGE = "/dyetracker theme dye <dye>"
     /** Label before the theme name in the theme status and confirmation. */
     private const val THEME_LABEL = "Theme: "
     private const val SPOTIFY_USAGE =
@@ -382,6 +385,27 @@ object DyeTrackerCommands {
                 )
                 .then(
                     ClientCommands.literal("theme")
+                        // Before the argument, so `dye` is never read as a preset name.
+                        .then(
+                            ClientCommands.literal("dye")
+                                .then(
+                                    ClientCommands.argument("dye", StringArgumentType.word())
+                                        .suggests { _, builder ->
+                                            SharedSuggestionProvider.suggest(DyeThemeColors.COLORS.keys.sorted(), builder)
+                                        }
+                                        .executes { context ->
+                                            handleThemeDyeSet(context.source, StringArgumentType.getString(context, "dye"))
+                                            1
+                                        }
+                                )
+                                // Bare `/dyetracker theme dye` prints the usage.
+                                .executes { context ->
+                                    context.source.sendFeedback(
+                                        Component.literal("Usage: $THEME_DYE_USAGE").withStyle(ChatFormatting.RED)
+                                    )
+                                    1
+                                }
+                        )
                         .then(
                             ClientCommands.argument("preset", StringArgumentType.word())
                                 .suggests { _, builder ->
@@ -789,6 +813,24 @@ object DyeTrackerCommands {
             )
             return
         }
+        ConfigManager.setThemeKey(key)
+        source.sendFeedback(
+            Component.literal("$THEME_LABEL${ThemePresets.displayName(key)}.").withStyle(ChatFormatting.GREEN)
+        )
+    }
+
+    /**
+     * Theme the mod after [dyeId] (PBI 81) when it is exactly a [DyeThemeColors.COLORS] id; the save
+     * makes it the active theme on the next frame. An unknown id leaves the config as it was.
+     */
+    private fun handleThemeDyeSet(source: FabricClientCommandSource, dyeId: String) {
+        if (dyeId !in DyeThemeColors.COLORS) {
+            source.sendFeedback(
+                Component.literal("Unknown dye '$dyeId'. Press Tab for the list.").withStyle(ChatFormatting.RED)
+            )
+            return
+        }
+        val key = ThemePresets.dyeKey(dyeId)
         ConfigManager.setThemeKey(key)
         source.sendFeedback(
             Component.literal("$THEME_LABEL${ThemePresets.displayName(key)}.").withStyle(ChatFormatting.GREEN)
@@ -1514,10 +1556,12 @@ object DyeTrackerCommands {
                 )
         )
         source.sendFeedback(
-            Component.literal("  $THEME_USAGE")
+            Component.literal("  $THEME_USAGE | dye <dye>")
                 .withStyle(ChatFormatting.YELLOW)
                 .append(
-                    Component.literal(" - Pick a theme (${ThemePresets.PRESET_KEYS.joinToString()})")
+                    Component.literal(
+                        " - Pick a theme (${ThemePresets.PRESET_KEYS.joinToString()}) or theme the mod after a dye"
+                    )
                         .withStyle(ChatFormatting.GRAY)
                 )
         )
