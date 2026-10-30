@@ -378,7 +378,7 @@ The mod uses Minecraft's standard server authentication flow - the same method e
 
 ### Data storage
 
-- Credentials are stored locally in `.minecraft/config/dyetracker.json`
+- Credentials are stored locally in `.minecraft/config/dyetracker/config.json`
 - You can unlink your account at any time with `/dyetracker unlink`
 - Unlinking deletes the credentials stored on your computer only. It doesn't unlink your account on DyeTracker's side or delete the stat counters DyeTracker has saved.
 
