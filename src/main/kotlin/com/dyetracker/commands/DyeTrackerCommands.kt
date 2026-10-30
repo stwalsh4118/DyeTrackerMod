@@ -28,6 +28,7 @@ import com.dyetracker.ui.edit.WidgetEditScreen
 import com.dyetracker.ui.texture.ImageTextureManager
 import com.dyetracker.ui.theme.DyeThemeColors
 import com.dyetracker.ui.theme.ThemePresets
+import com.dyetracker.ui.theme.selectedThemeKey
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.StringArgumentType
 import kotlinx.coroutines.CoroutineScope
@@ -798,13 +799,13 @@ object DyeTrackerCommands {
         )
     }
 
-    /** Print the active theme's name (PBI 81). */
+    /** Print the active theme's name (PBI 81), as the Theme screen shows it ([selectedThemeKey]). */
     private fun handleThemeStatus(source: FabricClientCommandSource) {
         source.sendFeedback(
             Component.literal(THEME_LABEL)
                 .withStyle(ChatFormatting.GRAY)
                 .append(
-                    Component.literal("${ThemePresets.displayName(ConfigManager.themeKey())}.")
+                    Component.literal("${ThemePresets.displayName(selectedThemeKey(ConfigManager.config))}.")
                         .withStyle(ChatFormatting.WHITE)
                 )
         )

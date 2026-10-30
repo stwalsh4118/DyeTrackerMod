@@ -33,7 +33,7 @@ fun overrideBoxText(config: ModConfig): Map<String, String> {
     val palette = if (config.themeKey == ThemePresets.CUSTOM) {
         effectivePalette(config)
     } else {
-        ThemePresets.paletteFor(config.themeKey) ?: ThemePresets.DEFAULT_PALETTE
+        paletteOrDefault(config.themeKey)
     }
     return ThemeOverrides.KEYS.associateWith { formatHexRgb(palette.overrideColor(it)) }
 }

@@ -9,6 +9,7 @@ import kotlin.test.assertNull
  * Unit coverage for [resolveTheme] and [ThemePresets.displayName] (task 81-1): each preset key
  * resolves to its theme, and blank or unknown keys fall back to Default. Dye keys (task 81-2)
  * resolve to their dye's palette, and [ThemePresets.dyeIdOf] and [ThemePresets.paletteFor] read them.
+ * [paletteOrDefault] gives a known key's palette and Default's for any other.
  */
 class ThemeResolverTest {
 
@@ -83,5 +84,14 @@ class ThemeResolverTest {
         assertEquals(dyePalette(0xF6ADC6), ThemePresets.paletteFor("dye:nadeshiko"))
         assertNull(ThemePresets.paletteFor("dye:bogus"))
         assertNull(ThemePresets.paletteFor("bogus"))
+    }
+
+    @Test
+    fun `paletteOrDefault gives a known key's palette and Default's otherwise`() {
+        assertEquals(ThemePresets.FOREST_PALETTE, paletteOrDefault("forest"))
+        assertEquals(dyePalette(0xF6ADC6), paletteOrDefault("dye:nadeshiko"))
+        for (key in listOf("", "bogus", "custom", "dye:bogus")) {
+            assertEquals(ThemePresets.DEFAULT_PALETTE, paletteOrDefault(key), "key: '$key'")
+        }
     }
 }

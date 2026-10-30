@@ -77,6 +77,9 @@ private val OVERRIDE_TOKENS: Map<String, (ResolvedTheme, ResolvedTheme) -> Resol
 internal fun knownThemeKeyOrDefault(key: String): String =
     if (ThemePresets.paletteFor(key) != null) key else ThemePresets.DEFAULT
 
+/** The base colors of [key] ([ThemePresets.paletteFor]), or Default's when it is not known; `custom` is not known. */
+fun paletteOrDefault(key: String): ThemePalette = ThemePresets.paletteFor(key) ?: ThemePresets.DEFAULT_PALETTE
+
 /** The Custom slot's base theme key: [ModConfig.themeCustomBase], or Default when it is `custom`, blank or unknown. */
 fun customBaseKey(config: ModConfig): String = knownThemeKeyOrDefault(config.themeCustomBase)
 
@@ -95,6 +98,6 @@ fun validOverrides(config: ModConfig): Map<String, Int> =
  * override in place of its field; a [ThemeOverrides.PANEL_BORDER] override is opaque.
  */
 fun effectivePalette(config: ModConfig): ThemePalette {
-    val base = ThemePresets.paletteFor(customBaseKey(config)) ?: ThemePresets.DEFAULT_PALETTE
+    val base = paletteOrDefault(customBaseKey(config))
     return validOverrides(config).entries.fold(base) { palette, (key, rgb) -> palette.withOverride(key, rgb) }
 }

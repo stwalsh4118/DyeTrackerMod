@@ -61,7 +61,10 @@ data class ResolvedTheme(
 /** Opaque alpha, for solid text, accents and fills. */
 private const val ALPHA_OPAQUE = 0xFF
 
-/** The HUD panel fill's alpha (the same as Default's panel background). */
+/**
+ * The panel fill's alpha in the non-HUD panels: pickers, config panels and add-widget screens (the
+ * same as Default's panel background). HUD widget panels use the saved `hudPanelAlpha` instead.
+ */
 private const val ALPHA_PANEL = 0xC8
 
 /** The menu backdrop's alpha: nearly solid, slightly see-through. */

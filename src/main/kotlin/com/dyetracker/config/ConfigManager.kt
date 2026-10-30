@@ -273,6 +273,7 @@ object ConfigManager {
      */
     fun reset() {
         config = ModConfig()
+        ThemeState.apply(config)
         save()
         DyeTrackerMod.info("Configuration reset to defaults")
     }

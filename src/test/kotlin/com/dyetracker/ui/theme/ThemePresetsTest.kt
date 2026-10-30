@@ -4,6 +4,7 @@ import com.dyetracker.config.ModConfig
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 
 /**
  * Unit coverage for the hand-made presets (task 81-6): Midnight, Forest, Sunset and Ice each resolve
@@ -85,6 +86,20 @@ class ThemePresetsTest {
     @Test
     fun `preset keys are default, neutral, midnight, forest, sunset, ice`() {
         assertEquals(listOf("default", "neutral", "midnight", "forest", "sunset", "ice"), ThemePresets.PRESET_KEYS)
+    }
+
+    @Test
+    fun `every preset key is unique, has a palette and its own name`() {
+        val keys = ThemePresets.PRESET_KEYS
+        assertEquals(keys.size, keys.toSet().size, "duplicate preset key in $keys")
+        for (key in keys) {
+            assertNotNull(ThemePresets.paletteFor(key), key)
+            if (key == ThemePresets.DEFAULT) {
+                assertEquals("Default", ThemePresets.displayName(key), key)
+            } else {
+                assertNotEquals("Default", ThemePresets.displayName(key), key)
+            }
+        }
     }
 
     @Test

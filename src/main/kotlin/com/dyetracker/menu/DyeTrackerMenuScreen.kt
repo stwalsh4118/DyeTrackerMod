@@ -46,6 +46,7 @@ import com.dyetracker.ui.texture.ImageTextureManager
 import com.dyetracker.ui.theme.ThemePresets
 import com.dyetracker.ui.theme.ThemeScreen
 import com.dyetracker.ui.theme.UiTheme
+import com.dyetracker.ui.theme.selectedThemeKey
 import com.mojang.blaze3d.platform.InputConstants
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -1516,7 +1517,7 @@ class DyeTrackerMenuScreen(openOnSettings: Boolean = false) : Screen(Component.l
             SettingsRow(
                 SettingsKey.THEME,
                 THEME_LABEL,
-                detail = ThemePresets.displayName(ConfigManager.themeKey()),
+                detail = ThemePresets.displayName(selectedThemeKey(config)),
                 pillLabel = THEME_CUSTOMIZE,
             ),
             SettingsRow(SettingsKey.EDIT_LAYOUT, EDIT_LAYOUT_LABEL, pillLabel = EDIT_LAYOUT_LABEL),
