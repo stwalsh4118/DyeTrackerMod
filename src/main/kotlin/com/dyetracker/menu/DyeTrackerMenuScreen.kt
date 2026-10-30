@@ -43,6 +43,8 @@ import com.dyetracker.ui.core.UiDraw
 import com.dyetracker.ui.edit.WidgetEditScreen
 import com.dyetracker.ui.picker.DyePickerScreen
 import com.dyetracker.ui.texture.ImageTextureManager
+import com.dyetracker.ui.theme.ThemePresets
+import com.dyetracker.ui.theme.ThemeScreen
 import com.dyetracker.ui.theme.UiTheme
 import com.mojang.blaze3d.platform.InputConstants
 import kotlinx.coroutines.CancellationException
@@ -116,14 +118,14 @@ import kotlin.math.roundToInt
  * fetches the shown tab's data again ([MenuRefresh]): on the Dyes tab the dyes and the collection,
  * on the Collection tab the collection (and the dyes while they aren't loaded).
  * The Settings tab is one panel of rows (account, sync, the HUD widget toggles, bounce, Discord
- * presence and its hunt dye, Spotify, the layout editor), each control calling what its
+ * presence and its hunt dye, Spotify, the theme, the layout editor), each control calling what its
  * `/dyetracker` command calls. Settings state is read fresh every frame, so a change made by a
  * command meanwhile shows at once. The panel scrolls when its rows don't fit ([settingsScroll]).
- * The Discord hunt row opens a [DyePickerScreen], which comes back to a new menu opened on
- * the Settings tab ([openOnSettings]). The Spotify Client ID row holds a vanilla [EditBox]
- * ([clientIdField]), there only while the Settings tab shows. The menu has no key handling of its
- * own: vanilla routes keys to the focused field first, its Escape still closes the menu, and the
- * open-menu keybind only acts while no screen is open ([MenuKeybind]).
+ * The Discord hunt row opens a [DyePickerScreen] and the Theme row a [ThemeScreen]; both come back
+ * to a new menu opened on the Settings tab ([openOnSettings]). The Spotify Client ID row holds a
+ * vanilla [EditBox] ([clientIdField]), there only while the Settings tab shows. The menu has no key
+ * handling of its own: vanilla routes keys to the focused field first, its Escape still closes the
+ * menu, and the open-menu keybind only acts while no screen is open ([MenuKeybind]).
  *
  * @param openOnSettings open on the Settings tab instead of the Dyes tab.
  */
@@ -173,6 +175,7 @@ class DyeTrackerMenuScreen(openOnSettings: Boolean = false) : Screen(Component.l
         SPOTIFY_CLIENT_ID,
         SPOTIFY_WIDGET,
         SPOTIFY_TINT,
+        THEME,
         EDIT_LAYOUT,
     }
 
@@ -956,6 +959,8 @@ class DyeTrackerMenuScreen(openOnSettings: Boolean = false) : Screen(Component.l
             SettingsKey.SPOTIFY_CLIENT_ID -> saveClientId()
             SettingsKey.SPOTIFY_WIDGET -> SpotifyActions.toggleWidget()
             SettingsKey.SPOTIFY_TINT -> SpotifyActions.toggleTintAll()
+            // Like the Discord hunt picker, the Theme screen comes back to a new menu.
+            SettingsKey.THEME -> Minecraft.getInstance().showScreen(ThemeScreen(DyeTrackerMenuScreen(openOnSettings = true)))
             SettingsKey.EDIT_LAYOUT -> Minecraft.getInstance().showScreen(WidgetEditScreen())
         }
         return true
@@ -1508,6 +1513,12 @@ class DyeTrackerMenuScreen(openOnSettings: Boolean = false) : Screen(Component.l
             SettingsRow(SettingsKey.SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_ID_LABEL, pillLabel = SAVE_LABEL),
             switchRow(SettingsKey.SPOTIFY_WIDGET, SPOTIFY_WIDGET_LABEL, SpotifyActions.isWidgetVisible()),
             switchRow(SettingsKey.SPOTIFY_TINT, SPOTIFY_TINT_LABEL, ConfigManager.isSpotifyTintAll()),
+            SettingsRow(
+                SettingsKey.THEME,
+                THEME_LABEL,
+                detail = ThemePresets.displayName(ConfigManager.themeKey()),
+                pillLabel = THEME_CUSTOMIZE,
+            ),
             SettingsRow(SettingsKey.EDIT_LAYOUT, EDIT_LAYOUT_LABEL, pillLabel = EDIT_LAYOUT_LABEL),
         )
     }
@@ -2396,6 +2407,11 @@ class DyeTrackerMenuScreen(openOnSettings: Boolean = false) : Screen(Component.l
 
         /** The Discord hunt row's pill, opening the picker. */
         private const val DISCORD_HUNT_CHANGE = "Change ▸"
+
+        private const val THEME_LABEL = "Theme"
+
+        /** The Theme row's pill, opening the Theme screen. */
+        private const val THEME_CUSTOMIZE = "Customize ▸"
 
         /** The Edit layout row's label, and its pill's. */
         private const val EDIT_LAYOUT_LABEL = "Edit layout"
