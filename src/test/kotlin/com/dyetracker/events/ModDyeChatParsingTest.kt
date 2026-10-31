@@ -152,4 +152,34 @@ class ModDyeChatParsingTest {
     fun `gift-giving confirmation is not a gift reward`() {
         assertNull(ChatEventHandler.parseGiftReward("You gave a gift to Bob!"))
     }
+
+    private val profileId = "1a2b3c4d-1a2b-1a2b-1a2b-1a2b3c4d5e6f"
+
+    @Test
+    fun `reads the id from Hypixel's profile line`() {
+        assertEquals(profileId, ChatEventHandler.parseProfileId("Profile ID: $profileId"))
+        assertEquals(profileId, ChatEventHandler.parseProfileId("  Profile ID: $profileId  "))
+    }
+
+    @Test
+    fun `finds the profile line inside a multi-line message`() {
+        val message = "You are playing on profile: Mango\nProfile ID: $profileId"
+
+        val found = ChatEventHandler.chatLines(message).firstNotNullOfOrNull(ChatEventHandler::parseProfileId)
+
+        assertEquals(profileId, found)
+    }
+
+    @Test
+    fun `a player typing the profile line does not match`() {
+        assertNull(ChatEventHandler.parseProfileId("[VIP] Someone: Profile ID: $profileId"))
+        assertNull(ChatEventHandler.parseProfileId("Party > Someone: Profile ID: $profileId"))
+    }
+
+    @Test
+    fun `a malformed profile line does not match`() {
+        assertNull(ChatEventHandler.parseProfileId("Profile ID: not-a-uuid"))
+        assertNull(ChatEventHandler.parseProfileId("Profile ID:"))
+        assertNull(ChatEventHandler.parseProfileId("You are playing on profile: Mango"))
+    }
 }

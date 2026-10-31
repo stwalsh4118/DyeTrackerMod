@@ -3,6 +3,7 @@ package com.dyetracker.api
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.DyeCollection
+import com.dyetracker.data.DyeRemovals
 import com.dyetracker.data.PlayerRngData
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -222,19 +223,20 @@ object ApiClient {
     }
 
     /**
-     * Sync dye collection to the backend, deleting the rows of [removedDyeIds].
+     * Sync dye collection to the backend, deleting the rows of [removals].
      * Requires authentication.
      */
     fun syncDyeCollection(
         collection: DyeCollection,
-        removedDyeIds: Set<String> = emptySet()
+        removals: DyeRemovals?
     ): ApiResult<SyncDyeCollectionResponse> {
         val url = "${ConfigManager.config.apiUrl}/api/v1/dye-collection"
 
         val requestBody = SyncDyeCollectionRequest(
             profileId = collection.profileId,
             dyes = collection.dyes,
-            removedDyeIds = removedDyeIds.toList(),
+            removedDyeIds = removals?.dyeIds?.toList().orEmpty(),
+            removalProfileId = removals?.profileId,
             modTimestamp = collection.lastUpdated
         )
         val body = json.encodeToString(requestBody)

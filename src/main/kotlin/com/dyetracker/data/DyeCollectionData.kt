@@ -29,3 +29,17 @@ data class DyeCollection(
     /** Unix timestamp in ms when this collection was last scanned */
     val lastUpdated: Long = 0
 )
+
+/**
+ * Dyes to delete from one SkyBlock profile's collection on the server: the dyes the Dye Guide
+ * showed at 0 owned, and the profile it showed them on.
+ */
+data class DyeRemovals(
+    /** Hypixel profile ID, from the "Profile ID:" chat line */
+    val profileId: String,
+    val dyeIds: Set<String>
+) {
+    /** Add [next] to these. Another profile's scan replaces them; reopening the Guide re-queues. */
+    fun merge(next: DyeRemovals): DyeRemovals =
+        if (next.profileId == profileId) copy(dyeIds = dyeIds + next.dyeIds) else next
+}

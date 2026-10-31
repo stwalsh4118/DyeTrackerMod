@@ -4,6 +4,7 @@ import com.dyetracker.DyeTrackerMod
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.data.TreasureQuality
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents
 import net.minecraft.network.chat.Component
 
 /**
@@ -42,6 +43,15 @@ object ChatEventHandler {
 
     // Pattern to strip Minecraft formatting codes (§ followed by any character)
     private val FORMAT_CODE_PATTERN = Regex("""§.""")
+
+    // Hypixel's "Profile ID: <uuid>" line, sent on each SkyBlock join, lobby swap and profile
+    // switch. Anchored so a player typing it can't match: their chat always has a name prefix.
+    private val PROFILE_ID_PATTERN = Regex("""^Profile ID: ([0-9a-fA-F-]{36})$""")
+
+    /** The SkyBlock profile the player is on now, or null until Hypixel has said. */
+    @Volatile
+    var currentProfileId: String? = null
+        private set
 
     // Archfiend Dice patterns - check High Class first (more specific pattern)
     private val HIGH_CLASS_DICE_PATTERN = Regex("""Your High Class Archfiend Dice rolled a \d!""")
@@ -86,13 +96,27 @@ object ChatEventHandler {
                 onChatMessage(message)
             }
         }
+        ClientPlayConnectionEvents.DISCONNECT.register { _, _ ->
+            currentProfileId = null
+        }
         DyeTrackerMod.info("ChatEventHandler registered")
     }
+
+    /** The profile ID in a chat line with its formatting stripped, or null if it isn't that line. */
+    fun parseProfileId(text: String): String? =
+        PROFILE_ID_PATTERN.find(text.trim())?.groupValues?.get(1)
 
     private fun onChatMessage(message: Component) {
         val rawText = message.string
         // Strip Minecraft formatting codes (§X) before pattern matching
         val text = FORMAT_CODE_PATTERN.replace(rawText, "")
+
+        val profileId = chatLines(text).firstNotNullOfOrNull(::parseProfileId)
+        if (profileId != null) {
+            currentProfileId = profileId
+            DyeTrackerMod.debug("Current SkyBlock profile: {}", profileId)
+            return
+        }
 
         // Check for Archfiend Dice rolls - check High Class first (more specific pattern)
         if (HIGH_CLASS_DICE_PATTERN.containsMatchIn(text)) {

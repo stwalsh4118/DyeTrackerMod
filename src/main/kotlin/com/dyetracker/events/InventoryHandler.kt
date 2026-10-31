@@ -3,6 +3,7 @@ package com.dyetracker.events
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.config.ConfigManager
 import com.dyetracker.data.DroppedDye
+import com.dyetracker.data.DyeRemovals
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.data.VisitorEntry
 import com.dyetracker.rotation.RotationPusher
@@ -206,8 +207,11 @@ object InventoryHandler {
         val existing = RngDataStore.getDyeCollection()?.dyes.orEmpty()
         val updated = InventoryUtils.applyDyeGuideScan(existing, accumulatedDyes, zeroOwnedDyes)
 
-        // Queued before the update, which is what schedules the sync
-        SyncManager.queueDyeRemovals(zeroOwnedDyes - accumulatedDyes.keys)
+        // Queued before the update, which is what schedules the sync. With no known profile the
+        // server deletes nothing, so a dye shown at 0 only leaves the local list.
+        ChatEventHandler.currentProfileId?.let { profileId ->
+            SyncManager.queueDyeRemovals(DyeRemovals(profileId, zeroOwnedDyes - accumulatedDyes.keys))
+        }
         RngDataStore.updateDyeCollection(updated)
         DyeTrackerMod.info(
             "Dye Compendium: {} new dyes this session, {} shown at 0, {} total in collection",

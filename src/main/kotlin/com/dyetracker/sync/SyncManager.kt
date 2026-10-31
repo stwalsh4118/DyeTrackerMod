@@ -4,6 +4,7 @@ import com.dyetracker.DyeTrackerMod
 import com.dyetracker.api.ApiClient
 import com.dyetracker.auth.AccountVerification
 import com.dyetracker.data.DyeCollection
+import com.dyetracker.data.DyeRemovals
 import com.dyetracker.data.PlayerRngData
 import com.dyetracker.data.RngDataChangeListener
 import java.util.concurrent.Executors
@@ -41,11 +42,11 @@ object SyncManager : RngDataChangeListener {
 
     private val syncLock = Any()
 
-    // Dyes the Dye Guide showed at 0 owned, sent once with the next collection sync. Kept out of
-    // the stored collection: that list is re-sent on every sync and isn't per SkyBlock profile, so
-    // a stored removal could delete another profile's real dye. Reopening the Guide queues them
-    // again if a send fails.
-    private val pendingDyeRemovals = mutableSetOf<String>()
+    // Dyes the Dye Guide showed at 0 owned, sent once with the next collection sync and pinned to
+    // the profile they were scanned on. Kept out of the stored collection: that list is re-sent on
+    // every sync and isn't per SkyBlock profile. Reopening the Guide queues them again if a send
+    // fails.
+    private var pendingDyeRemovals: DyeRemovals? = null
 
     @Volatile
     private var lastSyncTime: Long = 0
@@ -102,16 +103,16 @@ object SyncManager : RngDataChangeListener {
     /**
      * Queue dyes whose collection rows the next sync should delete.
      */
-    fun queueDyeRemovals(dyeIds: Set<String>) {
+    fun queueDyeRemovals(removals: DyeRemovals) {
         synchronized(syncLock) {
-            pendingDyeRemovals.addAll(dyeIds)
+            pendingDyeRemovals = pendingDyeRemovals?.merge(removals) ?: removals
         }
     }
 
-    private fun takeDyeRemovals(): Set<String> {
+    private fun takeDyeRemovals(): DyeRemovals? {
         synchronized(syncLock) {
-            val removals = pendingDyeRemovals.toSet()
-            pendingDyeRemovals.clear()
+            val removals = pendingDyeRemovals
+            pendingDyeRemovals = null
             return removals
         }
     }
@@ -204,15 +205,16 @@ object SyncManager : RngDataChangeListener {
      * Called after successful RNG data sync to piggyback on the same debounce.
      */
     private fun syncDyeCollectionIfPresent(collection: DyeCollection?) {
-        val removedDyeIds = takeDyeRemovals()
-        if (collection == null || (collection.dyes.isEmpty() && removedDyeIds.isEmpty())) return
+        if (collection == null) return
+        val removals = takeDyeRemovals()
+        if (collection.dyes.isEmpty() && removals == null) return
 
         DyeTrackerMod.info(
             "Syncing dye collection ({} dyes, {} removed)...",
-            collection.dyes.size, removedDyeIds.size
+            collection.dyes.size, removals?.dyeIds?.size ?: 0
         )
         try {
-            val result = ApiClient.syncDyeCollection(collection, removedDyeIds)
+            val result = ApiClient.syncDyeCollection(collection, removals)
             when (result) {
                 is ApiClient.ApiResult.Success -> {
                     DyeTrackerMod.info("Dye collection synced: {} dyes", result.data.syncedCount)

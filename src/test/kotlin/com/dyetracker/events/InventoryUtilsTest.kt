@@ -1,6 +1,7 @@
 package com.dyetracker.events
 
 import com.dyetracker.data.DroppedDye
+import com.dyetracker.data.DyeRemovals
 import com.dyetracker.data.PotionTier
 import com.dyetracker.data.VisitorEntry
 import com.dyetracker.data.VisitorRarity
@@ -298,5 +299,19 @@ class InventoryUtilsTest {
         )
 
         assertEquals(listOf(dye("jade", 3)), updated)
+    }
+
+    @Test
+    fun `removals on the same profile add up`() {
+        val merged = DyeRemovals("mango", setOf("emerald")).merge(DyeRemovals("mango", setOf("jade")))
+
+        assertEquals(DyeRemovals("mango", setOf("emerald", "jade")), merged)
+    }
+
+    @Test
+    fun `removals from another profile replace the queued ones`() {
+        val merged = DyeRemovals("mango", setOf("emerald")).merge(DyeRemovals("lemon", setOf("jade")))
+
+        assertEquals(DyeRemovals("lemon", setOf("jade")), merged)
     }
 }
