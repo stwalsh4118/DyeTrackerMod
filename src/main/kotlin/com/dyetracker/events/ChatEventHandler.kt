@@ -3,6 +3,7 @@ package com.dyetracker.events
 import com.dyetracker.DyeTrackerMod
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.data.TreasureQuality
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLevelEvents
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents
 import net.minecraft.network.chat.Component
@@ -44,11 +45,14 @@ object ChatEventHandler {
     // Pattern to strip Minecraft formatting codes (§ followed by any character)
     private val FORMAT_CODE_PATTERN = Regex("""§.""")
 
-    // Hypixel's "Profile ID: <uuid>" line, sent on each SkyBlock join, lobby swap and profile
-    // switch. Anchored so a player typing it can't match: their chat always has a name prefix.
+    // Hypixel's "Profile ID: <uuid>" line, sent when you join a SkyBlock server. Anchored so a
+    // player typing it can't match: their chat always has a name prefix.
     private val PROFILE_ID_PATTERN = Regex("""^Profile ID: ([0-9a-fA-F-]{36})$""")
 
-    /** The SkyBlock profile the player is on now, or null until Hypixel has said. */
+    /**
+     * The SkyBlock profile the player is on now, or null until Hypixel has said. Cleared on every
+     * world change, so a profile switch that misses the line leaves no id rather than the old one.
+     */
     @Volatile
     var currentProfileId: String? = null
         private set
@@ -95,6 +99,9 @@ object ChatEventHandler {
             if (!overlay) {
                 onChatMessage(message)
             }
+        }
+        ClientLevelEvents.AFTER_CLIENT_LEVEL_CHANGE.register { _, _ ->
+            currentProfileId = null
         }
         ClientPlayConnectionEvents.DISCONNECT.register { _, _ ->
             currentProfileId = null
