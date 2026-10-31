@@ -1,12 +1,15 @@
 package com.dyetracker.events
 
+import com.dyetracker.data.DroppedDye
 import com.dyetracker.data.PotionTier
 import com.dyetracker.data.VisitorEntry
 import com.dyetracker.data.VisitorRarity
 import com.dyetracker.data.aggregateVisitorsSeenByTier
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Unit tests for the pure ownership-count parsing in [InventoryUtils.extractOwnedCount].
@@ -220,5 +223,80 @@ class InventoryUtilsTest {
             InventoryUtils.accumulateVisitors(emptyMap(), realVisitors).values
         )
         assertEquals(mapOf(VisitorRarity.RARE to 3), perTier)
+    }
+
+    @Test
+    fun `a dropped count of 0 states zero owned`() {
+        assertTrue(InventoryUtils.statesZeroOwned(listOf("Global drops: 438", "You've dropped: 0")))
+    }
+
+    @Test
+    fun `a bought count of 0 states zero owned`() {
+        assertTrue(InventoryUtils.statesZeroOwned(listOf("You've bought: 0")))
+    }
+
+    @Test
+    fun `an owned count is not zero owned`() {
+        assertFalse(InventoryUtils.statesZeroOwned(listOf("You've dropped: 3")))
+    }
+
+    @Test
+    fun `a bought dye with a dropped line of 0 is not zero owned`() {
+        assertFalse(InventoryUtils.statesZeroOwned(listOf("You've dropped: 0", "You've bought: 5")))
+    }
+
+    @Test
+    fun `lore with no ownership line is not zero owned`() {
+        assertFalse(InventoryUtils.statesZeroOwned(listOf("Hex #50C878", "Global drops: 438")))
+        assertFalse(InventoryUtils.statesZeroOwned(emptyList()))
+    }
+
+    @Test
+    fun `malformed ownership lines are not zero owned`() {
+        assertFalse(InventoryUtils.statesZeroOwned(listOf("You've dropped: many", "You've bought:")))
+    }
+
+    private fun dye(id: String, count: Int) = DroppedDye(dyeId = id, count = count)
+
+    @Test
+    fun `a dye shown at 0 is removed from the collection`() {
+        val existing = listOf(dye("emerald", 1), dye("jade", 2))
+
+        val updated = InventoryUtils.applyDyeGuideScan(existing, emptyMap(), setOf("emerald"))
+
+        assertEquals(listOf(dye("jade", 2)), updated)
+    }
+
+    @Test
+    fun `a dye shown as owned overwrites its stored count`() {
+        val updated = InventoryUtils.applyDyeGuideScan(
+            listOf(dye("jade", 9)),
+            mapOf("jade" to dye("jade", 2)),
+            emptySet()
+        )
+
+        assertEquals(listOf(dye("jade", 2)), updated)
+    }
+
+    @Test
+    fun `dyes the scan did not show stay in the collection`() {
+        val updated = InventoryUtils.applyDyeGuideScan(
+            listOf(dye("jade", 2), dye("emerald", 1), dye("copper", 4)),
+            mapOf("fossil" to dye("fossil", 1)),
+            setOf("emerald")
+        )
+
+        assertEquals(setOf("jade", "copper", "fossil"), updated.map { it.dyeId }.toSet())
+    }
+
+    @Test
+    fun `an owned dye wins over a 0 from the same scan`() {
+        val updated = InventoryUtils.applyDyeGuideScan(
+            listOf(dye("jade", 2)),
+            mapOf("jade" to dye("jade", 3)),
+            setOf("jade")
+        )
+
+        assertEquals(listOf(dye("jade", 3)), updated)
     }
 }

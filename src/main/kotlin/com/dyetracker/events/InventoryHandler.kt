@@ -6,6 +6,7 @@ import com.dyetracker.data.DroppedDye
 import com.dyetracker.data.RngDataStore
 import com.dyetracker.data.VisitorEntry
 import com.dyetracker.rotation.RotationPusher
+import com.dyetracker.sync.SyncManager
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.Screen
@@ -32,6 +33,9 @@ object InventoryHandler {
 
     // Accumulated dyes across all pages while the Dye Compendium is open
     private val accumulatedDyes = mutableMapOf<String, DroppedDye>()
+
+    // Dyes shown at 0 owned while the Dye Compendium is open
+    private val zeroOwnedDyes = mutableSetOf<String>()
 
     // Accumulated visitors (de-duped by name) across all pages while the Visitor's Logbook is open (PBI 42)
     private val accumulatedVisitors = mutableMapOf<String, VisitorEntry>()
@@ -153,6 +157,7 @@ object InventoryHandler {
      */
     private fun scheduleCompendiumScan(client: Minecraft, screen: AbstractContainerScreen<*>) {
         accumulatedDyes.clear()
+        zeroOwnedDyes.clear()
         var ticksSinceLastScan = SCAN_DELAY_TICKS // Start with initial delay worth of ticks
 
         // Periodic scan while screen is open
@@ -171,7 +176,8 @@ object InventoryHandler {
     }
 
     /**
-     * Scan the current page of the Dye Compendium and accumulate obtained dyes.
+     * Scan the current page of the Dye Compendium and accumulate obtained dyes, plus the dyes it
+     * shows at 0 owned.
      */
     private fun scanCompendiumPage(screen: AbstractContainerScreen<*>) {
         val handler = screen.menu
@@ -183,30 +189,32 @@ object InventoryHandler {
                 DyeTrackerMod.debug("Found obtained dye: {}", dye.dyeId)
             }
         }
+        zeroOwnedDyes.addAll(InventoryUtils.extractZeroOwnedDyeIds(handler.slots))
     }
 
     /**
      * Called when the Dye Compendium screen closes.
-     * Merges accumulated dyes with existing collection and pushes to the data store.
+     * Applies what the screen showed to the existing collection and pushes to the data store. Dyes
+     * shown at 0 are queued for the next sync, so their rows are deleted on the server too.
      */
     private fun finalizeCompendium() {
-        if (accumulatedDyes.isEmpty()) {
-            DyeTrackerMod.debug("No obtained dyes found in Dye Compendium")
+        if (accumulatedDyes.isEmpty() && zeroOwnedDyes.isEmpty()) {
+            DyeTrackerMod.debug("No dyes found in Dye Compendium")
             return
         }
 
-        // Merge with existing collection so previous pages aren't lost
-        val existing = RngDataStore.getDyeCollection()
-        val merged = mutableMapOf<String, DroppedDye>()
-        existing?.dyes?.forEach { merged[it.dyeId] = it }
-        merged.putAll(accumulatedDyes) // New data overwrites old for same dye ID
+        val existing = RngDataStore.getDyeCollection()?.dyes.orEmpty()
+        val updated = InventoryUtils.applyDyeGuideScan(existing, accumulatedDyes, zeroOwnedDyes)
 
-        RngDataStore.updateDyeCollection(merged.values.toList())
+        // Queued before the update, which is what schedules the sync
+        SyncManager.queueDyeRemovals(zeroOwnedDyes - accumulatedDyes.keys)
+        RngDataStore.updateDyeCollection(updated)
         DyeTrackerMod.info(
-            "Dye Compendium: {} new dyes this session, {} total in collection",
-            accumulatedDyes.size, merged.size
+            "Dye Compendium: {} new dyes this session, {} shown at 0, {} total in collection",
+            accumulatedDyes.size, zeroOwnedDyes.size, updated.size
         )
         accumulatedDyes.clear()
+        zeroOwnedDyes.clear()
     }
 
     /**

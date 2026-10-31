@@ -289,6 +289,20 @@ object InventoryUtils {
     }
 
     /**
+     * True when the lore says the player owns none of this dye: at least one ownership line, all
+     * of them 0. No ownership line at all is not a zero (a half-loaded tooltip, or a real dye item
+     * in the player's inventory), so [extractOwnedCount]'s 0 can't answer this.
+     */
+    fun statesZeroOwned(loreLines: List<String>): Boolean {
+        val counts = loreLines.flatMap { line ->
+            OWNED_COUNT_PATTERNS.mapNotNull { pattern ->
+                pattern.find(line)?.groupValues?.get(1)?.toIntOrNull()
+            }
+        }
+        return counts.isNotEmpty() && counts.all { it == 0 }
+    }
+
+    /**
      * Parse a dye item from the Dye Compendium into a DroppedDye.
      * Returns null if the item is not a recognized dye or if the player does not own it.
      * A dye is captured when it has any ownership count > 0 ("You've dropped:" OR "You've bought:");
@@ -342,6 +356,37 @@ object InventoryUtils {
             }
         }
         return dyes
+    }
+
+    /**
+     * Extract the IDs of the dyes a Vincent inventory screen shows at 0 owned.
+     */
+    fun extractZeroOwnedDyeIds(slots: Iterable<net.minecraft.world.inventory.Slot>): Set<String> {
+        val dyeIds = mutableSetOf<String>()
+        for (slot in slots) {
+            val stack = slot.item
+            if (stack.isEmpty) continue
+
+            val dyeId = resolveDyeId(stack) ?: continue
+            if (statesZeroOwned(getLore(stack).map { stripFormatting(it.string) })) {
+                dyeIds.add(dyeId)
+            }
+        }
+        return dyeIds
+    }
+
+    /**
+     * Apply what the Dye Guide showed to the stored collection: dyes shown as owned are
+     * overwritten, dyes shown at 0 are removed, and dyes it didn't show stay. A full replace would
+     * keep only the last page viewed, because each page closes and finalizes separately.
+     */
+    fun applyDyeGuideScan(
+        existing: List<DroppedDye>,
+        owned: Map<String, DroppedDye>,
+        zeroOwned: Set<String>
+    ): List<DroppedDye> {
+        val kept = existing.filterNot { it.dyeId in zeroOwned }
+        return (kept.associateBy { it.dyeId } + owned).values.toList()
     }
 
     // ==================== Vincent Dye Rotation Parsing ====================

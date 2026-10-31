@@ -222,15 +222,19 @@ object ApiClient {
     }
 
     /**
-     * Sync dye collection to the backend.
+     * Sync dye collection to the backend, deleting the rows of [removedDyeIds].
      * Requires authentication.
      */
-    fun syncDyeCollection(collection: DyeCollection): ApiResult<SyncDyeCollectionResponse> {
+    fun syncDyeCollection(
+        collection: DyeCollection,
+        removedDyeIds: Set<String> = emptySet()
+    ): ApiResult<SyncDyeCollectionResponse> {
         val url = "${ConfigManager.config.apiUrl}/api/v1/dye-collection"
 
         val requestBody = SyncDyeCollectionRequest(
             profileId = collection.profileId,
             dyes = collection.dyes,
+            removedDyeIds = removedDyeIds.toList(),
             modTimestamp = collection.lastUpdated
         )
         val body = json.encodeToString(requestBody)

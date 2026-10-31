@@ -88,6 +88,7 @@ data class SyncRngDataResponse(
 data class SyncDyeCollectionRequest(
     val profileId: String,
     val dyes: List<DroppedDye>,
+    val removedDyeIds: List<String> = emptyList(),
     val modTimestamp: Long
 )
 

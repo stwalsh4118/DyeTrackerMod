@@ -92,7 +92,7 @@ Open the menu with `/dyetracker`, or bind a key to **Open DyeTracker Menu** in *
 **Collection tab**
 
 - Shows every dye: the ones you own are highlighted with a check mark (or a count when you have more than one), and the ones you're missing are greyed out. A summary at the top says how many you own and the percentage.
-- Your collection comes from syncing Vincent's Dye Guide while your account is linked. Until then every dye is greyed and the tab tells you how to record it.
+- Your collection comes from syncing Vincent's Dye Guide while your account is linked. Until then every dye is greyed and the tab tells you how to record it. Each page you open also corrects your collection: a dye it shows at 0 is removed.
 - Filter by category (each chip shows how many of that category you own) and by **All / Owned / Unowned**.
 - The **Drop Timeline** below the grid lists the dyes you own with a drop date, newest first, with the date and how long ago it was.
 

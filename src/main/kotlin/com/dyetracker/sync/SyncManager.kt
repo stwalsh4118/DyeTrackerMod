@@ -41,6 +41,12 @@ object SyncManager : RngDataChangeListener {
 
     private val syncLock = Any()
 
+    // Dyes the Dye Guide showed at 0 owned, sent once with the next collection sync. Kept out of
+    // the stored collection: that list is re-sent on every sync and isn't per SkyBlock profile, so
+    // a stored removal could delete another profile's real dye. Reopening the Guide queues them
+    // again if a send fails.
+    private val pendingDyeRemovals = mutableSetOf<String>()
+
     @Volatile
     private var lastSyncTime: Long = 0
 
@@ -90,6 +96,23 @@ object SyncManager : RngDataChangeListener {
             }, SYNC_DEBOUNCE_MS, TimeUnit.MILLISECONDS)
 
             DyeTrackerMod.info("Sync scheduled in {}s", SYNC_DEBOUNCE_MS / 1000)
+        }
+    }
+
+    /**
+     * Queue dyes whose collection rows the next sync should delete.
+     */
+    fun queueDyeRemovals(dyeIds: Set<String>) {
+        synchronized(syncLock) {
+            pendingDyeRemovals.addAll(dyeIds)
+        }
+    }
+
+    private fun takeDyeRemovals(): Set<String> {
+        synchronized(syncLock) {
+            val removals = pendingDyeRemovals.toSet()
+            pendingDyeRemovals.clear()
+            return removals
         }
     }
 
@@ -181,11 +204,15 @@ object SyncManager : RngDataChangeListener {
      * Called after successful RNG data sync to piggyback on the same debounce.
      */
     private fun syncDyeCollectionIfPresent(collection: DyeCollection?) {
-        if (collection == null || collection.dyes.isEmpty()) return
+        val removedDyeIds = takeDyeRemovals()
+        if (collection == null || (collection.dyes.isEmpty() && removedDyeIds.isEmpty())) return
 
-        DyeTrackerMod.info("Syncing dye collection ({} dyes)...", collection.dyes.size)
+        DyeTrackerMod.info(
+            "Syncing dye collection ({} dyes, {} removed)...",
+            collection.dyes.size, removedDyeIds.size
+        )
         try {
-            val result = ApiClient.syncDyeCollection(collection)
+            val result = ApiClient.syncDyeCollection(collection, removedDyeIds)
             when (result) {
                 is ApiClient.ApiResult.Success -> {
                     DyeTrackerMod.info("Dye collection synced: {} dyes", result.data.syncedCount)
