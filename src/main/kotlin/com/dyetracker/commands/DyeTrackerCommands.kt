@@ -1372,7 +1372,7 @@ object DyeTrackerCommands {
                             .withStyle(ChatFormatting.WHITE)
                     )
                     .append(
-                        Component.literal(" (1/250,000)")
+                        Component.literal(" (1/100,000)")
                             .withStyle(ChatFormatting.DARK_GRAY)
                     )
             )
@@ -1419,7 +1419,7 @@ object DyeTrackerCommands {
                             .withStyle(ChatFormatting.WHITE)
                     )
                     .append(
-                        Component.literal(" (1/500,000)")
+                        Component.literal(" (1/250,000)")
                             .withStyle(ChatFormatting.DARK_GRAY)
                     )
             )
